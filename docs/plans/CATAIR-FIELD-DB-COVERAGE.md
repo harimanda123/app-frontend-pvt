@@ -13,9 +13,9 @@
 >   - Removed invalid `CustomsFiling.transactionTypeId` citation (field mentioned in deprecation comment was never added to schema; redirected to valid `CustomsFiling.procedureCode` / `CustomsFiling.filingType`).
 >   - Removed non-existent `CustomsProfile.filerCode` citation (3-character CBP Filer Code per se does not exist in Prisma schema; reclassified to **MISSING**).
 >   - Removed invalid `LicenseCertificatePermitInput` citation (cited a TypeScript interface name instead of a Prisma model; reclassified to **MISSING**).
-> - **Zero Invalid Citations Remaining**: All **305 COVERED and PARTIAL citations** in this report cite active, non-deprecated fields that genuinely exist in `prisma/schema.prisma`.
+> - **Zero Invalid Citations Remaining**: All **262 COVERED and PARTIAL citations** in this report cite active, non-deprecated fields that genuinely exist in `prisma/schema.prisma`.
 > 
-> Final verified totals: **101 COVERED (10.9%)**, **204 PARTIAL (22.1%)**, **620 MISSING (67.0%)**, and **494 NOT APPLICABLE** (out of 925 active business fields).
+> Final verified totals (post Statement-chapter over-citation fix, see Overall Summary below): **101 COVERED (10.9%)**, **161 PARTIAL (17.4%)**, **663 MISSING (71.7%)**, and **494 NOT APPLICABLE** (out of 925 active business fields). These are the authoritative totals — they match the Executive Summary Table and Overall Summary below; an earlier draft of this callout (204 PARTIAL / 620 MISSING) predated that fix and has been corrected here.
 
 
 ## Executive Summary Table
