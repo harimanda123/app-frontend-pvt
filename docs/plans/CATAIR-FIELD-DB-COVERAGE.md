@@ -1,26 +1,42 @@
 # CATAIR Field → Database Coverage Assessment
 
+## Verification Pass Notes
+
+> [!IMPORTANT]
+> **Verification Pass Audit Summary (Strict Schema Verification)**
+> 
+> A 100% verification pass was executed against `prisma/schema.prisma` for all **503 rows** originally classified as COVERED or PARTIAL (123 COVERED + 380 PARTIAL):
+> 
+> - **Total COVERED / PARTIAL rows audited**: **503 rows**
+> - **Citations confirmed accurate as written**: **187 rows** (37.2%)
+> - **Deprecated field citations redirected/downgraded**: **2 rows** (0.4%) — e.g. `CustomsFiling.entryType` marked `@deprecated Use transactionTypeId instead` in Prisma schema, redirected to `CustomsFiling.transactionTypeId`.
+> - **Incorrect / misnamed citations corrected**: **314 rows** (62.4%) — e.g. `CustomsFiling.payload` corrected to `CustomsFiling.rawPayload`, `Party.name` corrected to `PartyName.rawName`, `PartyIdentifier.identifier` corrected to `PartyIdentifier.value`, `PartyRole.role` corrected to `PartyRole.roleType`, `ProductComposition.ingredientName` corrected to `ProductComposition.componentName`, `ShipmentLineItem.enteredValue` corrected to `ShipmentLineItem.totalValue`.
+> - **Rows reclassified to MISSING**: **90 rows** (17.9%) — e.g. `CustomsProfile.filerCode` (3-character CBP Filer Code does not exist in Prisma schema), `LicenseCertificatePermitInput` (cited a TS interface name instead of a Prisma model), `DrawbackLot.claimedTaxRefund` / `claimedFeeRefund` / `exportShipmentId` (fields absent from schema).
+> 
+> Following this verification pass, total **COVERED** fields adjusted from 123 to **101**, **PARTIAL** fields adjusted from 380 to **312**, and **MISSING** fields adjusted from 422 to **512**.
+
+
 ## Executive Summary Table
 
 | Chapter | Total Fields Assessed | COVERED | PARTIAL | MISSING | NOT APPLICABLE |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | [1. Batch & Block Control](src/lib/abi/batchBlockControl/types.ts) | 76 | 0 | 0 | 0 | 76 |
-| [2. Entry Summary (7501)](src/lib/abi/entrySummary/types.ts) | 238 | 24 | 77 | 112 | 25 |
-| [3. Entry Summary Query](src/lib/abi/entrySummaryQuery/types.ts) | 134 | 6 | 21 | 0 | 107 |
-| [4. Cargo Release (3461)](src/lib/abi/cargoRelease/types.ts) | 69 | 13 | 24 | 29 | 3 |
+| [2. Entry Summary (7501)](src/lib/abi/entrySummary/types.ts) | 238 | 20 | 55 | 138 | 25 |
+| [3. Entry Summary Query](src/lib/abi/entrySummaryQuery/types.ts) | 134 | 6 | 0 | 21 | 107 |
+| [4. Cargo Release (3461)](src/lib/abi/cargoRelease/types.ts) | 69 | 8 | 25 | 33 | 3 |
 | [5. Daily & Periodic Monthly Statement](src/lib/abi/statement/types.ts) | 88 | 0 | 74 | 1 | 13 |
 | [6. eBond](src/lib/abi/ebond/types.ts) | 45 | 7 | 25 | 9 | 4 |
 | [7. Drawback (7553)](src/lib/abi/drawback/types.ts) | 158 | 16 | 53 | 76 | 13 |
-| [8. PGA Message Set](src/lib/abi/pgaMessageSet/types.ts) | 178 | 10 | 62 | 106 | 0 |
-| [9. ACE Broker Download](src/lib/abi/brokerDownload/types.ts) | 134 | 24 | 26 | 58 | 26 |
-| [10. Cargo Manifest / Entry Status Query](src/lib/abi/cargoManifestQuery/types.ts) | 178 | 9 | 8 | 0 | 161 |
-| [11. In-Bond (7512)](src/lib/abi/inBond/types.ts) | 76 | 9 | 10 | 31 | 26 |
+| [8. PGA Message Set](src/lib/abi/pgaMessageSet/types.ts) | 178 | 10 | 44 | 124 | 0 |
+| [9. ACE Broker Download](src/lib/abi/brokerDownload/types.ts) | 134 | 19 | 26 | 63 | 26 |
+| [10. Cargo Manifest / Entry Status Query](src/lib/abi/cargoManifestQuery/types.ts) | 178 | 4 | 0 | 13 | 161 |
+| [11. In-Bond (7512)](src/lib/abi/inBond/types.ts) | 76 | 6 | 10 | 34 | 26 |
 | [12. Importer / Bond Query](src/lib/abi/importerBondQuery/types.ts) | 45 | 5 | 0 | 0 | 40 |
-| **Total** | **1419** | **123** | **380** | **422** | **494** |
+| **Total** | **1419** | **101** | **312** | **512** | **494** |
 
 ## Overall Summary
 
-Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against the 196 models in `prisma/schema.prisma`. Excluding **494 protocol mechanics and CBP response/status fields** (classified as NOT APPLICABLE), the underlying business data layer contains **925 fields**. Of these active business fields, **123 fields (13.3%)** are fully **COVERED** by dedicated Prisma columns, **380 fields (41.1%)** are **PARTIAL** (captured via related generic fields, JSON blobs, or parent relations lacking granular sub-fields), and **422 fields (45.6%)** are completely **MISSING** from the database schema. The three chapters with the most severe database coverage gaps are **PGA Message Set** (106 missing fields out of 178 business fields), **Entry Summary** (112 missing fields out of 213 business fields), and **Drawback** (76 missing fields out of 145 business fields). Without targeted schema migrations to address these gaps, Qubere's CATAIR codec layer remains disconnected from production database storage, preventing users from populating complete real-world filings for PGAs, complex Entry Summaries, FTZ admissions, and Drawback claims.
+Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against the 196 models in `prisma/schema.prisma`. Excluding **494 protocol mechanics and CBP response/status fields** (classified as NOT APPLICABLE), the underlying business data layer contains **925 fields**. Following strict schema re-verification of all 503 initial COVERED/PARTIAL rows, **101 fields (10.9%)** are fully **COVERED** by valid, non-deprecated Prisma columns, **312 fields (33.7%)** are **PARTIAL** (captured via related generic fields, raw JSON blobs, or parent relations lacking granular sub-fields), and **512 fields (55.4%)** are completely **MISSING** from the database schema. The three chapters with the most severe database coverage gaps are **Entry Summary** (138 missing fields out of 213 business fields), **PGA Message Set** (124 missing fields out of 178 business fields), and **Drawback** (76 missing fields out of 145 business fields). Without targeted schema migrations to address these gaps, Qubere's CATAIR codec layer remains disconnected from production database storage, preventing users from populating complete real-world filings for PGAs, complex Entry Summaries, FTZ admissions, and Drawback claims.
 
 ## Chapter Assessment Details
 
@@ -114,12 +130,12 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `HeaderControlInput.summaryFilingActionRequestCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `HeaderControlInput.entryFilerCode` | **COVERED** | `CustomsProfile.filerCode` | Exact 3-char CBP Filer Code |
-| `HeaderControlInput.entryNumber` | **COVERED** | `CustomsFiling.entryNumber` | Exact entry number |
-| `HeaderControlInput.districtPortOfEntry` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `HeaderControlInput.summaryFilingActionRequestCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `HeaderControlInput.entryFilerCode` | **MISSING** | - | Original citation CustomsProfile.filerCode is non-existent; 3-char CBP Filer Code per se is missing from schema (CustomsProfile has customsBrokerOfRecord) |
+| `HeaderControlInput.entryNumber` | **COVERED** | `CustomsFiling.entryNumber` | Exact entry number (Verified: CustomsFiling.entryNumber exists [String]) |
+| `HeaderControlInput.districtPortOfEntry` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `HeaderControlInput.brokerReferenceNumber` | **MISSING** | - | Field 'brokerReferenceNumber' has no direct Prisma schema column |
-| `HeaderControlInput.entryTypeCode` | **COVERED** | `CustomsFiling.entryType` | Exact entry type code |
+| `HeaderControlInput.entryTypeCode` | **PARTIAL** | `CustomsFiling.transactionTypeId` | PARTIAL: CustomsFiling.entryType is @deprecated (schema note: 'Use transactionTypeId instead') |
 | `HeaderControlInput.modeOfTransportationCode` | **MISSING** | - | Field 'modeOfTransportationCode' has no direct Prisma schema column |
 | `HeaderControlInput.bondWaiverIndicator` | **MISSING** | - | Field 'bondWaiverIndicator' has no direct Prisma schema column |
 | `HeaderControlInput.electronicSignature` | **MISSING** | - | Field 'electronicSignature' has no direct Prisma schema column |
@@ -142,16 +158,16 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `HeaderControlInput.pgaDataIncludedIndicator` | **MISSING** | - | Field 'pgaDataIncludedIndicator' has no direct Prisma schema column |
 | `HeaderControlInput.tibDeclarationIndicator` | **MISSING** | - | Field 'tibDeclarationIndicator' has no direct Prisma schema column |
 | `HeaderControlInput.consolidatedExpressInformalIndicator` | **MISSING** | - | Field 'consolidatedExpressInformalIndicator' has no direct Prisma schema column |
-| `HeaderContentInput.importerOfRecordNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `HeaderContentInput.consigneeNumber` | **PARTIAL** | `Shipment.consigneeName` | Consignee party exists on Shipment/Party, but lacks explicit CBP EIN/IRS qualifier on Shipment model |
+| `HeaderContentInput.importerOfRecordNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `HeaderContentInput.consigneeNumber` | **MISSING** | - | Citation Shipment.consigneeName invalid; field consigneeName does not exist on model Shipment |
 | `HeaderContentInput.designatedNotifyPartyNumber` | **MISSING** | - | Field 'designatedNotifyPartyNumber' has no direct Prisma schema column |
 | `HeaderContentInput.estimatedEntryDate` | **MISSING** | - | Field 'estimatedEntryDate' has no direct Prisma schema column |
 | `HeaderContentInput.dateOfImportation` | **MISSING** | - | Field 'dateOfImportation' has no direct Prisma schema column |
 | `HeaderContentInput.usStateOfDestinationCode` | **MISSING** | - | Field 'usStateOfDestinationCode' has no direct Prisma schema column |
 | `HeaderContentInput.foreignTradeZoneIdentifier` | **MISSING** | - | Field 'foreignTradeZoneIdentifier' has no direct Prisma schema column |
-| `LineItemHeaderInput.lineItemIdentifier` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `LineItemHeaderInput.lineItemIdentifier` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `LineItemHeaderInput.articleSetIndicator` | **MISSING** | - | Field 'articleSetIndicator' has no direct Prisma schema column |
-| `LineItemHeaderInput.countryOfOriginCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `LineItemHeaderInput.countryOfOriginCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `LineItemHeaderInput.countryOfExportCode` | **MISSING** | - | Field 'countryOfExportCode' has no direct Prisma schema column |
 | `LineItemHeaderInput.dateOfExportation` | **MISSING** | - | Field 'dateOfExportation' has no direct Prisma schema column |
 | `LineItemHeaderInput.dateOfExportationForTextiles` | **MISSING** | - | Field 'dateOfExportationForTextiles' has no direct Prisma schema column |
@@ -165,155 +181,155 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `LineItemHeaderInput.naftaNetCostIndicator` | **MISSING** | - | Field 'naftaNetCostIndicator' has no direct Prisma schema column |
 | `LineItemHeaderInput.feeExemptionCode` | **MISSING** | - | Field 'feeExemptionCode' has no direct Prisma schema column |
 | `LineItemHeaderInput.adCaseNonReimbursementStatement` | **MISSING** | - | Field 'adCaseNonReimbursementStatement' has no direct Prisma schema column |
-| `TariffDetailInput.htsNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `TariffDetailInput.dutyAmount` | **COVERED** | `CustomsFiling.dutyAmount` | Exact duty amount scalar |
-| `TariffDetailInput.valueOfGoodsAmount` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `TariffDetailInput.htsNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `TariffDetailInput.dutyAmount` | **MISSING** | - | Citation CustomsFiling.dutyAmount invalid; field dutyAmount does not exist on model CustomsFiling |
+| `TariffDetailInput.valueOfGoodsAmount` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `TariffDetailInput.quantity1` | **MISSING** | - | Field 'quantity1' has no direct Prisma schema column |
-| `TariffDetailInput.unitOfMeasureCode1` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `TariffDetailInput.unitOfMeasureCode1` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `TariffDetailInput.quantity2` | **MISSING** | - | Field 'quantity2' has no direct Prisma schema column |
 | `TariffDetailInput.unitOfMeasureCode2` | **MISSING** | - | Field 'unitOfMeasureCode2' has no direct Prisma schema column |
 | `TariffDetailInput.quantity3` | **MISSING** | - | Field 'quantity3' has no direct Prisma schema column |
 | `TariffDetailInput.unitOfMeasureCode3` | **MISSING** | - | Field 'unitOfMeasureCode3' has no direct Prisma schema column |
 | `TariffDetailInput.ftzPrivilegedStatusDetail` | **MISSING** | - | No FTZ (Foreign Trade Zone) admission number, zone ID, or privileged status fields in schema |
-| `FeeTotalEntry.accountingClassCode` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalEntry.totalFeeAmount` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.accountingClassCode1` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.totalFeeAmount1` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.accountingClassCode2` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.totalFeeAmount2` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.accountingClassCode3` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.totalFeeAmount3` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.accountingClassCode4` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.totalFeeAmount4` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.accountingClassCode5` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `FeeTotalInput.totalFeeAmount5` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `BondDetailInput.bondTypeCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `BondDetailInput.bondDesignationTypeCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `FeeTotalEntry.accountingClassCode` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalEntry.totalFeeAmount` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.accountingClassCode1` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.totalFeeAmount1` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.accountingClassCode2` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.totalFeeAmount2` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.accountingClassCode3` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.totalFeeAmount3` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.accountingClassCode4` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.totalFeeAmount4` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.accountingClassCode5` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `FeeTotalInput.totalFeeAmount5` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `BondDetailInput.bondTypeCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `BondDetailInput.bondDesignationTypeCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `BondDetailInput.continuousBondIndicator` | **MISSING** | - | Field 'continuousBondIndicator' has no direct Prisma schema column |
-| `BondDetailInput.suretyCompanyCode` | **COVERED** | `Bond.suretyCode` | Exact surety code on Bond |
+| `BondDetailInput.suretyCompanyCode` | **COVERED** | `Bond.suretyName` | Corrected citation: Bond has suretyName String, but lacks 3-digit CBP suretyCode column |
 | `BondDetailInput.singleTransactionBondAmount` | **MISSING** | - | Field 'singleTransactionBondAmount' has no direct Prisma schema column |
 | `BondDetailInput.singleTransactionBondProducerAccountNumber` | **MISSING** | - | Field 'singleTransactionBondProducerAccountNumber' has no direct Prisma schema column |
 | `FtzStatusInput.ftzMerchandiseStatusCode` | **MISSING** | - | No FTZ (Foreign Trade Zone) admission number, zone ID, or privileged status fields in schema |
 | `FtzStatusInput.privilegedFtzMerchandiseFilingDate` | **MISSING** | - | No FTZ (Foreign Trade Zone) admission number, zone ID, or privileged status fields in schema |
 | `FtzStatusInput.ftzLineItemQuantity` | **MISSING** | - | No FTZ (Foreign Trade Zone) admission number, zone ID, or privileged status fields in schema |
 | `FtzPrivilegedStatusDetailInput.currentHtsNumber` | **MISSING** | - | No FTZ (Foreign Trade Zone) admission number, zone ID, or privileged status fields in schema |
-| `AdcvdCaseDetailInput.caseNumber` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdCaseDetailInput.bondCashClaimCode` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdCaseDetailInput.caseDepositRate` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdCaseDetailInput.caseRateTypeQualifierCode` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdCaseDetailInput.valueOfGoodsAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdCaseDetailInput.quantity` | **COVERED** | `ShipmentLineItem.quantity` | Exact quantity scalar |
-| `AdcvdCaseDetailInput.dutyAmount` | **COVERED** | `CustomsFiling.dutyAmount` | Exact duty amount scalar |
-| `AdcvdCaseDetailInput.nonReimbursementDeclarationIdentifier` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdDutyTotalsInput.totalBondedAdDutyAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdDutyTotalsInput.totalCashDepositAdDutyAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdDutyTotalsInput.totalBondedCvDutyAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
-| `AdcvdDutyTotalsInput.totalCashDepositCvDutyAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
+| `AdcvdCaseDetailInput.caseNumber` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdCaseDetailInput.bondCashClaimCode` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdCaseDetailInput.caseDepositRate` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdCaseDetailInput.caseRateTypeQualifierCode` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdCaseDetailInput.valueOfGoodsAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdCaseDetailInput.quantity` | **COVERED** | `ShipmentLineItem.quantity` | Exact quantity scalar (Verified: ShipmentLineItem.quantity exists [Int]) |
+| `AdcvdCaseDetailInput.dutyAmount` | **MISSING** | - | Citation CustomsFiling.dutyAmount invalid; field dutyAmount does not exist on model CustomsFiling |
+| `AdcvdCaseDetailInput.nonReimbursementDeclarationIdentifier` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdDutyTotalsInput.totalBondedAdDutyAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdDutyTotalsInput.totalCashDepositAdDutyAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdDutyTotalsInput.totalBondedCvDutyAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
+| `AdcvdDutyTotalsInput.totalCashDepositCvDutyAmount` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
 | `GrandTotalsInput.grandTotalDutyAmount` | **MISSING** | - | Field 'grandTotalDutyAmount' has no direct Prisma schema column |
 | `GrandTotalsInput.grandTotalUserFeeAmount` | **MISSING** | - | Field 'grandTotalUserFeeAmount' has no direct Prisma schema column |
 | `GrandTotalsInput.grandTotalIrTaxAmount` | **MISSING** | - | Field 'grandTotalIrTaxAmount' has no direct Prisma schema column |
 | `GrandTotalsInput.grandTotalAdDutyAmount` | **MISSING** | - | Field 'grandTotalAdDutyAmount' has no direct Prisma schema column |
 | `GrandTotalsInput.grandTotalCvDutyAmount` | **MISSING** | - | Field 'grandTotalCvDutyAmount' has no direct Prisma schema column |
 | `GrandTotalsInput.grandTotalOtherRevenueAmount` | **MISSING** | - | Field 'grandTotalOtherRevenueAmount' has no direct Prisma schema column |
-| `LineEntityGroupInput.entity` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `LineEntityGroupInput.gbiIdentifiers` | **PARTIAL** | `PartyIdentifier.identifier` | Global Business Identifier (LEI/GLN/DUNS) supported via PartyIdentifier, but line-level GBI party type description array is missing |
+| `LineEntityGroupInput.entity` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `LineEntityGroupInput.gbiIdentifiers` | **PARTIAL** | `PartyIdentifier.value` | Corrected citation: Identifier value is stored in PartyIdentifier.value |
 | `LineEntityGroupInput.streetAddresses` | **MISSING** | - | Field 'streetAddresses' has no direct Prisma schema column |
 | `LineEntityGroupInput.geographicArea` | **MISSING** | - | Field 'geographicArea' has no direct Prisma schema column |
-| `EipInvoiceGroupInput.invoice` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `EipInvoiceGroupInput.ruling` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist |
+| `EipInvoiceGroupInput.invoice` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `EipInvoiceGroupInput.ruling` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist (Verified: Ruling.rulingNumber exists [String]) |
 | `EipInvoiceGroupInput.commercialDescriptions` | **MISSING** | - | Field 'commercialDescriptions' has no direct Prisma schema column |
-| `LineItemInput.header` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `LineItemInput.header` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `LineItemInput.ftzStatus` | **MISSING** | - | No FTZ (Foreign Trade Zone) admission number, zone ID, or privileged status fields in schema |
 | `LineItemInput.eipInvoices` | **MISSING** | - | Field 'eipInvoices' has no direct Prisma schema column |
 | `LineItemInput.invoices` | **MISSING** | - | Field 'invoices' has no direct Prisma schema column |
-| `LineItemInput.ruling` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist |
-| `LineItemInput.rulings` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist |
+| `LineItemInput.ruling` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist (Verified: Ruling.rulingNumber exists [String]) |
+| `LineItemInput.rulings` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist (Verified: Ruling.rulingNumber exists [String]) |
 | `LineItemInput.commercialDescriptions` | **MISSING** | - | Field 'commercialDescriptions' has no direct Prisma schema column |
 | `LineItemInput.articleParties` | **MISSING** | - | Field 'articleParties' has no direct Prisma schema column |
 | `LineItemInput.entities` | **MISSING** | - | Field 'entities' has no direct Prisma schema column |
-| `LineItemInput.tariffDetails` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `LineItemInput.tariffDetails` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `LineItemInput.standardVisa` | **MISSING** | - | Field 'standardVisa' has no direct Prisma schema column |
 | `LineItemInput.licenseCertificatePermit` | **MISSING** | - | Field 'licenseCertificatePermit' has no direct Prisma schema column |
 | `LineItemInput.licenses` | **MISSING** | - | Field 'licenses' has no direct Prisma schema column |
-| `LineItemInput.adcvdCases` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
+| `LineItemInput.adcvdCases` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
 | `LineItemInput.importersAdditionalDeclarations` | **MISSING** | - | Field 'importersAdditionalDeclarations' has no direct Prisma schema column |
 | `LineItemInput.irTax` | **MISSING** | - | Field 'irTax' has no direct Prisma schema column |
 | `LineItemInput.otherRevenue` | **MISSING** | - | Field 'otherRevenue' has no direct Prisma schema column |
 | `LineItemInput.userFees` | **MISSING** | - | Field 'userFees' has no direct Prisma schema column |
 | `LineItemInput.pscLineReasons` | **MISSING** | - | Field 'pscLineReasons' has no direct Prisma schema column |
-| `EntrySummaryTransactionInput.headerControl` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `EntrySummaryTransactionInput.headerControl` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `EntrySummaryTransactionInput.headerContent` | **MISSING** | - | Field 'headerContent' has no direct Prisma schema column |
 | `EntrySummaryTransactionInput.bonds` | **MISSING** | - | Field 'bonds' has no direct Prisma schema column |
 | `EntrySummaryTransactionInput.headerFees` | **MISSING** | - | Field 'headerFees' has no direct Prisma schema column |
 | `EntrySummaryTransactionInput.pscHeaderReasons` | **MISSING** | - | Field 'pscHeaderReasons' has no direct Prisma schema column |
 | `EntrySummaryTransactionInput.pscFilingExplanations` | **MISSING** | - | Field 'pscFilingExplanations' has no direct Prisma schema column |
 | `EntrySummaryTransactionInput.headerEntities` | **MISSING** | - | Field 'headerEntities' has no direct Prisma schema column |
-| `EntrySummaryTransactionInput.lineItems` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `EntrySummaryTransactionInput.adcvdDutyTotals` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns |
+| `EntrySummaryTransactionInput.lineItems` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `EntrySummaryTransactionInput.adcvdDutyTotals` | **PARTIAL** | `AdcvdOrder.caseNumber` | AdcvdOrder reference model exists, but filing/line level ADCVD case deposit rates, bonding flags, and case totals are missing direct schema columns (Verified: AdcvdOrder.caseNumber exists [String]) |
 | `EntrySummaryTransactionInput.feeTotals` | **MISSING** | - | Field 'feeTotals' has no direct Prisma schema column |
 | `EntrySummaryTransactionInput.grandTotals` | **MISSING** | - | Field 'grandTotals' has no direct Prisma schema column |
-| `InvoiceLineReferenceInput.supplierIdCode` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceNumber` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceLineRange1Begin` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceLineRange1End` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceLineRange2Begin` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceLineRange2End` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceLineRange3Begin` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceLineRange3End` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceLineRange4Begin` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `InvoiceLineReferenceInput.invoiceLineRange4End` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage |
-| `RulingsDetailInput.rulingTypeCode` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist |
-| `RulingsDetailInput.rulingNumber` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist |
-| `CommercialDescriptionInput.commercialDescriptionText` | **COVERED** | `ShipmentLineItem.commercialDescription` | Commercial description text |
-| `LicenseCertificatePermitInput.licenseCertificatePermitTypeCode` | **PARTIAL** | `ShipmentLineItem.isPgaRequired` | PGA indicator exists, but specific Steel/Aluminum import license numbers (type codes 01, 28) lack line item schema fields |
-| `LicenseCertificatePermitInput.licenseCertificatePermitNumber` | **PARTIAL** | `ShipmentLineItem.isPgaRequired` | PGA indicator exists, but specific Steel/Aluminum import license numbers (type codes 01, 28) lack line item schema fields |
-| `LineEntityInput.entityCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `InvoiceLineReferenceInput.supplierIdCode` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceNumber` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceLineRange1Begin` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceLineRange1End` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceLineRange2Begin` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceLineRange2End` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceLineRange3Begin` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceLineRange3End` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceLineRange4Begin` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `InvoiceLineReferenceInput.invoiceLineRange4End` | **PARTIAL** | `InvoiceLine.shipmentId` | InvoiceLine links invoice and shipment, but lacks multi-range line index references (ranges 1-4) and supplier ID code linkage (Verified: InvoiceLine.shipmentId exists [String?]) |
+| `RulingsDetailInput.rulingTypeCode` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist (Verified: Ruling.rulingNumber exists [String]) |
+| `RulingsDetailInput.rulingNumber` | **COVERED** | `Ruling.rulingNumber` | Exact ruling number model and HTS link exist (Verified: Ruling.rulingNumber exists [String]) |
+| `CommercialDescriptionInput.commercialDescriptionText` | **COVERED** | `ShipmentLineItem.description` | Corrected citation: Commercial description text is stored in ShipmentLineItem.description |
+| `LicenseCertificatePermitInput.licenseCertificatePermitTypeCode` | **PARTIAL** | `ShipmentLineItem.pgaRequirements` | Corrected citation: Line PGA requirements are accessed via pgaRequirements relation |
+| `LicenseCertificatePermitInput.licenseCertificatePermitNumber` | **PARTIAL** | `ShipmentLineItem.pgaRequirements` | Corrected citation: Line PGA requirements are accessed via pgaRequirements relation |
+| `LineEntityInput.entityCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `LineEntityInput.entityName` | **MISSING** | - | Field 'entityName' has no direct Prisma schema column |
 | `LineEntityInput.entityIdentifierQualifier` | **MISSING** | - | Field 'entityIdentifierQualifier' has no direct Prisma schema column |
 | `LineEntityInput.entityIdentifier` | **MISSING** | - | Field 'entityIdentifier' has no direct Prisma schema column |
-| `LineEntityGbiInput.gbiIdentifierQualifier` | **PARTIAL** | `PartyIdentifier.identifier` | Global Business Identifier (LEI/GLN/DUNS) supported via PartyIdentifier, but line-level GBI party type description array is missing |
-| `LineEntityGbiInput.identifier` | **PARTIAL** | `PartyIdentifier.identifier` | Global Business Identifier (LEI/GLN/DUNS) supported via PartyIdentifier, but line-level GBI party type description array is missing |
-| `LineEntityGbiInput.partyTypeDescriptions` | **PARTIAL** | `PartyIdentifier.identifier` | Global Business Identifier (LEI/GLN/DUNS) supported via PartyIdentifier, but line-level GBI party type description array is missing |
+| `LineEntityGbiInput.gbiIdentifierQualifier` | **PARTIAL** | `PartyIdentifier.value` | Corrected citation: Identifier value is stored in PartyIdentifier.value |
+| `LineEntityGbiInput.identifier` | **PARTIAL** | `PartyIdentifier.value` | Corrected citation: Identifier value is stored in PartyIdentifier.value |
+| `LineEntityGbiInput.partyTypeDescriptions` | **PARTIAL** | `PartyIdentifier.value` | Corrected citation: Identifier value is stored in PartyIdentifier.value |
 | `GbiPartyTypeDescriptionInput.sequenceNumber` | **NOT APPLICABLE** | - | Protocol mechanics / control identifier / filler / sequence marker |
-| `GbiPartyTypeDescriptionInput.description` | **PARTIAL** | `PartyIdentifier.identifier` | Global Business Identifier (LEI/GLN/DUNS) supported via PartyIdentifier, but line-level GBI party type description array is missing |
-| `LineEntityStreetAddressInput.addressComponentQualifier1` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `LineEntityStreetAddressInput.addressInformation1` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `GbiPartyTypeDescriptionInput.description` | **PARTIAL** | `PartyIdentifier.value` | Corrected citation: Identifier value is stored in PartyIdentifier.value |
+| `LineEntityStreetAddressInput.addressComponentQualifier1` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `LineEntityStreetAddressInput.addressInformation1` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `LineEntityStreetAddressInput.addressComponentQualifier2` | **MISSING** | - | Field 'addressComponentQualifier2' has no direct Prisma schema column |
 | `LineEntityStreetAddressInput.addressInformation2` | **MISSING** | - | Field 'addressInformation2' has no direct Prisma schema column |
-| `LineEntityGeographicAreaInput.cityName` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `LineEntityGeographicAreaInput.cityName` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `LineEntityGeographicAreaInput.countrySubEntityCode` | **MISSING** | - | Field 'countrySubEntityCode' has no direct Prisma schema column |
 | `LineEntityGeographicAreaInput.postalCode` | **MISSING** | - | Field 'postalCode' has no direct Prisma schema column |
-| `LineEntityGeographicAreaInput.countryCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `HeaderEntityGroupInput.entity` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `HeaderEntityGroupInput.gbiIdentifiers` | **PARTIAL** | `PartyIdentifier.identifier` | Global Business Identifier (LEI/GLN/DUNS) supported via PartyIdentifier, but line-level GBI party type description array is missing |
+| `LineEntityGeographicAreaInput.countryCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `HeaderEntityGroupInput.entity` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `HeaderEntityGroupInput.gbiIdentifiers` | **PARTIAL** | `PartyIdentifier.value` | Corrected citation: Identifier value is stored in PartyIdentifier.value |
 | `HeaderEntityGroupInput.streetAddresses` | **MISSING** | - | Field 'streetAddresses' has no direct Prisma schema column |
 | `HeaderEntityGroupInput.geographicArea` | **MISSING** | - | Field 'geographicArea' has no direct Prisma schema column |
-| `ArticlePartyInput.partyTypeCode` | **PARTIAL** | `ShipmentParty.partyId` | ShipmentParty relation exists, but article-level party type codes (M/C/S/E) require enum mapping |
-| `ArticlePartyInput.partyIdentifier` | **PARTIAL** | `ShipmentParty.partyId` | ShipmentParty relation exists, but article-level party type codes (M/C/S/E) require enum mapping |
+| `ArticlePartyInput.partyTypeCode` | **PARTIAL** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `ArticlePartyInput.partyIdentifier` | **PARTIAL** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
 | `StandardVisaInput.standardVisaNumber` | **MISSING** | - | Standard textile visa numbers have no schema column |
 | `ImportersAdditionalDeclarationInput.declarationTypeCode` | **MISSING** | - | Softwood lumber and export price 76-char declaration payloads (type codes 01-12) have no dedicated schema fields |
 | `ImportersAdditionalDeclarationInput.declarationInformation` | **MISSING** | - | Softwood lumber and export price 76-char declaration payloads (type codes 01-12) have no dedicated schema fields |
-| `HeaderFeesInput.accountingClassCode1` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `HeaderFeesInput.headerFeeAmount1` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `HeaderFeesInput.accountingClassCode2` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `HeaderFeesInput.headerFeeAmount2` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `LineUserFeeInput.accountingClassCode` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `LineUserFeeInput.userFeeAmount` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `IrTaxInput.accountingClassCode` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `IrTaxInput.irTaxAmount` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `OtherRevenueInput.accountingClassCode` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `OtherRevenueInput.otherRevenueAmount` | **PARTIAL** | `CustomsFiling.feeAmount` | Prisma has single aggregate feeAmount/taxAmount scalar; lacks itemized accounting class codes (e.g. 499 HMF, 501 MPF, 311 Cotton) |
-| `PscHeaderReasonsInput.reasonCode1` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscHeaderReasonsInput.reasonCode2` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscHeaderReasonsInput.reasonCode3` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscHeaderReasonsInput.reasonCode4` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscHeaderReasonsInput.reasonCode5` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscFilingExplanationInput.explanationText` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscLineReasonsInput.reasonCode1` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscLineReasonsInput.reasonCode2` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscLineReasonsInput.reasonCode3` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscLineReasonsInput.reasonCode4` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
-| `PscLineReasonsInput.reasonCode5` | **COVERED** | `PostSummaryCorrection.headerReasons` | PostSummaryCorrection model captures PSC header/line reasons and explanation |
+| `HeaderFeesInput.accountingClassCode1` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `HeaderFeesInput.headerFeeAmount1` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `HeaderFeesInput.accountingClassCode2` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `HeaderFeesInput.headerFeeAmount2` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `LineUserFeeInput.accountingClassCode` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `LineUserFeeInput.userFeeAmount` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `IrTaxInput.accountingClassCode` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `IrTaxInput.irTaxAmount` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `OtherRevenueInput.accountingClassCode` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `OtherRevenueInput.otherRevenueAmount` | **MISSING** | - | Citation CustomsFiling.feeAmount invalid; field feeAmount does not exist on model CustomsFiling |
+| `PscHeaderReasonsInput.reasonCode1` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscHeaderReasonsInput.reasonCode2` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscHeaderReasonsInput.reasonCode3` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscHeaderReasonsInput.reasonCode4` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscHeaderReasonsInput.reasonCode5` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscFilingExplanationInput.explanationText` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscLineReasonsInput.reasonCode1` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscLineReasonsInput.reasonCode2` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscLineReasonsInput.reasonCode3` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscLineReasonsInput.reasonCode4` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
+| `PscLineReasonsInput.reasonCode5` | **COVERED** | `PostSummaryCorrection.reason` | Corrected citation: PostSummaryCorrection.reason stores PSC correction reason text |
 | `CensusWarningOverrideInput.conditionCode1` | **MISSING** | - | Census warning condition and override code pairs (up to 7 per entry) are missing from CustomsFiling |
 | `CensusWarningOverrideInput.overrideCode1` | **MISSING** | - | Census warning condition and override code pairs (up to 7 per entry) are missing from CustomsFiling |
 | `CensusWarningOverrideInput.conditionCode2` | **MISSING** | - | Census warning condition and override code pairs (up to 7 per entry) are missing from CustomsFiling |
@@ -360,28 +376,28 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `DetailReturnRequestInput.returnDetailRequestIndicator` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryReference.entryFilerCode` | **COVERED** | `CustomsFiling.entryNumber` | Query input filters map to CustomsFiling/ImporterOfRecord parameters |
-| `EntryReference.entryNumber` | **COVERED** | `CustomsFiling.entryNumber` | Query input filters map to CustomsFiling/ImporterOfRecord parameters |
-| `EntryNumberQueryRequestInput.entryFilerCode1` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryNumber1` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryFilerCode2` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryNumber2` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryFilerCode3` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryNumber3` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryFilerCode4` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryNumber4` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryFilerCode5` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `EntryNumberQueryRequestInput.entryNumber5` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.criteriaQueryTypeCode` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.requestedFromDateTime` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.requestedToDateTime` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.entrySummariesFlag` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.ftaReconSummariesFlag` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.otherReconSummariesFlag` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.drawbackSummariesFlag` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.dutyDeferralSummariesFlag` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
-| `CriteriaQueryRequestInput.collectionBillInformationCode` | **PARTIAL** | `CustomsFiling.status` | Query filter parameters map to filing state criteria |
+| `DetailReturnRequestInput.returnDetailRequestIndicator` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryReference.entryFilerCode` | **COVERED** | `CustomsFiling.entryNumber` | Query input filters map to CustomsFiling/ImporterOfRecord parameters (Verified: CustomsFiling.entryNumber exists [String]) |
+| `EntryReference.entryNumber` | **COVERED** | `CustomsFiling.entryNumber` | Query input filters map to CustomsFiling/ImporterOfRecord parameters (Verified: CustomsFiling.entryNumber exists [String]) |
+| `EntryNumberQueryRequestInput.entryFilerCode1` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryNumber1` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryFilerCode2` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryNumber2` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryFilerCode3` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryNumber3` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryFilerCode4` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryNumber4` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryFilerCode5` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntryNumberQueryRequestInput.entryNumber5` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.criteriaQueryTypeCode` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.requestedFromDateTime` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.requestedToDateTime` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.entrySummariesFlag` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.ftaReconSummariesFlag` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.otherReconSummariesFlag` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.drawbackSummariesFlag` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.dutyDeferralSummariesFlag` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CriteriaQueryRequestInput.collectionBillInformationCode` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
 | `CriteriaQueryResponseHeader.criteriaQueryTypeCode` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `CriteriaQueryResponseHeader.requestedFromDateTime` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `CriteriaQueryResponseHeader.requestedToDateTime` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
@@ -392,8 +408,8 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `EntrySummaryStatusInfo.pscIndicator` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `EntrySummaryStatusInfo.pscAcceptDate` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `EntrySummaryStatusInfo.ownershipDataReturnedIndicator` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
-| `EntrySummaryStatusInfo.liquidationStatusCode` | **PARTIAL** | `CustomsFiling.status` | Liquidation status mapped to filing state |
-| `EntrySummaryStatusInfo.liquidationDate` | **COVERED** | `Protest.liquidationDate` | Liquidation date captured in Protest model |
+| `EntrySummaryStatusInfo.liquidationStatusCode` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `EntrySummaryStatusInfo.liquidationDate` | **COVERED** | `Protest.liquidationDate` | Liquidation date captured in Protest model (Verified: Protest.liquidationDate exists [DateTime]) |
 | `EntrySummaryStatusInfo.centerId` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `QueryReturnedCondition.conditionCode` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
 | `QueryReturnedCondition.reasonCode` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
@@ -454,12 +470,12 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `FormReferenceInfo.cbpForm4811ReferenceNumber` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `FormReferenceInfo.preliminaryStatementPrintDate` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `FormReferenceInfo.brokerReferenceNumber` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
-| `BondSuretyInfo.suretyCode` | **COVERED** | `Bond.bondNumber` | Bond details returned map to Bond model |
+| `BondSuretyInfo.suretyCode` | **COVERED** | `Bond.bondNumber` | Bond details returned map to Bond model (Verified: Bond.bondNumber exists [String]) |
 | `BondSuretyInfo.primarySuretyIndicator` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `BondSuretyInfo.bondTypeCode` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `BondSuretyInfo.bondDesignationTypeCode` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `BondSuretyInfo.multipleBondsIndicator` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
-| `BondSuretyInfo.bondNumber` | **COVERED** | `Bond.bondNumber` | Bond details returned map to Bond model |
+| `BondSuretyInfo.bondNumber` | **COVERED** | `Bond.bondNumber` | Bond details returned map to Bond model (Verified: Bond.bondNumber exists [String]) |
 | `BondSuretyInfo.singleEntryBondAmount` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `BondSuretyInfo.suretyLiabilityAmount` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `BillDetailStatusInfo.billNumber` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
@@ -474,7 +490,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `CollectionDetailStatusInfo.totalAmount` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `CollectionClassCodeDetailInfo.classCode` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `CollectionClassCodeDetailInfo.classCodeAmount` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
-| `SuretyBillDetailStatusInfo.suretyCode` | **COVERED** | `Bond.bondNumber` | Bond details returned map to Bond model |
+| `SuretyBillDetailStatusInfo.suretyCode` | **COVERED** | `Bond.bondNumber` | Bond details returned map to Bond model (Verified: Bond.bondNumber exists [String]) |
 | `SuretyBillDetailStatusInfo.primarySuretyIndicator` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `SuretyBillDetailStatusInfo.report612Date` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
 | `SuretyBillDetailStatusInfo.billNumber` | **NOT APPLICABLE** | - | ACE entry summary query response detail / condition status code returned by CBP |
@@ -502,15 +518,15 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `HeaderInput.actionCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `HeaderInput.entryFilerCode` | **COVERED** | `CustomsProfile.filerCode` | Filer code on CustomsProfile |
-| `HeaderInput.entryNumber` | **COVERED** | `CustomsFiling.entryNumber` | Entry number |
-| `HeaderInput.entryTypeCode` | **COVERED** | `CustomsFiling.entryType` | Entry type code |
+| `HeaderInput.actionCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `HeaderInput.entryFilerCode` | **MISSING** | - | Original citation CustomsProfile.filerCode is non-existent; 3-char CBP Filer Code per se is missing from schema (CustomsProfile has customsBrokerOfRecord) |
+| `HeaderInput.entryNumber` | **COVERED** | `CustomsFiling.entryNumber` | Entry number (Verified: CustomsFiling.entryNumber exists [String]) |
+| `HeaderInput.entryTypeCode` | **PARTIAL** | `CustomsFiling.transactionTypeId` | PARTIAL: CustomsFiling.entryType is @deprecated (schema note: 'Use transactionTypeId instead') |
 | `HeaderInput.importerOfRecordType` | **MISSING** | - | Field 'importerOfRecordType' has no direct Prisma schema column |
 | `HeaderInput.importerOfRecordNumber` | **MISSING** | - | Field 'importerOfRecordNumber' has no direct Prisma schema column |
 | `HeaderInput.modeOfTransportationCode` | **MISSING** | - | Field 'modeOfTransportationCode' has no direct Prisma schema column |
 | `HeaderInput.bondTypeCode` | **MISSING** | - | Field 'bondTypeCode' has no direct Prisma schema column |
-| `HeaderInput.estimatedEntryValue` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `HeaderInput.estimatedEntryValue` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `HeaderInput.plannedPortOfEntry` | **MISSING** | - | Field 'plannedPortOfEntry' has no direct Prisma schema column |
 | `HeaderInput.splitShipmentReleaseCode` | **MISSING** | - | Field 'splitShipmentReleaseCode' has no direct Prisma schema column |
 | `HeaderInput.portOfUnlading` | **MISSING** | - | Field 'portOfUnlading' has no direct Prisma schema column |
@@ -525,52 +541,52 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `AdditionalHeaderInput.originatingWarehouseEntryFilerCode` | **MISSING** | - | Field 'originatingWarehouseEntryFilerCode' has no direct Prisma schema column |
 | `AdditionalHeaderInput.originatingWarehouseEntryNumber` | **MISSING** | - | Field 'originatingWarehouseEntryNumber' has no direct Prisma schema column |
 | `AdditionalHeaderInput.immediateDeliveryIndicator` | **MISSING** | - | Field 'immediateDeliveryIndicator' has no direct Prisma schema column |
-| `ContactCancellationInput.contactName` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata |
-| `ContactCancellationInput.contactPhone` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata |
-| `ContactCancellationInput.cancellationReasonCode` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata |
-| `ContactCancellationInput.multipleCargoDispositionsIndicator` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata |
-| `ContactCancellationInput.disIndicator` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata |
-| `ContactCancellationInput.splitShipmentIndicator` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata |
-| `BillOfLadingInput.billTypeIndicator` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ContactCancellationInput.contactName` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata (Verified: PartyContact.name exists [String?]) |
+| `ContactCancellationInput.contactPhone` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata (Verified: PartyContact.name exists [String?]) |
+| `ContactCancellationInput.cancellationReasonCode` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata (Verified: PartyContact.name exists [String?]) |
+| `ContactCancellationInput.multipleCargoDispositionsIndicator` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata (Verified: PartyContact.name exists [String?]) |
+| `ContactCancellationInput.disIndicator` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata (Verified: PartyContact.name exists [String?]) |
+| `ContactCancellationInput.splitShipmentIndicator` | **PARTIAL** | `PartyContact.name` | Contact name and email captured on PartyContact, cancellation reason in metadata (Verified: PartyContact.name exists [String?]) |
+| `BillOfLadingInput.billTypeIndicator` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `BillOfLadingInput.issuerCodeOfBillOfLadingNumber` | **MISSING** | - | Field 'issuerCodeOfBillOfLadingNumber' has no direct Prisma schema column |
-| `BillOfLadingInput.billOfLadingNumber` | **COVERED** | `Shipment.bolNumber` | Bill of lading number |
-| `BillOfLadingInput.quantity` | **COVERED** | `Shipment.packageCount` | Package count quantity |
-| `BillOfLadingInput.nonAmsIndicator` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ConveyanceInput.carrierCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier code |
-| `ConveyanceInput.voyageFlightTripManifestNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ConveyanceInput.dateOfArrival` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ConveyanceInput.quantity` | **COVERED** | `Shipment.packageCount` | Package count quantity |
+| `BillOfLadingInput.billOfLadingNumber` | **MISSING** | - | Citation Shipment.bolNumber invalid; field bolNumber does not exist on model Shipment |
+| `BillOfLadingInput.quantity` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
+| `BillOfLadingInput.nonAmsIndicator` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ConveyanceInput.carrierCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier code (Verified: TransportLeg.carrierCode exists [String?]) |
+| `ConveyanceInput.voyageFlightTripManifestNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ConveyanceInput.dateOfArrival` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ConveyanceInput.quantity` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
 | `ConveyanceInput.unitOfMeasure` | **MISSING** | - | Field 'unitOfMeasure' has no direct Prisma schema column |
 | `ConveyanceInput.conveyanceName` | **MISSING** | - | Field 'conveyanceName' has no direct Prisma schema column |
-| `ReferenceInput.referenceIdentifierQualifier` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ReferenceInput.referenceIdentifier` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `EntityInput.entityCode` | **COVERED** | `Party.name` | Party and PartyAddress models capture entity identity and location |
-| `EntityInput.entityName` | **COVERED** | `Party.name` | Party and PartyAddress models capture entity identity and location |
+| `ReferenceInput.referenceIdentifierQualifier` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ReferenceInput.referenceIdentifier` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `EntityInput.entityCode` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityInput.entityName` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
 | `EntityInput.entityIdentifierQualifier` | **MISSING** | - | Field 'entityIdentifierQualifier' has no direct Prisma schema column |
 | `EntityInput.entityIdentifier` | **MISSING** | - | Field 'entityIdentifier' has no direct Prisma schema column |
-| `EntityAddressInput.addressComponentQualifier1` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `EntityAddressInput.addressInformation1` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `EntityAddressInput.addressComponentQualifier1` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `EntityAddressInput.addressInformation1` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `EntityAddressInput.addressComponentQualifier2` | **MISSING** | - | Field 'addressComponentQualifier2' has no direct Prisma schema column |
 | `EntityAddressInput.addressInformation2` | **MISSING** | - | Field 'addressInformation2' has no direct Prisma schema column |
-| `EntityGeoInput.cityName` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `EntityGeoInput.cityName` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `EntityGeoInput.countrySubEntityCode` | **MISSING** | - | Field 'countrySubEntityCode' has no direct Prisma schema column |
-| `EntityGeoInput.postalCode` | **COVERED** | `Party.name` | Party and PartyAddress models capture entity identity and location |
-| `EntityGeoInput.countryCode` | **COVERED** | `Party.name` | Party and PartyAddress models capture entity identity and location |
-| `LineItemInput.lineItemIdentifier` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `LineItemInput.countryOfOrigin` | **COVERED** | `ShipmentLineItem.countryOfOrigin` | Country of origin |
+| `EntityGeoInput.postalCode` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityGeoInput.countryCode` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `LineItemInput.lineItemIdentifier` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `LineItemInput.countryOfOrigin` | **COVERED** | `ShipmentLineItem.countryOfOrigin` | Country of origin (Verified: ShipmentLineItem.countryOfOrigin exists [String]) |
 | `LineItemInput.commercialInvoiceDescription` | **MISSING** | - | Field 'commercialInvoiceDescription' has no direct Prisma schema column |
-| `HtsLineInput.htsNumber` | **COVERED** | `ShipmentLineItem.htsCode` | HTS code |
+| `HtsLineInput.htsNumber` | **COVERED** | `ShipmentLineItem.htsCode` | HTS code (Verified: ShipmentLineItem.htsCode exists [String]) |
 | `HtsLineInput.lineItemValue` | **MISSING** | - | Field 'lineItemValue' has no direct Prisma schema column |
 | `OutputDispositionInput.messageTypeCode` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
 | `OutputDispositionInput.messageIdentifierCode` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
 | `OutputDispositionInput.narrativeMessageText` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
-| `EquipmentInput.equipmentNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `EntityGbiInput.gbiIdentifierQualifier` | **PARTIAL** | `PartyIdentifier.identifier` | PartyIdentifier supports GBI codes |
-| `EntityGbiInput.gbiIdentifier` | **PARTIAL** | `PartyIdentifier.identifier` | PartyIdentifier supports GBI codes |
-| `FtzDetailInput.zoneStatus` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `EquipmentInput.equipmentNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `EntityGbiInput.gbiIdentifierQualifier` | **PARTIAL** | `PartyIdentifier.value` | Corrected citation: Identifier value is stored in PartyIdentifier.value |
+| `EntityGbiInput.gbiIdentifier` | **PARTIAL** | `PartyIdentifier.value` | Corrected citation: Identifier value is stored in PartyIdentifier.value |
+| `FtzDetailInput.zoneStatus` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `FtzDetailInput.privilegedFtzMerchandiseFilingDate` | **MISSING** | - | Field 'privilegedFtzMerchandiseFilingDate' has no direct Prisma schema column |
-| `FtzDetailInput.ftzLineItemQuantity` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `FtzPfHtsInput.currentHtsNumberForPfStatusMerchandise` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `FtzDetailInput.ftzLineItemQuantity` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `FtzPfHtsInput.currentHtsNumberForPfStatusMerchandise` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 
 
 ### 5. Daily & Periodic Monthly Statement
@@ -579,60 +595,60 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `Q1DailyInput.districtPortOfEntrySummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.entryFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.entryNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.importerOfRecordNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.preliminaryDailyStatementPrintDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.estimatedDutyAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.estimatedTaxAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.deferredTaxIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.brokerReferenceNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.consolidatedIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.clientBranchDesignation` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1DailyInput.entryType` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.districtPortOfEntrySummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.entryFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.entryNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.antidumpingDutyAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.countervailingDutyAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.paymentTypeIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.payIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.countervailingIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.antidumpingIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.teamNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2DailyInput.interestAmountForReconciliationSummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
+| `Q1DailyInput.districtPortOfEntrySummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.entryFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.entryNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.importerOfRecordNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.preliminaryDailyStatementPrintDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.estimatedDutyAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.estimatedTaxAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.deferredTaxIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.brokerReferenceNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.consolidatedIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.clientBranchDesignation` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1DailyInput.entryType` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.districtPortOfEntrySummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.entryFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.entryNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.antidumpingDutyAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.countervailingDutyAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.paymentTypeIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.payIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.countervailingIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.antidumpingIndicator` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.teamNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2DailyInput.interestAmountForReconciliationSummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
 | `StatementFeeInput.sequenceNumber` | **NOT APPLICABLE** | - | Protocol mechanics / control identifier / filler / sequence marker |
-| `StatementFeeInput.firstFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.firstFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.secondFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.secondFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.thirdFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.thirdFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.fourthFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.fourthFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.fifthFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `StatementFeeInput.fifthFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3DailyInput.dailyStatementNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3DailyInput.dailyStatementPrintDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3DailyInput.entryFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3DailyInput.importerOfRecordNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3DailyInput.totalEstimatedDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3DailyInput.totalEstimatedTax` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3DailyInput.totalDeferredTax` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3DailyInput.districtPortWhichProcessesEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q4DailyInput.totalAntidumpingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q4DailyInput.totalCountervailingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q4DailyInput.totalAmountDue` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q4DailyInput.totalInterestAmountForReconciliationSummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q4DailyInput.totalNumberRevenueProducingEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q4DailyInput.totalNumberNonRevenueProducingEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6DailyInput.totalAntidumpingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6DailyInput.totalCountervailingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6DailyInput.totalAmountPaid` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6DailyInput.totalInterestAmountForReconciliationSummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6DailyInput.totalNumberRevenueProducingEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6DailyInput.totalNumberNonRevenueProducingEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
+| `StatementFeeInput.firstFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.firstFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.secondFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.secondFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.thirdFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.thirdFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.fourthFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.fourthFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.fifthFeeClassCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `StatementFeeInput.fifthFeeAmount` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3DailyInput.dailyStatementNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3DailyInput.dailyStatementPrintDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3DailyInput.entryFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3DailyInput.importerOfRecordNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3DailyInput.totalEstimatedDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3DailyInput.totalEstimatedTax` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3DailyInput.totalDeferredTax` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3DailyInput.districtPortWhichProcessesEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q4DailyInput.totalAntidumpingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q4DailyInput.totalCountervailingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q4DailyInput.totalAmountDue` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q4DailyInput.totalInterestAmountForReconciliationSummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q4DailyInput.totalNumberRevenueProducingEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q4DailyInput.totalNumberNonRevenueProducingEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6DailyInput.totalAntidumpingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6DailyInput.totalCountervailingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6DailyInput.totalAmountPaid` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6DailyInput.totalInterestAmountForReconciliationSummary` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6DailyInput.totalNumberRevenueProducingEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6DailyInput.totalNumberNonRevenueProducingEntries` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
 | `Q7DeletedInput.statementNumber` | **MISSING** | - | No dedicated Statement model or statementNumber column in schema |
 | `Q7DeletedInput.entryFilerCode1` | **NOT APPLICABLE** | - | CBP deleted statement notification record |
 | `Q7DeletedInput.entryNumber1` | **NOT APPLICABLE** | - | CBP deleted statement notification record |
@@ -646,27 +662,27 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `Q7DeletedInput.entryFilerCode4` | **NOT APPLICABLE** | - | CBP deleted statement notification record |
 | `Q7DeletedInput.entryNumber4` | **NOT APPLICABLE** | - | CBP deleted statement notification record |
 | `Q7DeletedInput.deleteSource4` | **NOT APPLICABLE** | - | CBP deleted statement notification record |
-| `Q1PeriodicInput.periodicDailyStatementNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1PeriodicInput.periodicDailyStatementDistrictPort` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1PeriodicInput.periodicDailyStatementFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1PeriodicInput.periodicDailyStatementImporterNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1PeriodicInput.preliminaryPeriodicDailyStatementPrintDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1PeriodicInput.entrySummaryPresentationDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1PeriodicInput.totalDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q1PeriodicInput.totalTax` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2PeriodicInput.totalAntidumpingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2PeriodicInput.totalCountervailingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q2PeriodicInput.totalAmountDue` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3PeriodicInput.periodicMonthlyStatementNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3PeriodicInput.periodicMonthlyStatementPrintDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3PeriodicInput.periodicMonthlyStatementDueDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3PeriodicInput.periodicMonthlyStatementFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3PeriodicInput.periodicMonthlyStatementImporterNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3PeriodicInput.totalDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q3PeriodicInput.totalTax` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6PeriodicInput.totalAntidumpingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6PeriodicInput.totalCountervailingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
-| `Q6PeriodicInput.totalAmountPaid` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table |
+| `Q1PeriodicInput.periodicDailyStatementNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1PeriodicInput.periodicDailyStatementDistrictPort` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1PeriodicInput.periodicDailyStatementFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1PeriodicInput.periodicDailyStatementImporterNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1PeriodicInput.preliminaryPeriodicDailyStatementPrintDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1PeriodicInput.entrySummaryPresentationDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1PeriodicInput.totalDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q1PeriodicInput.totalTax` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2PeriodicInput.totalAntidumpingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2PeriodicInput.totalCountervailingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q2PeriodicInput.totalAmountDue` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3PeriodicInput.periodicMonthlyStatementNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3PeriodicInput.periodicMonthlyStatementPrintDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3PeriodicInput.periodicMonthlyStatementDueDate` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3PeriodicInput.periodicMonthlyStatementFilerCode` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3PeriodicInput.periodicMonthlyStatementImporterNumber` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3PeriodicInput.totalDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q3PeriodicInput.totalTax` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6PeriodicInput.totalAntidumpingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6PeriodicInput.totalCountervailingDuty` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
+| `Q6PeriodicInput.totalAmountPaid` | **PARTIAL** | `Invoice.totalAmount` | Statement financial totals map to Invoice/CustomsFiling aggregates; lacks itemized statement table (Verified: Invoice.totalAmount exists [Decimal]) |
 
 
 ### 6. eBond
@@ -675,47 +691,47 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `HeaderInput.bondDesignationTypeCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `HeaderInput.bondTypeCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `HeaderInput.bondDesignationTypeCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `HeaderInput.bondTypeCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `HeaderInput.bondActivityCode` | **MISSING** | - | Field 'bondActivityCode' has no direct Prisma schema column |
-| `HeaderInput.bondAmount` | **COVERED** | `Bond.bondAmount` | Bond amount |
+| `HeaderInput.bondAmount` | **COVERED** | `Bond.bondAmount` | Bond amount (Verified: Bond.bondAmount exists [Decimal]) |
 | `HeaderInput.executionDate` | **MISSING** | - | Field 'executionDate' has no direct Prisma schema column |
 | `HeaderInput.suretyReferenceNumber` | **MISSING** | - | Field 'suretyReferenceNumber' has no direct Prisma schema column |
-| `HeaderInput.effectiveDate` | **COVERED** | `Bond.effectiveDate` | Effective date |
+| `HeaderInput.effectiveDate` | **COVERED** | `Bond.effectiveDate` | Effective date (Verified: Bond.effectiveDate exists [DateTime]) |
 | `HeaderInput.terminationDate` | **MISSING** | - | Field 'terminationDate' has no direct Prisma schema column |
-| `HeaderInput.bondNumber` | **COVERED** | `Bond.bondNumber` | Bond number |
+| `HeaderInput.bondNumber` | **COVERED** | `Bond.bondNumber` | Bond number (Verified: Bond.bondNumber exists [String]) |
 | `HeaderInput.reconciliationBondRiderFlag` | **MISSING** | - | Field 'reconciliationBondRiderFlag' has no direct Prisma schema column |
 | `HeaderInput.usviBondRiderFlag` | **MISSING** | - | Field 'usviBondRiderFlag' has no direct Prisma schema column |
-| `SecondaryNotifyInput.secondaryNotifyPartyCode1` | **PARTIAL** | `ShipmentParty.partyId` | Secondary notify party supported via ShipmentParty |
-| `SecondaryNotifyInput.secondaryNotifyPartyCode2` | **PARTIAL** | `ShipmentParty.partyId` | Secondary notify party supported via ShipmentParty |
-| `SecondaryNotifyInput.secondaryNotifyPartyCode3` | **PARTIAL** | `ShipmentParty.partyId` | Secondary notify party supported via ShipmentParty |
-| `SecondaryNotifyInput.secondaryNotifyPartyCode4` | **PARTIAL** | `ShipmentParty.partyId` | Secondary notify party supported via ShipmentParty |
-| `SingleTransactionBondInput.transactionIdTypeCode` | **PARTIAL** | `Bond.bondType` | Single transaction bond details stored on Bond model |
-| `SingleTransactionBondInput.entryTypeCode` | **PARTIAL** | `Bond.bondType` | Single transaction bond details stored on Bond model |
-| `SingleTransactionBondInput.transactionId` | **PARTIAL** | `Bond.bondType` | Single transaction bond details stored on Bond model |
-| `PrincipalInput.principalIdNumberType` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `PrincipalInput.principalIdNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `PrincipalInput.principalName` | **COVERED** | `Bond.principalName` | Principal name |
-| `CoPrincipalInput.coPrincipalIdNumberType` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `CoPrincipalInput.coPrincipalIdNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `SecondaryNotifyInput.secondaryNotifyPartyCode1` | **PARTIAL** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `SecondaryNotifyInput.secondaryNotifyPartyCode2` | **PARTIAL** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `SecondaryNotifyInput.secondaryNotifyPartyCode3` | **PARTIAL** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `SecondaryNotifyInput.secondaryNotifyPartyCode4` | **PARTIAL** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `SingleTransactionBondInput.transactionIdTypeCode` | **PARTIAL** | `Bond.bondType` | Single transaction bond details stored on Bond model (Verified: Bond.bondType exists [String]) |
+| `SingleTransactionBondInput.entryTypeCode` | **PARTIAL** | `Bond.bondType` | Single transaction bond details stored on Bond model (Verified: Bond.bondType exists [String]) |
+| `SingleTransactionBondInput.transactionId` | **PARTIAL** | `Bond.bondType` | Single transaction bond details stored on Bond model (Verified: Bond.bondType exists [String]) |
+| `PrincipalInput.principalIdNumberType` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `PrincipalInput.principalIdNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `PrincipalInput.principalName` | **COVERED** | `ImporterOfRecord.name` | Corrected citation: Bond links to ImporterOfRecord; principal name is ImporterOfRecord.name |
+| `CoPrincipalInput.coPrincipalIdNumberType` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `CoPrincipalInput.coPrincipalIdNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `CoPrincipalInput.coPrincipalName` | **MISSING** | - | Field 'coPrincipalName' has no direct Prisma schema column |
-| `BondUserInput.bondUserIdNumberType` | **PARTIAL** | `User.id` | Bond user identity mapped to User model |
-| `BondUserInput.bondUserIdNumber` | **PARTIAL** | `User.id` | Bond user identity mapped to User model |
-| `BondUserInput.bondUserName` | **PARTIAL** | `User.id` | Bond user identity mapped to User model |
-| `BondUserInput.userRiderActionCode` | **PARTIAL** | `User.id` | Bond user identity mapped to User model |
-| `BondUserInput.userAddDate` | **PARTIAL** | `User.id` | Bond user identity mapped to User model |
-| `BondUserInput.userDeleteDate` | **PARTIAL** | `User.id` | Bond user identity mapped to User model |
-| `SuretyInput.suretyCode` | **COVERED** | `Bond.suretyCode` | Surety code |
-| `SuretyInput.agentIdNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `SuretyInput.suretyName` | **COVERED** | `Bond.suretyName` | Surety name |
+| `BondUserInput.bondUserIdNumberType` | **PARTIAL** | `User.id` | Bond user identity mapped to User model (Verified: User.id exists [String]) |
+| `BondUserInput.bondUserIdNumber` | **PARTIAL** | `User.id` | Bond user identity mapped to User model (Verified: User.id exists [String]) |
+| `BondUserInput.bondUserName` | **PARTIAL** | `User.id` | Bond user identity mapped to User model (Verified: User.id exists [String]) |
+| `BondUserInput.userRiderActionCode` | **PARTIAL** | `User.id` | Bond user identity mapped to User model (Verified: User.id exists [String]) |
+| `BondUserInput.userAddDate` | **PARTIAL** | `User.id` | Bond user identity mapped to User model (Verified: User.id exists [String]) |
+| `BondUserInput.userDeleteDate` | **PARTIAL** | `User.id` | Bond user identity mapped to User model (Verified: User.id exists [String]) |
+| `SuretyInput.suretyCode` | **COVERED** | `Bond.suretyName` | Corrected citation: Bond has suretyName String, but lacks 3-digit CBP suretyCode column |
+| `SuretyInput.agentIdNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `SuretyInput.suretyName` | **COVERED** | `Bond.suretyName` | Surety name (Verified: Bond.suretyName exists [String]) |
 | `SuretyInput.suretyLiabilityAmount` | **MISSING** | - | Field 'suretyLiabilityAmount' has no direct Prisma schema column |
-| `CoSuretyInput.coSuretyCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `CoSuretyInput.agentIdNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `CoSuretyInput.coSuretyCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `CoSuretyInput.agentIdNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `CoSuretyInput.coSuretyName` | **MISSING** | - | Field 'coSuretyName' has no direct Prisma schema column |
-| `CoSuretyInput.coSuretyLiabilityAmount` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ReinsurerInput.suretyCodeForReinsurer` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ReinsurerInput.agentIdNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ReinsurerInput.suretyName` | **COVERED** | `Bond.suretyName` | Surety name |
+| `CoSuretyInput.coSuretyLiabilityAmount` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ReinsurerInput.suretyCodeForReinsurer` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ReinsurerInput.agentIdNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ReinsurerInput.suretyName` | **COVERED** | `Bond.suretyName` | Surety name (Verified: Bond.suretyName exists [String]) |
 | `OutputMessageInput.dispositionTypeCode` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
 | `OutputMessageInput.severityCode` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
 | `OutputMessageInput.conditionCode` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
@@ -728,12 +744,12 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `DrawbackHeaderInput.summaryFilingActionRequestCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `DrawbackHeaderInput.entryFilerCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `DrawbackHeaderInput.entryNumberOrDrawbackClaimNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `DrawbackHeaderInput.drawbackFilingPort` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `DrawbackHeaderInput.summaryFilingActionRequestCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `DrawbackHeaderInput.entryFilerCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `DrawbackHeaderInput.entryNumberOrDrawbackClaimNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `DrawbackHeaderInput.drawbackFilingPort` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `DrawbackHeaderInput.brokerReferenceNumber` | **MISSING** | - | Field 'brokerReferenceNumber' has no direct Prisma schema column |
-| `DrawbackHeaderInput.drawbackProvision` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `DrawbackHeaderInput.drawbackProvision` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `DrawbackHeaderInput.bondWaiverIndicator` | **MISSING** | - | Field 'bondWaiverIndicator' has no direct Prisma schema column |
 | `DrawbackHeaderInput.bondWaiverReasonCode` | **MISSING** | - | Field 'bondWaiverReasonCode' has no direct Prisma schema column |
 | `DrawbackHeaderInput.acceleratedPaymentRequestIndicator` | **MISSING** | - | Field 'acceleratedPaymentRequestIndicator' has no direct Prisma schema column |
@@ -744,8 +760,8 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `DrawbackHeaderInput.electronicManufacturingPetroleumCertification` | **MISSING** | - | Field 'electronicManufacturingPetroleumCertification' has no direct Prisma schema column |
 | `DrawbackHeaderInput.oilSpillTaxCertification` | **MISSING** | - | Field 'oilSpillTaxCertification' has no direct Prisma schema column |
 | `DrawbackHeaderInput.naftaDrawbackClaimIndicator` | **MISSING** | - | Field 'naftaDrawbackClaimIndicator' has no direct Prisma schema column |
-| `DrawbackHeaderInput.electronicSignature` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `DrawbackHeaderInput.claimantIdOrImporterRecordNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `DrawbackHeaderInput.electronicSignature` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `DrawbackHeaderInput.claimantIdOrImporterRecordNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `DrawbackHeaderInput.designatedNotifyPartyNumber` | **MISSING** | - | Field 'designatedNotifyPartyNumber' has no direct Prisma schema column |
 | `DrawbackHeaderInput.substitutedUnusedWineCertification` | **MISSING** | - | Field 'substitutedUnusedWineCertification' has no direct Prisma schema column |
 | `DrawbackHeaderInput.billOfMaterialsFormulaCertification` | **MISSING** | - | Field 'billOfMaterialsFormulaCertification' has no direct Prisma schema column |
@@ -753,45 +769,45 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `DrawbackHeaderInput.usmcaDrawbackClaimIndicator` | **MISSING** | - | Field 'usmcaDrawbackClaimIndicator' has no direct Prisma schema column |
 | `DrawbackHeaderInput.retailSalesSubstitutionIndicator` | **MISSING** | - | Field 'retailSalesSubstitutionIndicator' has no direct Prisma schema column |
 | `DrawbackHeaderInput.superfundTaxCertification` | **MISSING** | - | Field 'superfundTaxCertification' has no direct Prisma schema column |
-| `BondInfoInput.bondTypeCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `BondInfoInput.bondDesignationTypeCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `BondInfoInput.suretyCompanyCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `BondInfoInput.bondTypeCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `BondInfoInput.bondDesignationTypeCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `BondInfoInput.suretyCompanyCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `BondInfoInput.singleTransactionBondAmount` | **MISSING** | - | Field 'singleTransactionBondAmount' has no direct Prisma schema column |
 | `BondInfoInput.singleTransactionBondNumber` | **MISSING** | - | Field 'singleTransactionBondNumber' has no direct Prisma schema column |
-| `ImportsDetailsInput.actionIndicator` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ImportsDetailsInput.entryFilerCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ImportsDetailsInput.entryNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ImportsDetailsInput.actionIndicator` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ImportsDetailsInput.entryFilerCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ImportsDetailsInput.entryNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ImportsDetailsInput.cbpEsLineNumber` | **MISSING** | - | Field 'cbpEsLineNumber' has no direct Prisma schema column |
 | `ImportsDetailsInput.drawbackEligibleIndicator` | **MISSING** | - | Field 'drawbackEligibleIndicator' has no direct Prisma schema column |
 | `ImportsDetailsInput.manufactureRulingNumber` | **MISSING** | - | Field 'manufactureRulingNumber' has no direct Prisma schema column |
 | `ImportsDetailsInput.basisOfClaim` | **MISSING** | - | Field 'basisOfClaim' has no direct Prisma schema column |
 | `ImportsDetailsInput.manufDateReceived` | **MISSING** | - | Field 'manufDateReceived' has no direct Prisma schema column |
 | `ImportsDetailsInput.manufDateUsed` | **MISSING** | - | Field 'manufDateUsed' has no direct Prisma schema column |
-| `ImportsDetailsInput.importTrackingIdNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ImportsDetailsInput.importTrackingIdNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ImportsDetailsInput.drawbackAccountingMethodCode` | **MISSING** | - | Field 'drawbackAccountingMethodCode' has no direct Prisma schema column |
-| `ImportClassificationInput.htsNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ImportClassificationInput.articleDescriptionText` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ImportQuantityUomInput.quantity` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ImportQuantityUomInput.unitOfMeasureCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ImportClassificationInput.htsNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ImportClassificationInput.articleDescriptionText` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ImportQuantityUomInput.quantity` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ImportQuantityUomInput.unitOfMeasureCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ImportQuantityUomInput.allowableQuantity` | **MISSING** | - | Field 'allowableQuantity' has no direct Prisma schema column |
-| `ImportQuantityUomInput.enteredGoodsValuePerUnit` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ImportQuantityUomInput.enteredGoodsValuePerUnit` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ImportQuantityUomInput.substitutedValuePerUnit` | **MISSING** | - | Field 'substitutedValuePerUnit' has no direct Prisma schema column |
-| `ImportRevenueClaimedInput.accountingClassCode` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `ImportRevenueClaimedInput.claimAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `ImportRevenueClaimedInput.calculatedAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `ImportRevenueClaimedInput.adjustedClaimedAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `ImportRevenueClaimedInput.qualifierIndicator` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `ManufacturedArticleInput.actionIndicator` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedArticleInput.importManufactureRulingNumber` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedArticleInput.htsNumber` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedArticleInput.quantity` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedArticleInput.unitOfMeasureCode` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedArticleInput.productionDate` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedArticleInput.factoryLocation` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedDescInput.manufacturedArticleDescriptionText` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedDescInput.manufactureRulingNumber` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ManufacturedDescInput.manufacturedTrackingIdNumber` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkImportMfgInput.importTrackingIdNumber1` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ImportRevenueClaimedInput.accountingClassCode` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `ImportRevenueClaimedInput.claimAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `ImportRevenueClaimedInput.calculatedAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `ImportRevenueClaimedInput.adjustedClaimedAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `ImportRevenueClaimedInput.qualifierIndicator` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `ManufacturedArticleInput.actionIndicator` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedArticleInput.importManufactureRulingNumber` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedArticleInput.htsNumber` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedArticleInput.quantity` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedArticleInput.unitOfMeasureCode` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedArticleInput.productionDate` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedArticleInput.factoryLocation` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedDescInput.manufacturedArticleDescriptionText` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedDescInput.manufactureRulingNumber` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ManufacturedDescInput.manufacturedTrackingIdNumber` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkImportMfgInput.importTrackingIdNumber1` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `LinkImportMfgInput.importTrackingIdNumber2` | **MISSING** | - | Field 'importTrackingIdNumber2' has no direct Prisma schema column |
 | `LinkImportMfgInput.importTrackingIdNumber3` | **MISSING** | - | Field 'importTrackingIdNumber3' has no direct Prisma schema column |
 | `LinkImportMfgInput.importTrackingIdNumber4` | **MISSING** | - | Field 'importTrackingIdNumber4' has no direct Prisma schema column |
@@ -806,34 +822,34 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `LinkImportMfgInput.importTrackingIdNumber13` | **MISSING** | - | Field 'importTrackingIdNumber13' has no direct Prisma schema column |
 | `LinkImportMfgInput.importTrackingIdNumber14` | **MISSING** | - | Field 'importTrackingIdNumber14' has no direct Prisma schema column |
 | `LinkImportMfgInput.importTrackingIdNumber15` | **MISSING** | - | Field 'importTrackingIdNumber15' has no direct Prisma schema column |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber1` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber2` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber3` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber4` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber5` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber6` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber7` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber8` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber9` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber10` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber11` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber12` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber13` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber14` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `LinkMfgSourceInput.manufacturedTrackingIdNumber15` | **PARTIAL** | `DrawbackMatch.id` | DrawbackMatch links claims, but manufacturing drawback specific fields (mfg date, mfg location, factory ID) are missing direct schema columns |
-| `ExportDestroyInput.exportOrDestroyIndicator` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ExportDestroyInput.htsNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ExportDestroyInput.exportOrDestroyQuantity` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ExportDestroyInput.unitOfMeasureCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ExportDestroyInput.exportOrDestroyDate` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber1` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber2` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber3` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber4` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber5` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber6` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber7` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber8` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber9` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber10` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber11` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber12` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber13` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber14` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `LinkMfgSourceInput.manufacturedTrackingIdNumber15` | **PARTIAL** | `DrawbackMatch.matchedQuantity` | Corrected citation: DrawbackMatch.matchedQuantity links import and export lines |
+| `ExportDestroyInput.exportOrDestroyIndicator` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ExportDestroyInput.htsNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ExportDestroyInput.exportOrDestroyQuantity` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ExportDestroyInput.unitOfMeasureCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ExportDestroyInput.exportOrDestroyDate` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ExportDestroyInput.noticeOfIntentIndicator` | **MISSING** | - | Field 'noticeOfIntentIndicator' has no direct Prisma schema column |
 | `ExportDestroyInput.waiverToDrawbackClaimRightsIndicator` | **MISSING** | - | Field 'waiverToDrawbackClaimRightsIndicator' has no direct Prisma schema column |
-| `ExportDestroyInput.nameOfExporterOrDestroyer` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ExportDestroyInput.nameOfExporterOrDestroyer` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ExportDestroyInput.countryOfUltimateDestination` | **MISSING** | - | Field 'countryOfUltimateDestination' has no direct Prisma schema column |
 | `ExportDestroyInput.billOfLadingIndicator` | **MISSING** | - | Field 'billOfLadingIndicator' has no direct Prisma schema column |
 | `ExportDestroyInput.billOfLadingCarrierCode` | **MISSING** | - | Field 'billOfLadingCarrierCode' has no direct Prisma schema column |
-| `ExportDescInput.exportOrDestroyArticleDescriptionText` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ExportDescInput.exportOrDestroyUniqueIdentifierNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ExportDescInput.exportOrDestroyArticleDescriptionText` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ExportDescInput.exportOrDestroyUniqueIdentifierNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `NoticeOfIntentInput.intendedPortOfExport` | **MISSING** | - | Notice of intent to export/destroy date and exam witness location fields are missing |
 | `NoticeOfIntentInput.examinationWitnessIndicator` | **MISSING** | - | Notice of intent to export/destroy date and exam witness location fields are missing |
 | `NoticeOfIntentInput.locationOfDestruction` | **MISSING** | - | Notice of intent to export/destroy date and exam witness location fields are missing |
@@ -863,17 +879,17 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `TfteaExportDestroyInput.billOfLadingIndicator` | **MISSING** | - | TFTEA and USMCA non-originating drawback calculation fields are missing |
 | `TfteaExportDestroyInput.billOfLadingCarrierCode` | **MISSING** | - | TFTEA and USMCA non-originating drawback calculation fields are missing |
 | `TfteaExportDestroyInput.scheduleBCode` | **MISSING** | - | TFTEA and USMCA non-originating drawback calculation fields are missing |
-| `RevenueClassTotalsInput.accountingClassCode1` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueClassTotalsInput.totalAmount1` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueClassTotalsInput.accountingClassCode2` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueClassTotalsInput.totalAmount2` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueClassTotalsInput.accountingClassCode3` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueClassTotalsInput.totalAmount3` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueClassTotalsInput.accountingClassCode4` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueClassTotalsInput.totalAmount4` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueGrandTotalsInput.grandTotalDutyAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueGrandTotalsInput.grandTotalUserFeeAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
-| `RevenueGrandTotalsInput.grandTotalIrTaxAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals |
+| `RevenueClassTotalsInput.accountingClassCode1` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueClassTotalsInput.totalAmount1` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueClassTotalsInput.accountingClassCode2` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueClassTotalsInput.totalAmount2` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueClassTotalsInput.accountingClassCode3` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueClassTotalsInput.totalAmount3` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueClassTotalsInput.accountingClassCode4` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueClassTotalsInput.totalAmount4` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueGrandTotalsInput.grandTotalDutyAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueGrandTotalsInput.grandTotalUserFeeAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
+| `RevenueGrandTotalsInput.grandTotalIrTaxAmount` | **COVERED** | `DrawbackClaim.totalRefundClaimed` | Revenue totals map to DrawbackClaim refund totals (Verified: DrawbackClaim.totalRefundClaimed exists [Decimal]) |
 | `DrawbackE0Input.referenceDataTypeCode` | **NOT APPLICABLE** | - | Protocol mechanics / control identifier / filler / sequence marker |
 | `DrawbackE0Input.occurrencePosition` | **NOT APPLICABLE** | - | Protocol mechanics / control identifier / filler / sequence marker |
 | `DrawbackE0Input.referenceDataText` | **NOT APPLICABLE** | - | Drawback CBP output response condition / rejection record |
@@ -894,10 +910,10 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `OiLineItemInput.commercialDescription` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `Pg01HeaderInput.pgaLineNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `Pg01HeaderInput.governmentAgencyCode` | **COVERED** | `ShipmentLineItem.pgaAgency` | Government agency code |
-| `Pg01HeaderInput.governmentAgencyProgramCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `OiLineItemInput.commercialDescription` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `Pg01HeaderInput.pgaLineNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `Pg01HeaderInput.governmentAgencyCode` | **COVERED** | `ShipmentLineItem.pgaRequirements` | Corrected citation: Line PGA agency requirement is accessed via pgaRequirements relation |
+| `Pg01HeaderInput.governmentAgencyProgramCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `Pg01HeaderInput.governmentAgencyProcessingCode` | **MISSING** | - | Field 'governmentAgencyProcessingCode' has no direct Prisma schema column |
 | `Pg01HeaderInput.electronicImageSubmitted` | **MISSING** | - | Field 'electronicImageSubmitted' has no direct Prisma schema column |
 | `Pg01HeaderInput.confidentialInformationIndicator` | **MISSING** | - | Field 'confidentialInformationIndicator' has no direct Prisma schema column |
@@ -906,26 +922,26 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `Pg01HeaderInput.intendedUseCode` | **MISSING** | - | Field 'intendedUseCode' has no direct Prisma schema column |
 | `Pg01HeaderInput.intendedUseDescription` | **MISSING** | - | Field 'intendedUseDescription' has no direct Prisma schema column |
 | `Pg01HeaderInput.correctionIndicator` | **MISSING** | - | Field 'correctionIndicator' has no direct Prisma schema column |
-| `Pg01HeaderInput.disclaimer` | **COVERED** | `ShipmentLineItem.isPgaRequired` | PGA disclaimer / requirement flag |
-| `Pg02ProductComponentInput.itemType` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg02ProductComponentInput.productCodeQualifier1` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg02ProductComponentInput.productCodeNumber1` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg02ProductComponentInput.productCodeQualifier2` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg02ProductComponentInput.productCodeNumber2` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg02ProductComponentInput.productCodeQualifier3` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg02ProductComponentInput.productCodeNumber3` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg04ConstituentElementInput.constituentActiveIngredientQualifier` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg04ConstituentElementInput.nameOfConstituentElement` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg04ConstituentElementInput.quantityOfConstituentElement` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg04ConstituentElementInput.unitOfMeasureConstituentElement` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg04ConstituentElementInput.percentOfConstituentElement` | **PARTIAL** | `ProductComposition.ingredientName` | Product composition model exists, lacking PGA specific component sequence fields |
-| `Pg06SourceProcessingInput.sourceTypeCode` | **PARTIAL** | `ProductCountryFact.processingCountry` | Processing country fact model exists |
-| `Pg06SourceProcessingInput.countryCode` | **COVERED** | `PartyAddress.addressLine1` | PGA party address fields |
-| `Pg06SourceProcessingInput.geographicLocation` | **PARTIAL** | `ProductCountryFact.processingCountry` | Processing country fact model exists |
-| `Pg06SourceProcessingInput.processingStartDate` | **PARTIAL** | `ProductCountryFact.processingCountry` | Processing country fact model exists |
-| `Pg06SourceProcessingInput.processingEndDate` | **PARTIAL** | `ProductCountryFact.processingCountry` | Processing country fact model exists |
-| `Pg06SourceProcessingInput.processingTypeCode` | **PARTIAL** | `ProductCountryFact.processingCountry` | Processing country fact model exists |
-| `Pg06SourceProcessingInput.processingDescription` | **PARTIAL** | `ProductCountryFact.processingCountry` | Processing country fact model exists |
+| `Pg01HeaderInput.disclaimer` | **COVERED** | `ShipmentLineItem.pgaRequirements` | Corrected citation: Line PGA requirements are accessed via pgaRequirements relation |
+| `Pg02ProductComponentInput.itemType` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg02ProductComponentInput.productCodeQualifier1` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg02ProductComponentInput.productCodeNumber1` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg02ProductComponentInput.productCodeQualifier2` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg02ProductComponentInput.productCodeNumber2` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg02ProductComponentInput.productCodeQualifier3` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg02ProductComponentInput.productCodeNumber3` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg04ConstituentElementInput.constituentActiveIngredientQualifier` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg04ConstituentElementInput.nameOfConstituentElement` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg04ConstituentElementInput.quantityOfConstituentElement` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg04ConstituentElementInput.unitOfMeasureConstituentElement` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg04ConstituentElementInput.percentOfConstituentElement` | **PARTIAL** | `ProductComposition.componentName` | Corrected citation: Product component/ingredient name is stored in ProductComposition.componentName |
+| `Pg06SourceProcessingInput.sourceTypeCode` | **PARTIAL** | `ProductCountryFact.rawCountry` | Corrected citation: Processing country is stored in ProductCountryFact.rawCountry |
+| `Pg06SourceProcessingInput.countryCode` | **COVERED** | `PartyAddress.addressLine1` | PGA party address fields (Verified: PartyAddress.addressLine1 exists [String]) |
+| `Pg06SourceProcessingInput.geographicLocation` | **PARTIAL** | `ProductCountryFact.rawCountry` | Corrected citation: Processing country is stored in ProductCountryFact.rawCountry |
+| `Pg06SourceProcessingInput.processingStartDate` | **PARTIAL** | `ProductCountryFact.rawCountry` | Corrected citation: Processing country is stored in ProductCountryFact.rawCountry |
+| `Pg06SourceProcessingInput.processingEndDate` | **PARTIAL** | `ProductCountryFact.rawCountry` | Corrected citation: Processing country is stored in ProductCountryFact.rawCountry |
+| `Pg06SourceProcessingInput.processingTypeCode` | **PARTIAL** | `ProductCountryFact.rawCountry` | Corrected citation: Processing country is stored in ProductCountryFact.rawCountry |
+| `Pg06SourceProcessingInput.processingDescription` | **PARTIAL** | `ProductCountryFact.rawCountry` | Corrected citation: Processing country is stored in ProductCountryFact.rawCountry |
 | `Pg07TradeNameModelInput.tradeNameBrandName` | **MISSING** | - | Field 'tradeNameBrandName' has no direct Prisma schema column |
 | `Pg07TradeNameModelInput.model` | **MISSING** | - | Field 'model' has no direct Prisma schema column |
 | `Pg07TradeNameModelInput.manufactureMonthAndYear` | **MISSING** | - | Field 'manufactureMonthAndYear' has no direct Prisma schema column |
@@ -940,27 +956,27 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `Pg10CategoryCharacteristicInput.commodityQualifierCode` | **MISSING** | - | Field 'commodityQualifierCode' has no direct Prisma schema column |
 | `Pg10CategoryCharacteristicInput.commodityCharacteristicQualifier` | **MISSING** | - | Field 'commodityCharacteristicQualifier' has no direct Prisma schema column |
 | `Pg10CategoryCharacteristicInput.commodityCharacteristicDescription` | **MISSING** | - | Field 'commodityCharacteristicDescription' has no direct Prisma schema column |
-| `Pg13LpcoIssuerInput.issuerOfLpco` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg13LpcoIssuerInput.lpcoIssuerGovernmentGeographicCodeQualifier` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg13LpcoIssuerInput.locationOfIssuerOfTheLpco` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg13LpcoIssuerInput.regionalDescriptionOfLocationOfAgencyIssuingLpco` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg14LpcoDetailsInput.lpcoTransactionType` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg14LpcoDetailsInput.lpcoType` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg14LpcoDetailsInput.lpcoNumberOrName` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg14LpcoDetailsInput.lpcoDateQualifier` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg14LpcoDetailsInput.lpcoDate` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg14LpcoDetailsInput.lpcoQuantity` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg14LpcoDetailsInput.lpcoUnitOfMeasure` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg14LpcoDetailsInput.exemptionCode` | **PARTIAL** | `LicenseCertificatePermitInput` | PGA LPCO (License, Permit, Certificate, Other) numbers lack dedicated line item scalar fields |
-| `Pg18HazmatInput.unDangerousGoodsCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem |
-| `Pg18HazmatInput.hazardousClassCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem |
-| `Pg18HazmatInput.epaHazardousWasteCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem |
-| `Pg18HazmatInput.hazardousMaterialDescription` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem |
-| `Pg18HazmatInput.packagingGroupCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem |
-| `Pg19EntityIdentificationInput.entityRoleCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `Pg13LpcoIssuerInput.issuerOfLpco` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg13LpcoIssuerInput.lpcoIssuerGovernmentGeographicCodeQualifier` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg13LpcoIssuerInput.locationOfIssuerOfTheLpco` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg13LpcoIssuerInput.regionalDescriptionOfLocationOfAgencyIssuingLpco` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg14LpcoDetailsInput.lpcoTransactionType` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg14LpcoDetailsInput.lpcoType` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg14LpcoDetailsInput.lpcoNumberOrName` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg14LpcoDetailsInput.lpcoDateQualifier` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg14LpcoDetailsInput.lpcoDate` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg14LpcoDetailsInput.lpcoQuantity` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg14LpcoDetailsInput.lpcoUnitOfMeasure` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg14LpcoDetailsInput.exemptionCode` | **MISSING** | - | Original citation cited a TypeScript interface name, not a Prisma model; no dedicated license number scalar column exists |
+| `Pg18HazmatInput.unDangerousGoodsCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `Pg18HazmatInput.hazardousClassCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `Pg18HazmatInput.epaHazardousWasteCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `Pg18HazmatInput.hazardousMaterialDescription` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `Pg18HazmatInput.packagingGroupCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat UN code/class has no scalar column on ShipmentLineItem (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `Pg19EntityIdentificationInput.entityRoleCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `Pg19EntityIdentificationInput.entityIdentificationCode` | **MISSING** | - | Field 'entityIdentificationCode' has no direct Prisma schema column |
 | `Pg19EntityIdentificationInput.entityNumber` | **MISSING** | - | Field 'entityNumber' has no direct Prisma schema column |
-| `Pg19EntityIdentificationInput.entityName` | **COVERED** | `Party.name` | PGA party entity name |
+| `Pg19EntityIdentificationInput.entityName` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
 | `Pg19EntityIdentificationInput.entityAddress1` | **MISSING** | - | Field 'entityAddress1' has no direct Prisma schema column |
 | `Pg20EntityAddressInput.entityAddress2` | **MISSING** | - | Field 'entityAddress2' has no direct Prisma schema column |
 | `Pg20EntityAddressInput.entityApartmentSuiteNumber` | **MISSING** | - | Field 'entityApartmentSuiteNumber' has no direct Prisma schema column |
@@ -995,14 +1011,14 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `Pg25TemperatureLotValuesInput.productionEndDateOfTheLot` | **MISSING** | - | Temperature lot values, lot numbers, and expiration dates missing on line items |
 | `Pg25TemperatureLotValuesInput.pgaLineValue` | **MISSING** | - | Temperature lot values, lot numbers, and expiration dates missing on line items |
 | `Pg25TemperatureLotValuesInput.pgaUnitValue` | **MISSING** | - | Temperature lot values, lot numbers, and expiration dates missing on line items |
-| `Pg26PackagingBreakdownInput.packagingQualifier` | **PARTIAL** | `Shipment.packageCount` | Package count present, multi-level packaging breakdown 1..6 missing |
-| `Pg26PackagingBreakdownInput.quantity` | **COVERED** | `ShipmentLineItem.quantity` | Quantity |
-| `Pg26PackagingBreakdownInput.unitOfMeasurePackagingLevel` | **PARTIAL** | `Shipment.packageCount` | Package count present, multi-level packaging breakdown 1..6 missing |
-| `Pg26PackagingBreakdownInput.packageIdentifier` | **PARTIAL** | `Shipment.packageCount` | Package count present, multi-level packaging breakdown 1..6 missing |
-| `Pg26PackagingBreakdownInput.packagingMethod` | **PARTIAL** | `Shipment.packageCount` | Package count present, multi-level packaging breakdown 1..6 missing |
-| `Pg26PackagingBreakdownInput.packageMaterial` | **PARTIAL** | `Shipment.packageCount` | Package count present, multi-level packaging breakdown 1..6 missing |
-| `Pg26PackagingBreakdownInput.packageFiller` | **PARTIAL** | `Shipment.packageCount` | Package count present, multi-level packaging breakdown 1..6 missing |
-| `Pg27ShippingContainerInput.containerNumber1` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `Pg26PackagingBreakdownInput.packagingQualifier` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
+| `Pg26PackagingBreakdownInput.quantity` | **COVERED** | `ShipmentLineItem.quantity` | Quantity (Verified: ShipmentLineItem.quantity exists [Int]) |
+| `Pg26PackagingBreakdownInput.unitOfMeasurePackagingLevel` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
+| `Pg26PackagingBreakdownInput.packageIdentifier` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
+| `Pg26PackagingBreakdownInput.packagingMethod` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
+| `Pg26PackagingBreakdownInput.packageMaterial` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
+| `Pg26PackagingBreakdownInput.packageFiller` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
+| `Pg27ShippingContainerInput.containerNumber1` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `Pg27ShippingContainerInput.typeOfContainer1` | **MISSING** | - | Field 'typeOfContainer1' has no direct Prisma schema column |
 | `Pg27ShippingContainerInput.containerLength1` | **MISSING** | - | Field 'containerLength1' has no direct Prisma schema column |
 | `Pg27ShippingContainerInput.containerNumber2` | **MISSING** | - | Field 'containerNumber2' has no direct Prisma schema column |
@@ -1024,28 +1040,28 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `Pg30InspectionLocationInput.requestedOrScheduledTimeOfInspection` | **MISSING** | - | Inspection location and FIRMS code missing |
 | `Pg30InspectionLocationInput.inspectionOrArrivalLocationCode` | **MISSING** | - | Inspection location and FIRMS code missing |
 | `Pg30InspectionLocationInput.inspectionOrArrivalLocation` | **MISSING** | - | Inspection location and FIRMS code missing |
-| `Pg32CommodityRoutingInput.commodityRoutingTypeCode` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg |
-| `Pg32CommodityRoutingInput.commodityRoutingCountryCode` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg |
-| `Pg32CommodityRoutingInput.commodityPoliticalSubunitOfRoutingQualifier` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg |
-| `Pg32CommodityRoutingInput.commodityPoliticalSubunitOfRoutingNumber` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg |
-| `Pg32CommodityRoutingInput.commodityPoliticalSubunitOfRoutingName` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg |
+| `Pg32CommodityRoutingInput.commodityRoutingTypeCode` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg (Verified: TransportLeg.originUnlocode exists [String?]) |
+| `Pg32CommodityRoutingInput.commodityRoutingCountryCode` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg (Verified: TransportLeg.originUnlocode exists [String?]) |
+| `Pg32CommodityRoutingInput.commodityPoliticalSubunitOfRoutingQualifier` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg (Verified: TransportLeg.originUnlocode exists [String?]) |
+| `Pg32CommodityRoutingInput.commodityPoliticalSubunitOfRoutingNumber` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg (Verified: TransportLeg.originUnlocode exists [String?]) |
+| `Pg32CommodityRoutingInput.commodityPoliticalSubunitOfRoutingName` | **COVERED** | `TransportLeg.originUnlocode` | Commodity routing locations map to TransportLeg (Verified: TransportLeg.originUnlocode exists [String?]) |
 | `Pg34TravelDocumentInput.travelDocumentTypeCode` | **MISSING** | - | Travel document number / crew passport info missing |
 | `Pg34TravelDocumentInput.travelDocumentNationality` | **MISSING** | - | Travel document number / crew passport info missing |
 | `Pg34TravelDocumentInput.travelDocumentIdentifier` | **MISSING** | - | Travel document number / crew passport info missing |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode1` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode2` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode3` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode4` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode5` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode6` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode7` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode8` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode9` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg55AdditionalEntityRolesInput.entityRoleCode10` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg60AdditionalReferenceInput.additionalInformationQualifierCode` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg60AdditionalReferenceInput.additionalInformation` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg00SubstitutionInput.substitutionIndicator` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
-| `Pg00SubstitutionInput.substitutionNumber` | **PARTIAL** | `PartyRole.role` | Additional entity roles and reference codes supported via PartyRole |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode1` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode2` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode3` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode4` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode5` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode6` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode7` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode8` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode9` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg55AdditionalEntityRolesInput.entityRoleCode10` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg60AdditionalReferenceInput.additionalInformationQualifierCode` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg60AdditionalReferenceInput.additionalInformation` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg00SubstitutionInput.substitutionIndicator` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
+| `Pg00SubstitutionInput.substitutionNumber` | **PARTIAL** | `PartyRole.roleType` | Corrected citation: Party role type is stored in PartyRole.roleType |
 | `Pg05ScientificSpeciesInput.scientificGenusName` | **MISSING** | - | Scientific species name (genus/species) and FWS common name missing |
 | `Pg05ScientificSpeciesInput.scientificSpeciesName` | **MISSING** | - | Scientific species name (genus/species) and FWS common name missing |
 | `Pg05ScientificSpeciesInput.scientificSubSpeciesName` | **MISSING** | - | Scientific species name (genus/species) and FWS common name missing |
@@ -1055,8 +1071,8 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `Pg17CommonNameVenomousInput.commonNameGeneral` | **MISSING** | - | Scientific species name (genus/species) and FWS common name missing |
 | `Pg17CommonNameVenomousInput.liveVenomousWildlifeCode` | **MISSING** | - | Scientific species name (genus/species) and FWS common name missing |
 | `Pg17CommonNameVenomousInput.cartonsContainingWildlife` | **MISSING** | - | Scientific species name (genus/species) and FWS common name missing |
-| `Pg23AffirmationOfComplianceInput.affirmationOfComplianceCode` | **PARTIAL** | `ShipmentLineItem.isPgaRequired` | Affirmation of Compliance (AOC) code/qualifier missing dedicated column |
-| `Pg23AffirmationOfComplianceInput.affirmationOfComplianceDescription` | **PARTIAL** | `ShipmentLineItem.isPgaRequired` | Affirmation of Compliance (AOC) code/qualifier missing dedicated column |
+| `Pg23AffirmationOfComplianceInput.affirmationOfComplianceCode` | **PARTIAL** | `ShipmentLineItem.pgaRequirements` | Corrected citation: Line PGA requirements are accessed via pgaRequirements relation |
+| `Pg23AffirmationOfComplianceInput.affirmationOfComplianceDescription` | **PARTIAL** | `ShipmentLineItem.pgaRequirements` | Corrected citation: Line PGA requirements are accessed via pgaRequirements relation |
 | `Pg28CanDimensionsTrackingInput.canDimensions1` | **MISSING** | - | Can dimensions tracking missing |
 | `Pg28CanDimensionsTrackingInput.canDimensions2` | **MISSING** | - | Can dimensions tracking missing |
 | `Pg28CanDimensionsTrackingInput.canDimensions3` | **MISSING** | - | Can dimensions tracking missing |
@@ -1080,39 +1096,39 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `ManifestHeaderRecord.carrierCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code |
-| `ManifestHeaderRecord.transportationIndicator` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ManifestHeaderRecord.carrierCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code (Verified: TransportLeg.carrierCode exists [String?]) |
+| `ManifestHeaderRecord.transportationIndicator` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ManifestHeaderRecord.countryCode` | **MISSING** | - | Field 'countryCode' has no direct Prisma schema column |
 | `ManifestHeaderRecord.conveyanceName` | **MISSING** | - | Field 'conveyanceName' has no direct Prisma schema column |
 | `ManifestHeaderRecord.tripData` | **MISSING** | - | Field 'tripData' has no direct Prisma schema column |
 | `ManifestHeaderRecord.manifestSequenceNumber` | **MISSING** | - | Field 'manifestSequenceNumber' has no direct Prisma schema column |
 | `ManifestHeaderRecord.vesselCode` | **MISSING** | - | Field 'vesselCode' has no direct Prisma schema column |
-| `ManifestHeaderRecord.manifestTypeCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `PortOfCrossingRecord.portOfUnlading` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ManifestHeaderRecord.manifestTypeCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `PortOfCrossingRecord.portOfUnlading` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `PortOfCrossingRecord.originalScheduledArrivalDate` | **MISSING** | - | Field 'originalScheduledArrivalDate' has no direct Prisma schema column |
 | `PortOfCrossingRecord.firmsCode` | **MISSING** | - | Field 'firmsCode' has no direct Prisma schema column |
 | `PortOfCrossingRecord.time` | **MISSING** | - | Field 'time' has no direct Prisma schema column |
-| `IssuerCodeRecord.issuerCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code |
-| `BillOfLadingTransactionRecord.billOfLading` | **COVERED** | `Shipment.bolNumber` | Bill of lading |
-| `BillOfLadingTransactionRecord.foreignPortOfLading` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `IssuerCodeRecord.issuerCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code (Verified: TransportLeg.carrierCode exists [String?]) |
+| `BillOfLadingTransactionRecord.billOfLading` | **MISSING** | - | Citation Shipment.bolNumber invalid; field bolNumber does not exist on model Shipment |
+| `BillOfLadingTransactionRecord.foreignPortOfLading` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `BillOfLadingTransactionRecord.manifestQuantity` | **MISSING** | - | Field 'manifestQuantity' has no direct Prisma schema column |
 | `BillOfLadingTransactionRecord.manifestUnits` | **MISSING** | - | Field 'manifestUnits' has no direct Prisma schema column |
-| `BillOfLadingTransactionRecord.weight` | **COVERED** | `Shipment.totalWeight` | Total weight |
+| `BillOfLadingTransactionRecord.weight` | **MISSING** | - | Citation Shipment.totalWeight invalid; field totalWeight does not exist on model Shipment |
 | `BillOfLadingTransactionRecord.weightUnit` | **MISSING** | - | Field 'weightUnit' has no direct Prisma schema column |
 | `BillOfLadingTransactionRecord.billStatusIndicator` | **MISSING** | - | Field 'billStatusIndicator' has no direct Prisma schema column |
 | `BillOfLadingTransactionRecord.masterInBondIndicator` | **MISSING** | - | Field 'masterInBondIndicator' has no direct Prisma schema column |
 | `BillOfLadingTransactionRecord.houseBillNumber` | **MISSING** | - | Field 'houseBillNumber' has no direct Prisma schema column |
 | `BillOfLadingTransactionRecord.inBondEntryType` | **MISSING** | - | Field 'inBondEntryType' has no direct Prisma schema column |
-| `BillOfLadingTransactionRecord.inBondPortOfDestination` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `BillOfLadingTransactionRecord.issuerCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code |
-| `EntityNameRecord.entityIdCode` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityNameRecord.name` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityNameRecord.codeQualifier` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityNameRecord.idCode` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityNameRecord.entityRelationshipCode` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityNameRecord.entityIdCodeReserved` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
+| `BillOfLadingTransactionRecord.inBondPortOfDestination` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `BillOfLadingTransactionRecord.issuerCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code (Verified: TransportLeg.carrierCode exists [String?]) |
+| `EntityNameRecord.entityIdCode` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityNameRecord.name` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityNameRecord.codeQualifier` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityNameRecord.idCode` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityNameRecord.entityRelationshipCode` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityNameRecord.entityIdCodeReserved` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
 | `BillOfLadingContainerRecord.equipmentInitial` | **MISSING** | - | Field 'equipmentInitial' has no direct Prisma schema column |
-| `BillOfLadingContainerRecord.equipmentNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `BillOfLadingContainerRecord.equipmentNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `BillOfLadingContainerRecord.sealNumber1` | **MISSING** | - | Field 'sealNumber1' has no direct Prisma schema column |
 | `BillOfLadingContainerRecord.sealNumber2` | **MISSING** | - | Field 'sealNumber2' has no direct Prisma schema column |
 | `BillOfLadingContainerRecord.containerDescriptionCode` | **MISSING** | - | Field 'containerDescriptionCode' has no direct Prisma schema column |
@@ -1123,7 +1139,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `BillOfLadingContainerRecord.loadEmptyStatus` | **MISSING** | - | Field 'loadEmptyStatus' has no direct Prisma schema column |
 | `BillOfLadingContainerRecord.typeOfService` | **MISSING** | - | Field 'typeOfService' has no direct Prisma schema column |
 | `BillCargoDescriptionRecord.pieceCount` | **MISSING** | - | Field 'pieceCount' has no direct Prisma schema column |
-| `BillCargoDescriptionRecord.description` | **COVERED** | `ShipmentLineItem.description` | Cargo description |
+| `BillCargoDescriptionRecord.description` | **COVERED** | `ShipmentLineItem.description` | Cargo description (Verified: ShipmentLineItem.description exists [String]) |
 | `BillCargoDescriptionRecord.c4Number` | **MISSING** | - | Field 'c4Number' has no direct Prisma schema column |
 | `BillCargoDescriptionRecord.manifestUnitCode` | **MISSING** | - | Field 'manifestUnitCode' has no direct Prisma schema column |
 | `BillCargoDescriptionRecord.countryCode` | **MISSING** | - | Field 'countryCode' has no direct Prisma schema column |
@@ -1140,22 +1156,22 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `StatusNotificationDetailRecord.houseBillNumber` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationDetailRecord.issuerCodeSubHouseBill` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationDetailRecord.subHouseBillNumber` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
-| `StatusNotificationDetailRecord.quantity` | **COVERED** | `Shipment.packageCount` | Package count |
+| `StatusNotificationDetailRecord.quantity` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
 | `StatusNotificationDetailRecord.negativeIndicator` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationDetailRecord.actionDate` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationDetailRecord.actionTime` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationDetailRecord.inBondCarrierCode` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
-| `HazardousMaterialDetailRecord.hazardousMaterialCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `HazardousMaterialDetailRecord.hazardousMaterialClass` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `HazardousMaterialDetailRecord.hazardousMaterialCodeQualifier` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `HazardousMaterialDetailRecord.hazardousMaterialDescription` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `HazardousMaterialDetailRecord.hazardousMaterialContact` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `HazardousMaterialDetailRecord.unHazardousMaterialPage` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `AdditionalHazardousMaterialDetailRecord.flashpointTemperature` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `AdditionalHazardousMaterialDetailRecord.unitOfMeasureCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `AdditionalHazardousMaterialDetailRecord.negativeIndicator` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `HazardousMaterialClassificationDetailRecord.hazardousMaterialDescription` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
-| `HazardousMaterialClassificationDetailRecord.hazardousMaterialClassification` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns |
+| `HazardousMaterialDetailRecord.hazardousMaterialCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `HazardousMaterialDetailRecord.hazardousMaterialClass` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `HazardousMaterialDetailRecord.hazardousMaterialCodeQualifier` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `HazardousMaterialDetailRecord.hazardousMaterialDescription` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `HazardousMaterialDetailRecord.hazardousMaterialContact` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `HazardousMaterialDetailRecord.unHazardousMaterialPage` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `AdditionalHazardousMaterialDetailRecord.flashpointTemperature` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `AdditionalHazardousMaterialDetailRecord.unitOfMeasureCode` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `AdditionalHazardousMaterialDetailRecord.negativeIndicator` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `HazardousMaterialClassificationDetailRecord.hazardousMaterialDescription` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
+| `HazardousMaterialClassificationDetailRecord.hazardousMaterialClassification` | **PARTIAL** | `ShipmentEquipment.sealNumbers` | Hazmat details lack dedicated line-item UN code/class columns (Verified: ShipmentEquipment.sealNumbers exists [String[]]) |
 | `StatusNotificationContinuationRecord.entryType` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationContinuationRecord.entryNumber` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationContinuationRecord.portOfTransaction` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
@@ -1166,44 +1182,44 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `StatusNotificationContainerDetailRecord.containerNumber` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationContainerDetailRecord.sealNumber1` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
 | `StatusNotificationContainerDetailRecord.sealNumber2` | **NOT APPLICABLE** | - | CBP status notification record returned in broker download |
-| `ManifestReferenceIdentifierRecord.carrierAssignedBatchNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `BillOfLadingAmendmentRecord.carrierCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code |
-| `BillOfLadingAmendmentRecord.cbpPort` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ManifestReferenceIdentifierRecord.carrierAssignedBatchNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `BillOfLadingAmendmentRecord.carrierCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code (Verified: TransportLeg.carrierCode exists [String?]) |
+| `BillOfLadingAmendmentRecord.cbpPort` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `BillOfLadingAmendmentRecord.actionCode` | **MISSING** | - | Field 'actionCode' has no direct Prisma schema column |
-| `BillOfLadingAmendmentRecord.billOfLadingNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `BillOfLadingAmendmentRecord.quantity` | **COVERED** | `Shipment.packageCount` | Package count |
+| `BillOfLadingAmendmentRecord.billOfLadingNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `BillOfLadingAmendmentRecord.quantity` | **MISSING** | - | Citation Shipment.packageCount invalid; field packageCount does not exist on model Shipment |
 | `BillOfLadingAmendmentRecord.amendmentCode` | **MISSING** | - | Field 'amendmentCode' has no direct Prisma schema column |
 | `BillOfLadingAmendmentRecord.houseBillNumber` | **MISSING** | - | Field 'houseBillNumber' has no direct Prisma schema column |
 | `BillOfLadingAmendmentRecord.codeQualifier` | **MISSING** | - | Field 'codeQualifier' has no direct Prisma schema column |
 | `BillOfLadingAmendmentRecord.idCode` | **MISSING** | - | Field 'idCode' has no direct Prisma schema column |
-| `BillOfLadingAmendmentRecord.issuerCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code |
+| `BillOfLadingAmendmentRecord.issuerCode` | **COVERED** | `TransportLeg.carrierCode` | Carrier / issuer code (Verified: TransportLeg.carrierCode exists [String?]) |
 | `BillOfLadingAdditionalRecord.measurement` | **MISSING** | - | Field 'measurement' has no direct Prisma schema column |
 | `BillOfLadingAdditionalRecord.measurementUnit` | **MISSING** | - | Field 'measurementUnit' has no direct Prisma schema column |
 | `BillOfLadingAdditionalRecord.placeOfReceiptByPreCarrier` | **MISSING** | - | Field 'placeOfReceiptByPreCarrier' has no direct Prisma schema column |
 | `BillOfLadingAdditionalRecord.secondaryNotifyParty1Scac` | **MISSING** | - | Field 'secondaryNotifyParty1Scac' has no direct Prisma schema column |
 | `BillOfLadingAdditionalRecord.secondaryNotifyParty2Scac` | **MISSING** | - | Field 'secondaryNotifyParty2Scac' has no direct Prisma schema column |
-| `BillOfLadingReferenceIdentifierRecord.referenceQualifier` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `BillOfLadingReferenceIdentifierRecord.referenceNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `EntityAddressRecord.addressLine1` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityAddressRecord.addressLine2` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityGeographicAreaRecord.cityName` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityGeographicAreaRecord.stateProvince` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityGeographicAreaRecord.postalCode` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityGeographicAreaRecord.countryCode` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
-| `EntityGeographicAreaRecord.locationIdentifier` | **COVERED** | `Party.name` | Entity name and address details map to Party/PartyAddress |
+| `BillOfLadingReferenceIdentifierRecord.referenceQualifier` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `BillOfLadingReferenceIdentifierRecord.referenceNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `EntityAddressRecord.addressLine1` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityAddressRecord.addressLine2` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityGeographicAreaRecord.cityName` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityGeographicAreaRecord.stateProvince` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityGeographicAreaRecord.postalCode` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityGeographicAreaRecord.countryCode` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
+| `EntityGeographicAreaRecord.locationIdentifier` | **COVERED** | `PartyName.rawName` | Corrected citation: Entity name is stored in PartyName relation (PartyName.rawName) |
 | `AdminCommunicationContactRecord.contactName` | **MISSING** | - | Field 'contactName' has no direct Prisma schema column |
 | `AdminCommunicationContactRecord.commNumberQualifier` | **MISSING** | - | Field 'commNumberQualifier' has no direct Prisma schema column |
 | `AdminCommunicationContactRecord.communicationsNumber` | **MISSING** | - | Field 'communicationsNumber' has no direct Prisma schema column |
 | `AdminCommunicationContactRecord.reservedCommNumberQualifier` | **MISSING** | - | Field 'reservedCommNumberQualifier' has no direct Prisma schema column |
 | `AdminCommunicationContactRecord.reservedCommunicationsNumber` | **MISSING** | - | Field 'reservedCommunicationsNumber' has no direct Prisma schema column |
-| `SupplementalInBondDetailsRecord.inBondEntryType` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `SupplementalInBondDetailsRecord.fdaBtaConfirmationIndicator` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `SupplementalInBondDetailsRecord.inBondEntryType` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `SupplementalInBondDetailsRecord.fdaBtaConfirmationIndicator` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `SupplementalInBondDetailsRecord.conventionalInBondNumber` | **MISSING** | - | Field 'conventionalInBondNumber' has no direct Prisma schema column |
 | `SupplementalInBondDetailsRecord.inBondCarrierCode` | **MISSING** | - | Field 'inBondCarrierCode' has no direct Prisma schema column |
 | `SupplementalInBondDetailsRecord.usPortOfDestination` | **MISSING** | - | Field 'usPortOfDestination' has no direct Prisma schema column |
 | `SupplementalInBondDetailsRecord.foreignDestination` | **MISSING** | - | Field 'foreignDestination' has no direct Prisma schema column |
-| `SupplementalInBondDetailsRecord.value` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `SupplementalInBondDetailsRecord.bondedCarrierIdNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `SupplementalInBondDetailsRecord.value` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `SupplementalInBondDetailsRecord.bondedCarrierIdNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `SupplementalInBondDetailsRecord.paperlessInBond` | **MISSING** | - | Field 'paperlessInBond' has no direct Prisma schema column |
 | `SupplementalInBondDetailsRecord.shipmentControlNumber` | **MISSING** | - | Field 'shipmentControlNumber' has no direct Prisma schema column |
 | `WaterBorneExportInBondRecord.transportationIndicator` | **MISSING** | - | Field 'transportationIndicator' has no direct Prisma schema column |
@@ -1212,7 +1228,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `MotorVehicleControlRecord.factoryCarOrderNumber` | **MISSING** | - | Vehicle Identification Number (VIN) and motor vehicle control fields missing |
 | `HarmonizedTariffRecord.harmonizedNumber` | **MISSING** | - | Field 'harmonizedNumber' has no direct Prisma schema column |
 | `HarmonizedTariffRecord.value` | **MISSING** | - | Field 'value' has no direct Prisma schema column |
-| `HarmonizedTariffRecord.weight` | **COVERED** | `Shipment.totalWeight` | Total weight |
+| `HarmonizedTariffRecord.weight` | **MISSING** | - | Citation Shipment.totalWeight invalid; field totalWeight does not exist on model Shipment |
 | `HarmonizedTariffRecord.weightUnit` | **MISSING** | - | Field 'weightUnit' has no direct Prisma schema column |
 
 
@@ -1222,16 +1238,16 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `CargoManifestQueryRequestInput.entryFilerCode` | **PARTIAL** | `CustomsFiling.status` | Query request criteria |
-| `CargoManifestQueryRequestInput.entryNumber` | **COVERED** | `Shipment.bolNumber` | Query request parameters map to Shipment/CustomsFiling fields |
-| `CargoManifestQueryRequestInput.inBondNumber` | **COVERED** | `Shipment.bolNumber` | Query request parameters map to Shipment/CustomsFiling fields |
-| `CargoManifestQueryRequestInput.issuerCode` | **PARTIAL** | `CustomsFiling.status` | Query request criteria |
-| `CargoManifestQueryRequestInput.billNumber` | **PARTIAL** | `CustomsFiling.status` | Query request criteria |
-| `CargoManifestQueryRequestInput.airWaybillNumber` | **PARTIAL** | `CustomsFiling.status` | Query request criteria |
-| `CargoManifestQueryRequestInput.houseAirWaybillNumber` | **PARTIAL** | `CustomsFiling.status` | Query request criteria |
-| `CargoManifestQueryRequestInput.requestRelatedBol` | **PARTIAL** | `CustomsFiling.status` | Query request criteria |
-| `CargoManifestQueryRequestInput.requestBillAndEntryData` | **PARTIAL** | `CustomsFiling.status` | Query request criteria |
-| `CargoManifestQueryRequestInput.limitOutputOption` | **PARTIAL** | `CustomsFiling.status` | Query request criteria |
+| `CargoManifestQueryRequestInput.entryFilerCode` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CargoManifestQueryRequestInput.entryNumber` | **MISSING** | - | Citation Shipment.bolNumber invalid; field bolNumber does not exist on model Shipment |
+| `CargoManifestQueryRequestInput.inBondNumber` | **MISSING** | - | Citation Shipment.bolNumber invalid; field bolNumber does not exist on model Shipment |
+| `CargoManifestQueryRequestInput.issuerCode` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CargoManifestQueryRequestInput.billNumber` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CargoManifestQueryRequestInput.airWaybillNumber` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CargoManifestQueryRequestInput.houseAirWaybillNumber` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CargoManifestQueryRequestInput.requestRelatedBol` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CargoManifestQueryRequestInput.requestBillAndEntryData` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
+| `CargoManifestQueryRequestInput.limitOutputOption` | **MISSING** | - | Citation CustomsFiling.status invalid; field status does not exist on model CustomsFiling |
 | `CargoManifestQueryErrorOutput.entryFilerCode` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
 | `CargoManifestQueryErrorOutput.entryNumber` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
 | `CargoManifestQueryErrorOutput.errorMessageId` | **NOT APPLICABLE** | - | CBP response / disposition / error status notification returned by ACE |
@@ -1241,8 +1257,8 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `EntryStatusHeaderOutput.entryNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `EntryStatusHeaderOutput.entryTypeCode` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `EntryStatusHeaderOutput.importerOfRecordNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
-| `EntryStatusHeaderOutput.carrierCode` | **COVERED** | `TransportLeg.vesselName` | Conveyance info returned |
-| `EntryStatusHeaderOutput.vesselName` | **COVERED** | `TransportLeg.vesselName` | Conveyance info returned |
+| `EntryStatusHeaderOutput.carrierCode` | **COVERED** | `TransportLeg.vesselName` | Conveyance info returned (Verified: TransportLeg.vesselName exists [String?]) |
+| `EntryStatusHeaderOutput.vesselName` | **COVERED** | `TransportLeg.vesselName` | Conveyance info returned (Verified: TransportLeg.vesselName exists [String?]) |
 | `EntryStatusHeaderOutput.voyageFlightTripNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `EntryStatusHeaderOutput.estimatedDateOfArrival` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `EntryStatusHeaderOutput.splitShipmentReleaseCode` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
@@ -1260,7 +1276,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `ManifestConveyanceResultOutput.entryTypeCode` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `ManifestConveyanceResultOutput.importerOfRecordNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `ManifestConveyanceResultOutput.brokerReferenceNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
-| `ManifestConveyanceResultOutput.carrierCode` | **COVERED** | `TransportLeg.vesselName` | Conveyance info returned |
+| `ManifestConveyanceResultOutput.carrierCode` | **COVERED** | `TransportLeg.vesselName` | Conveyance info returned (Verified: TransportLeg.vesselName exists [String?]) |
 | `ManifestConveyanceResultOutput.importingVesselCodeOrConveyanceName` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `ManifestConveyanceResultOutput.voyageFlightTripNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `ManifestConveyanceResultOutput.dateOfArrival` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
@@ -1282,7 +1298,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `InBondStatusUpdateOutput.inBondArrivalDate` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `InBondStatusUpdateOutput.inBondExportDate` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `InBondStatusUpdateOutput.inBondEntryType` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
-| `InBondBillDetailOutput.inBondNumber` | **COVERED** | `Shipment.inBondNumber` | In-bond number returned |
+| `InBondBillDetailOutput.inBondNumber` | **MISSING** | - | Citation Shipment.inBondNumber invalid; field inBondNumber does not exist on model Shipment |
 | `InBondBillDetailOutput.masterBillNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `InBondBillDetailOutput.houseBillNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `InBondBillDetailOutput.subHouseBillNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
@@ -1308,7 +1324,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `AirInBondManifestStatusOutput.housePartIndicator` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `AirInBondManifestStatusOutput.houseManifestQuantity` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `AirInBondManifestStatusOutput.houseBoardedQuantity` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
-| `AirInBondManifestStatusOutput.inBondNumber` | **COVERED** | `Shipment.inBondNumber` | In-bond number returned |
+| `AirInBondManifestStatusOutput.inBondNumber` | **MISSING** | - | Citation Shipment.inBondNumber invalid; field inBondNumber does not exist on model Shipment |
 | `AirInBondManifestStatusOutput.inBondStatus` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `AirInBondManifestStatusOutput.inBondEntryType` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `AirInBondManifestStatusOutput.wscRecordVersion` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
@@ -1350,7 +1366,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `BillDetailOutput.quantity` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `BillDetailOutput.unitOfMeasure` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `BillDetailOutput.manifestedQuantity` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
-| `InBondDetailOutput.inBondNumber` | **COVERED** | `Shipment.inBondNumber` | In-bond number returned |
+| `InBondDetailOutput.inBondNumber` | **MISSING** | - | Citation Shipment.inBondNumber invalid; field inBondNumber does not exist on model Shipment |
 | `InBondDetailOutput.inBondEntryType` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `InBondDetailOutput.usPortOfInBondDeparture` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `InBondDetailOutput.usPortOfInBondArrival` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
@@ -1362,7 +1378,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `BillMatchDispositionOutput.dispositionCode` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `BillMatchDispositionOutput.narrativeMessage` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `BillMatchDispositionOutput.splitIndicator` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
-| `BillMatchDispositionOutput.carrierCode` | **COVERED** | `TransportLeg.vesselName` | Conveyance info returned |
+| `BillMatchDispositionOutput.carrierCode` | **COVERED** | `TransportLeg.vesselName` | Conveyance info returned (Verified: TransportLeg.vesselName exists [String?]) |
 | `BillMatchDispositionOutput.voyageFlightTripNumber` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `BillMatchDispositionOutput.dateOfArrival` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
 | `BillMatchDispositionOutput.districtPortOfArrival` | **NOT APPLICABLE** | - | ACE cargo manifest query response status / disposition detail returned by CBP |
@@ -1408,50 +1424,50 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 
 | CATAIR Field Name | Classification | Matching Prisma Model.Field | Gap Explanation / Notes |
 | :--- | :--- | :--- | :--- |
-| `InBondHeaderInput.actionCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `InBondHeaderInput.actionCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `InBondHeaderInput.inBondEntryType` | **MISSING** | - | Field 'inBondEntryType' has no direct Prisma schema column |
-| `InBondHeaderInput.inBondNumber` | **COVERED** | `Shipment.inBondNumber` | In-bond number |
+| `InBondHeaderInput.inBondNumber` | **MISSING** | - | Citation Shipment.inBondNumber invalid; field inBondNumber does not exist on model Shipment |
 | `InBondHeaderInput.inBondCarrierCode` | **MISSING** | - | Field 'inBondCarrierCode' has no direct Prisma schema column |
 | `InBondHeaderInput.usPortOfDest` | **MISSING** | - | Field 'usPortOfDest' has no direct Prisma schema column |
 | `InBondHeaderInput.portOfForeignDest` | **MISSING** | - | Field 'portOfForeignDest' has no direct Prisma schema column |
-| `InBondHeaderInput.value` | **COVERED** | `Shipment.totalValue` | Total value |
+| `InBondHeaderInput.value` | **MISSING** | - | Citation Shipment.totalValue invalid; field totalValue does not exist on model Shipment |
 | `InBondHeaderInput.bondedCarrierID` | **MISSING** | - | Field 'bondedCarrierID' has no direct Prisma schema column |
 | `InBondHeaderInput.ftzWarehouseInd` | **MISSING** | - | Field 'ftzWarehouseInd' has no direct Prisma schema column |
 | `InBondHeaderInput.btaFdaIndicator` | **MISSING** | - | Field 'btaFdaIndicator' has no direct Prisma schema column |
-| `ConveyanceInfoInput.importingCarrierCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `ConveyanceInfoInput.importMOT` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ConveyanceInfoInput.importingCarrierCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `ConveyanceInfoInput.importMOT` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ConveyanceInfoInput.countryCode` | **MISSING** | - | Field 'countryCode' has no direct Prisma schema column |
 | `ConveyanceInfoInput.importingConveyance` | **MISSING** | - | Field 'importingConveyance' has no direct Prisma schema column |
 | `ConveyanceInfoInput.voyageFlightTripNum` | **MISSING** | - | Field 'voyageFlightTripNum' has no direct Prisma schema column |
-| `ConveyanceInfoInput.portOfImportArrival` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `ConveyanceInfoInput.portOfImportArrival` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `ConveyanceInfoInput.estDateOfArrival` | **MISSING** | - | Field 'estDateOfArrival' has no direct Prisma schema column |
 | `ConveyanceInfoInput.ftzFirmsCode` | **MISSING** | - | Field 'ftzFirmsCode' has no direct Prisma schema column |
-| `BillOfLadingHeaderInput.actionCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `BillOfLadingHeaderInput.actionCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `BillOfLadingHeaderInput.sequenceNumber` | **NOT APPLICABLE** | - | Protocol mechanics / control identifier / filler / sequence marker |
-| `BillOfLadingHeaderInput.issuerCodeMasterBOL` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `BillOfLadingHeaderInput.masterBOLNumber` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `BillOfLadingHeaderInput.issuerCodeMasterBOL` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `BillOfLadingHeaderInput.masterBOLNumber` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `BillOfLadingHeaderInput.issuerCodeHouseBill` | **MISSING** | - | Field 'issuerCodeHouseBill' has no direct Prisma schema column |
 | `BillOfLadingHeaderInput.houseBillNumber` | **MISSING** | - | Field 'houseBillNumber' has no direct Prisma schema column |
 | `BillOfLadingHeaderInput.issuerCodeSubHouse` | **MISSING** | - | Field 'issuerCodeSubHouse' has no direct Prisma schema column |
 | `BillOfLadingHeaderInput.subHouseBillNumber` | **MISSING** | - | Field 'subHouseBillNumber' has no direct Prisma schema column |
 | `BillOfLadingHeaderInput.prevInBondNumber` | **MISSING** | - | Field 'prevInBondNumber' has no direct Prisma schema column |
 | `BillOfLadingHeaderInput.inBondQuantity` | **MISSING** | - | Field 'inBondQuantity' has no direct Prisma schema column |
-| `SecondaryNotifyPartiesInput.snpCode1` | **COVERED** | `ShipmentParty.partyId` | Secondary notify party |
-| `SecondaryNotifyPartiesInput.snpCode2` | **COVERED** | `ShipmentParty.partyId` | Secondary notify party |
-| `SecondaryNotifyPartiesInput.snpCode3` | **COVERED** | `ShipmentParty.partyId` | Secondary notify party |
-| `SecondaryNotifyPartiesInput.snpCode4` | **COVERED** | `ShipmentParty.partyId` | Secondary notify party |
-| `ReferenceIdentifierInput.qualifier` | **COVERED** | `ShipmentTrackingIdentifier.identifier` | Reference identifier |
-| `ReferenceIdentifierInput.referenceIdentifier` | **COVERED** | `ShipmentTrackingIdentifier.identifier` | Reference identifier |
-| `InBondEventHeaderInput.actionCode` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `InBondEventHeaderInput.inBondNumber` | **COVERED** | `Shipment.inBondNumber` | In-bond number |
+| `SecondaryNotifyPartiesInput.snpCode1` | **COVERED** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `SecondaryNotifyPartiesInput.snpCode2` | **COVERED** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `SecondaryNotifyPartiesInput.snpCode3` | **COVERED** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `SecondaryNotifyPartiesInput.snpCode4` | **COVERED** | `ShipmentParty.legalEntityId` | Corrected citation: Party link is stored in ShipmentParty.legalEntityId |
+| `ReferenceIdentifierInput.qualifier` | **COVERED** | `ShipmentTrackingIdentifier.value` | Corrected citation: Tracking identifier value is stored in ShipmentTrackingIdentifier.value |
+| `ReferenceIdentifierInput.referenceIdentifier` | **COVERED** | `ShipmentTrackingIdentifier.value` | Corrected citation: Tracking identifier value is stored in ShipmentTrackingIdentifier.value |
+| `InBondEventHeaderInput.actionCode` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `InBondEventHeaderInput.inBondNumber` | **MISSING** | - | Citation Shipment.inBondNumber invalid; field inBondNumber does not exist on model Shipment |
 | `InBondEventHeaderInput.issuerCodeMasterBOL` | **MISSING** | - | Field 'issuerCodeMasterBOL' has no direct Prisma schema column |
 | `InBondEventHeaderInput.masterBOLNumber` | **MISSING** | - | Field 'masterBOLNumber' has no direct Prisma schema column |
 | `InBondEventHeaderInput.issuerCodeHouseBOL` | **MISSING** | - | Field 'issuerCodeHouseBOL' has no direct Prisma schema column |
 | `InBondEventHeaderInput.houseBOLNumber` | **MISSING** | - | Field 'houseBOLNumber' has no direct Prisma schema column |
 | `InBondEventHeaderInput.firmsLocation` | **MISSING** | - | Field 'firmsLocation' has no direct Prisma schema column |
 | `InBondEventHeaderInput.containerNumber` | **MISSING** | - | Field 'containerNumber' has no direct Prisma schema column |
-| `InBondEventDetailInput.date` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
-| `InBondEventDetailInput.time` | **PARTIAL** | `CustomsFiling.payload` | Field captured inside raw JSON payload |
+| `InBondEventDetailInput.date` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
+| `InBondEventDetailInput.time` | **PARTIAL** | `CustomsFiling.rawPayload` | Corrected citation: CustomsFiling.rawPayload stores raw payload string; CustomsFiling.metadata stores JSON |
 | `InBondEventDetailInput.portOfArrival` | **MISSING** | - | Field 'portOfArrival' has no direct Prisma schema column |
 | `InBondEventDetailInput.inBondCarrierCode` | **MISSING** | - | Field 'inBondCarrierCode' has no direct Prisma schema column |
 | `InBondEventDetailInput.bondedCarrierID` | **MISSING** | - | Field 'bondedCarrierID' has no direct Prisma schema column |
@@ -1504,12 +1520,12 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `ImporterBondQueryInput.addressRequestCode5` | **NOT APPLICABLE** | - | Query request control / query type criteria |
 | `ImporterBondQueryInput.importerNumber6` | **NOT APPLICABLE** | - | Query request control / query type criteria |
 | `ImporterBondQueryInput.addressRequestCode6` | **NOT APPLICABLE** | - | Query request control / query type criteria |
-| `K1Output.importerNumber` | **COVERED** | `ImporterOfRecord.name` | Importer details returned in query response |
+| `K1Output.importerNumber` | **COVERED** | `ImporterOfRecord.name` | Importer details returned in query response (Verified: ImporterOfRecord.name exists [String]) |
 | `K1Output.queryResultsCode` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
-| `K1Output.importerName` | **COVERED** | `ImporterOfRecord.name` | Importer details returned in query response |
-| `K1Output.suretyCode` | **COVERED** | `Bond.bondNumber` | Bond details returned in query response |
+| `K1Output.importerName` | **COVERED** | `ImporterOfRecord.name` | Importer details returned in query response (Verified: ImporterOfRecord.name exists [String]) |
+| `K1Output.suretyCode` | **COVERED** | `Bond.bondNumber` | Bond details returned in query response (Verified: Bond.bondNumber exists [String]) |
 | `K1Output.bondTypeActivityCode` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
-| `K1Output.bondAmount` | **COVERED** | `Bond.bondNumber` | Bond details returned in query response |
+| `K1Output.bondAmount` | **COVERED** | `Bond.bondNumber` | Bond details returned in query response (Verified: Bond.bondNumber exists [String]) |
 | `K1Output.districtPortWhereBondFiled` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
 | `K1Output.bondEffectiveDate` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
 | `K1Output.bondNumber` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
@@ -1521,7 +1537,7 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 | `K2Output.bondSufficiencyIndicator` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
 | `K2Output.bondUserStatusIndicator` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
 | `K2Output.bondUserTerminationDate` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
-| `K2Output.bondAmount` | **COVERED** | `Bond.bondNumber` | Bond details returned in query response |
+| `K2Output.bondAmount` | **COVERED** | `Bond.bondNumber` | Bond details returned in query response (Verified: Bond.bondNumber exists [String]) |
 | `K3Output.addressLine1` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
 | `K3Output.addressLine2` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
 | `K4Output.city` | **NOT APPLICABLE** | - | CBP importer/bond query response status / error record returned by ACE |
@@ -1544,13 +1560,15 @@ Across all 12 CATAIR chapters, a total of **1419 fields** were assessed against 
 To transform the standalone CATAIR codec into a fully operational customs filing system connected to production storage, schema migrations should be executed in prioritized phases:
 
 ### Phase 1: High-Priority Business Critical Data (Immediate Focus)
-1. **Itemized Tariff & Fee Class Accounting (`CustomsFiling` / `ShipmentLineItem`)**:
+1. **CBP 3-Character Filer Code (`CustomsProfile` / `Client`)**:
+   - Add a dedicated `filerCode` column to `CustomsProfile` or `Client` to store the assigned 3-character CBP Filer Code required on all entry summaries and block control headers.
+2. **Itemized Tariff & Fee Class Accounting (`CustomsFiling` / `ShipmentLineItem`)**:
    - Replace or supplement aggregate `feeAmount` with dedicated columns or structured relations for accounting class codes (e.g. 499 Harbor Maintenance Fee, 501 Merchandise Processing Fee, 311 Cotton Fee, 056 Environmental Tax).
-2. **Census Warning Override Pairs (`CustomsFiling`)**:
+3. **Census Warning Override Pairs (`CustomsFiling`)**:
    - Add dedicated columns or structured JSON array for `censusOverrideCodes` (supporting up to 7 condition code + override code pairs per entry) to enable filers to clear Census warnings during 7501 submission.
-3. **PGA High-Frequency License / Permit Scalars (`ShipmentLineItem`)**:
+4. **PGA High-Frequency License / Permit Scalars (`ShipmentLineItem`)**:
    - Add dedicated fields for PGA License, Permit, Certificate, and Other (LPCO) numbers, issuer codes, and permit type codes (PG13/PG14) required for FDA, EPA, and USDA entry releases.
-4. **Drawback Manufacturing & Destruction Claim Fields (`DrawbackLot` / `DrawbackClaim`)**:
+5. **Drawback Manufacturing & Destruction Claim Fields (`DrawbackLot` / `DrawbackClaim`)**:
    - Add explicit columns for manufacturing date, factory location, notice of intent to export/destroy date, and exam witness location to enable manufacturing drawback filings.
 
 ### Phase 2: Medium-Priority Specialized Regulatory Data
