@@ -2,18 +2,12 @@ import { db } from "@/lib/db";
 import type { FilingMessageAction } from "./types";
 
 export interface MessageContextInput {
-  /** 
-   * Transaction type (IMPORT, EXPORT, NCTS, etc.) - replaces US-centric entryType.
-   * Required for new multi-country design.
-   */
-  transactionType: string | null | undefined;
-  
-  /** 
+  /**
    * Country-specific procedure code (e.g., "5100" for NL NCTS, "4000" for IN Import).
    * Required for new multi-country design.
    */
   procedureCode: string | null | undefined;
-  
+
   /** ISO 3166-1 alpha-2 country code (NL, IE, FR, IN, etc.) */
   country: string | null | undefined;
 }
@@ -55,25 +49,6 @@ export async function resolveMessageContext(
     );
   }
 
-  const transactionType = input.transactionType?.trim().toUpperCase();
-  if (!transactionType) {
-    throw new Error(
-      "Cannot resolve message context: transactionType is not set. " +
-        "Set the transaction type (IMPORT, EXPORT, NCTS, etc.) explicitly."
-    );
-  }
-
-  // Verify the transaction type exists
-  const txType = await db.filingTransactionType.findUnique({
-    where: { code: transactionType, isActive: true },
-  });
-  if (!txType) {
-    throw new Error(
-      `Transaction type "${transactionType}" not found or inactive. ` +
-        `Valid types: IMPORT, EXPORT, NCTS, TEMP_STORAGE, BONDED_WAREHOUSE, etc.`
-    );
-  }
-
   // Look up the action → messageName mapping
   const actionMapping = await db.filingActionMessageMapping.findUnique({
     where: {
@@ -95,9 +70,11 @@ export async function resolveMessageContext(
         `This is expected for old filings not yet migrated. Using fallback.`
       );
       
-      // Return fallback for US CBP entries (old system)
+      // Return fallback for US CBP entries (old system) -- no FilingProcedureConfig
+      // row exists to read a real transactionType from, so fall back to IMPORT
+      // (every pre-migration US filing this fallback serves was an import entry).
       return {
-        transactionType,
+        transactionType: "IMPORT",
         country,
         procedure: procedureCode,
         messageName: "CBP_ENTRY_7501", // Generic US entry message (Form 7501)
@@ -133,17 +110,37 @@ export async function resolveMessageContext(
       );
       
       return {
-        transactionType,
+        transactionType: "IMPORT",
         country,
         procedure: procedureCode,
         messageName: actionMapping.messageName,
       };
     }
-    
+
     throw new Error(
       `Procedure configuration not found for country "${country}", ` +
         `procedure "${procedureCode}", message "${actionMapping.messageName}". ` +
         `Add FilingProcedureConfig row before filing.`
+    );
+  }
+
+  const transactionType = procedureConfig.transactionType?.trim().toUpperCase();
+  if (!transactionType) {
+    throw new Error(
+      `FilingProcedureConfig for country "${country}", procedure "${procedureCode}", ` +
+        `message "${actionMapping.messageName}" has no transactionType set. ` +
+        `Set it in Platform Admin > Filing Configuration before filing to this destination.`
+    );
+  }
+
+  const txType = await db.filingTransactionType.findUnique({
+    where: { code: transactionType, isActive: true },
+  });
+  if (!txType) {
+    throw new Error(
+      `Transaction type "${transactionType}" (from FilingProcedureConfig for ` +
+        `country "${country}", procedure "${procedureCode}") is not a valid, active ` +
+        `FilingTransactionType. Valid types: IMPORT, EXPORT, NCTS, TEMP_STORAGE, BONDED_WAREHOUSE, etc.`
     );
   }
 
@@ -153,4 +150,38 @@ export async function resolveMessageContext(
     procedure: procedureCode,
     messageName: actionMapping.messageName,
   };
+}
+
+/**
+ * Looks up just the transactionType for a (country, procedureCode, messageName)
+ * combination, for callers that already know their messageName and only need
+ * the transaction type (e.g. to pick the ImportDeclaration/ExportDeclaration
+ * wrapper) without running the full action → message resolution above.
+ * Falls back to "IMPORT" when no config row exists, matching the same
+ * backwards-compatibility default used for unmigrated US filings.
+ */
+export async function resolveTransactionType(
+  country: string | null | undefined,
+  procedureCode: string | null | undefined,
+  messageName: string | null | undefined
+): Promise<string> {
+  const normalizedCountry = country?.trim().toUpperCase();
+  const normalizedProcedureCode = procedureCode?.trim();
+  const normalizedMessageName = messageName?.trim();
+  if (!normalizedCountry || !normalizedProcedureCode || !normalizedMessageName) {
+    return "IMPORT";
+  }
+
+  const procedureConfig = await db.filingProcedureConfig.findUnique({
+    where: {
+      country_procedureCode_messageName: {
+        country: normalizedCountry,
+        procedureCode: normalizedProcedureCode,
+        messageName: normalizedMessageName,
+      },
+      isActive: true,
+    },
+  });
+
+  return procedureConfig?.transactionType?.trim().toUpperCase() || "IMPORT";
 }

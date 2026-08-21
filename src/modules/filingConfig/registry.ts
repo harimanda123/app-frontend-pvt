@@ -59,10 +59,16 @@ export interface SubFieldDef {
 export interface FieldDef {
   key: string;
   label: string;
-  type: "text" | "boolean" | "fieldArray";
+  type: "text" | "boolean" | "fieldArray" | "select" | "date";
   help?: string;
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldDef[];
+  /** Only present when type === "select": static dropdown options. */
+  options?: string[];
+  /** Only present when type === "select": map of value -> display label. */
+  optionLabels?: Record<string, string>;
+  /** Only present when type === "select" and options is omitted: API path the editor fetches `{ codes: string[] }` from. */
+  optionsSource?: string;
 }
 
 interface TableDef<TRow> {
@@ -102,6 +108,7 @@ const procedureConfigSchema = z.object({
   country: z.string().trim().min(1).max(50),
   procedureCode: z.string().trim().min(1).max(50),
   messageName: z.string().trim().min(1).max(100),
+  transactionType: z.string().trim().min(1).max(50),
   isActive: z.boolean(),
   createdBy: z.string().trim().max(100).optional(),
   updatedBy: z.string().trim().max(100).optional(),
@@ -285,9 +292,10 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
       { key: "country", label: "Country", type: "text" },
       { key: "procedureCode", label: "Procedure Code", type: "text" },
       { key: "messageName", label: "Message Name", type: "text" },
+      { key: "transactionType", label: "Transaction Type", type: "select", optionsSource: "/api/filing-config/transaction-types" },
       { key: "isActive", label: "Is Active", type: "boolean" },
     ],
-    list: () => db.filingProcedureConfig.findMany({ 
+    list: () => db.filingProcedureConfig.findMany({
       orderBy: [{ country: "asc" }, { procedureCode: "asc" }]
     }),
     create: (data) => wrapPrismaErrors(() => db.filingProcedureConfig.create({ data: procedureConfigSchema.parse(data) })),

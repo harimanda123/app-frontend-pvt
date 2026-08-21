@@ -1200,7 +1200,7 @@ model CustomsFiling {
   /// Replaces the authority field which was storing authority names
   country String?
 
-  /// Country-specific procedure code (e.g., "5100" for NL NCTS, "4000" for IN Import)
+  /// Country-specific procedure code (e.g., "NCTS" for NL NCTS, "IMPORT" for IN Import)
   /// Together with country, uniquely identifies the customs procedure
   procedureCode String?
 
@@ -4762,6 +4762,11 @@ model FilingProcedureConfig {
   country            String // ISO 3166-1 alpha-2 (NL, IE, FR, IN, etc.)
   procedureCode      String // Country-specific procedure code (5100, 4000, etc.)
   messageName        String // Official customs message code (IE015, IE013, ICEGATE_BOE, etc.)
+  /// Transaction type code (IMPORT, EXPORT, NCTS, etc.) from FilingTransactionType.code.
+  /// Restored 2026-08-21 -- bb8ad90 dropped the transactionTypeId FK that used to carry this,
+  /// which left resolveMessageContext with no real source for transactionType and caused
+  /// callers to pass the country-specific procedureCode value in its place instead.
+  transactionType    String?
   canCreateNewFiling Boolean  @default(true) // If true, can be used for new declaration; if false, only for amendments/cancellations/etc.
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
