@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { getAiUsageAnalytics } from "@/lib/ai/aiUsageAnalytics";
 import { getDocumentProcessingAnalytics } from "@/lib/documents/documentProcessingAnalytics";
+import { listPendingKeywordRuleReviews } from "@/modules/complianceKeywordRules/keywordRuleReviewService";
 
 export default async function PlatformAdminPage() {
   const context = await getAccountContext();
@@ -100,6 +101,8 @@ export default async function PlatformAdminPage() {
 
   const aiUsage = await getAiUsageAnalytics(30);
   const documentProcessing = await getDocumentProcessingAnalytics(30);
+  const pendingKeywordRules = await listPendingKeywordRuleReviews();
+  const pendingKeywordRuleCount = pendingKeywordRules.length;
 
   return (
     <div className="min-h-screen bg-surface-muted text-ink p-8 selection:bg-brand/20 selection:text-brand">
@@ -128,7 +131,13 @@ export default async function PlatformAdminPage() {
           </Link>
         </div>
 
-        <PlatformAdminConsole accounts={formattedAccounts} htsAdmin={htsAdmin} aiUsage={aiUsage} documentProcessing={documentProcessing} />
+        <PlatformAdminConsole
+          accounts={formattedAccounts}
+          htsAdmin={htsAdmin}
+          aiUsage={aiUsage}
+          documentProcessing={documentProcessing}
+          pendingKeywordRuleCount={pendingKeywordRuleCount}
+        />
       </div>
     </div>
   );
