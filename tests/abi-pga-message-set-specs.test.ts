@@ -95,479 +95,70 @@
  *    PGA Unit Value (pos 69-80, 12N) explicitly states "Two decimal places are implied" (2 implied decimals).
  * 4. Record Length Consistency:
  *    All 28 generic backbone input records are 80 characters long, matching standard CATAIR fixed-width transmission frames.
+ *
+ * Implementation notes (post-reconciliation): this file previously defined its
+ * own locally-scoped `PgaRecordSpec` interface and 28 `..._SPEC` constants and
+ * tested against those instead of the real `src/lib/abi/pgaMessageSet/`
+ * implementation — the same gap found (and fixed) in cargoRelease, statement,
+ * and ebond earlier. It now imports the real `RecordSpec`s from
+ * `@/lib/abi/pgaMessageSet/recordSpecs` and exercises them via
+ * `encodeRecord`/`decodeRecord` from `@/lib/abi/fixedWidth`. Notable shape
+ * differences from the old local specs, reconciled below:
+ *   - The real specs collapse the 2-char control identifier + 2-char numeric
+ *     record type (e.g. "PG" + "01") into a single 4-char `constantField`
+ *     (e.g. "PG01") at positions 1-4, rather than two separate fields. The OI
+ *     record keeps its 2-char constant ("OI") since it has no numeric suffix.
+ *   - Money/quantity fields with implied decimals (PG04 Quantity/Percent,
+ *     PG14 LPCO Quantity, PG25 Actual Temperature/Line Value/Unit Value, PG26
+ *     Quantity, PG29 Commodity Quantities) are bound to `Decimal` via
+ *     `impliedDecimalField`, not raw JS numbers.
+ *   - PGA's 8-char "MMDDCCYY" date fields (PG06 Processing Start/End Date,
+ *     PG14 LPCO Date, PG22 Date of Signature, PG25 Production Start/End Date,
+ *     PG30 Requested/Scheduled Date) are bound to `Date` via `dateFieldCCYY`,
+ *     not raw digit strings.
+ *   - Identifiers with semantically significant leading zeros (PG01 PGA Line
+ *     Number, PG07 Manufacture Month/Year, PG30 Requested/Scheduled Time) use
+ *     `numericCodeField`, which decodes to a zero-padded string, not a
+ *     `parseInt`-derived number — the same leading-zero bug found and fixed
+ *     in Entry Summary Query's JI-Record and eBond's Surety Code.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { describe, it, expect } from "vitest";
+import { encodeRecord, decodeRecord } from "@/lib/abi/fixedWidth";
+import { Decimal } from "@/lib/tariff/decimal";
+import {
+  OI_LINE_ITEM_SPEC,
+  PG01_HEADER_SPEC,
+  PG02_PRODUCT_COMPONENT_SPEC,
+  PG04_CONSTITUENT_ELEMENT_SPEC,
+  PG06_SOURCE_PROCESSING_SPEC,
+  PG07_TRADE_NAME_MODEL_SPEC,
+  PG08_ITEM_IDENTITY_OVERFLOW_SPEC,
+  PG10_CATEGORY_CHARACTERISTIC_SPEC,
+  PG13_LPCO_ISSUER_SPEC,
+  PG14_LPCO_DETAILS_SPEC,
+  PG18_HAZMAT_SPEC,
+  PG19_ENTITY_IDENTIFICATION_SPEC,
+  PG20_ENTITY_ADDRESS_SPEC,
+  PG21_INDIVIDUAL_CONTACT_SPEC,
+  PG22_IMPORTER_DECLARATION_SPEC,
+  PG24_REMARKS_SPEC,
+  PG25_TEMPERATURE_LOT_VALUES_SPEC,
+  PG26_PACKAGING_BREAKDOWN_SPEC,
+  PG27_SHIPPING_CONTAINER_SPEC,
+  PG29_COMMODITY_QUANTITIES_SPEC,
+  PG30_INSPECTION_LOCATION_SPEC,
+  PG32_COMMODITY_ROUTING_SPEC,
+  PG34_TRAVEL_DOCUMENT_SPEC,
+  PG50_GROUP_START_SPEC,
+  PG51_GROUP_END_SPEC,
+  PG55_ADDITIONAL_ENTITY_ROLES_SPEC,
+  PG60_ADDITIONAL_REFERENCE_SPEC,
+  PG00_SUBSTITUTION_SPEC,
+} from "@/lib/abi/pgaMessageSet/recordSpecs";
 
-export interface PgaFieldSpec {
-  name: string;
-  start: number;
-  end: number;
-  length: number;
-  type: "A" | "N" | "AN" | "X";
-  status: "M" | "C" | "O";
-  impliedDecimals?: number;
-}
-
-export interface PgaRecordSpec {
-  recordType: string;
-  name: string;
-  length: number;
-  fields: PgaFieldSpec[];
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SPECIFICATION DEFINITIONS FOR ALL 28 GENERIC BACKBONE RECORDS
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const OI_LINE_ITEM_SPEC: PgaRecordSpec = {
-  recordType: "OI",
-  name: "Commercial Line Item Description",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "filler", start: 3, end: 10, length: 8, type: "AN", status: "M" },
-    { name: "commercialDescription", start: 11, end: 80, length: 70, type: "X", status: "M" },
-  ],
-};
-
-export const PG01_HEADER_SPEC: PgaRecordSpec = {
-  recordType: "PG01",
-  name: "PGA Line Header & Agency Code",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "pgaLineNumber", start: 5, end: 7, length: 3, type: "N", status: "M" },
-    { name: "governmentAgencyCode", start: 8, end: 10, length: 3, type: "AN", status: "M" },
-    { name: "governmentAgencyProgramCode", start: 11, end: 13, length: 3, type: "X", status: "M" },
-    { name: "governmentAgencyProcessingCode", start: 14, end: 16, length: 3, type: "AN", status: "C" },
-    { name: "electronicImageSubmitted", start: 17, end: 17, length: 1, type: "A", status: "C" },
-    { name: "confidentialInformationIndicator", start: 18, end: 18, length: 1, type: "A", status: "C" },
-    { name: "globallyUniqueProductIdentificationCodeQualifier", start: 19, end: 22, length: 4, type: "AN", status: "C" },
-    { name: "globallyUniqueProductIdentificationCode", start: 23, end: 41, length: 19, type: "X", status: "C" },
-    { name: "intendedUseCode", start: 42, end: 57, length: 16, type: "X", status: "C" },
-    { name: "intendedUseDescription", start: 58, end: 78, length: 21, type: "X", status: "C" },
-    { name: "correctionIndicator", start: 79, end: 79, length: 1, type: "X", status: "C" },
-    { name: "disclaimer", start: 80, end: 80, length: 1, type: "A", status: "C" },
-  ],
-};
-
-export const PG02_PRODUCT_COMPONENT_SPEC: PgaRecordSpec = {
-  recordType: "PG02",
-  name: "Product or Component Identifier",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "itemType", start: 5, end: 5, length: 1, type: "A", status: "M" },
-    { name: "productCodeQualifier1", start: 6, end: 9, length: 4, type: "AN", status: "C" },
-    { name: "productCodeNumber1", start: 10, end: 28, length: 19, type: "X", status: "C" },
-    { name: "productCodeQualifier2", start: 29, end: 32, length: 4, type: "AN", status: "C" },
-    { name: "productCodeNumber2", start: 33, end: 51, length: 19, type: "X", status: "C" },
-    { name: "productCodeQualifier3", start: 52, end: 55, length: 4, type: "AN", status: "C" },
-    { name: "productCodeNumber3", start: 56, end: 74, length: 19, type: "X", status: "C" },
-    { name: "filler", start: 75, end: 80, length: 6, type: "X", status: "M" },
-  ],
-};
-
-export const PG04_CONSTITUENT_ELEMENT_SPEC: PgaRecordSpec = {
-  recordType: "PG04",
-  name: "Constituent Active Ingredient / Element",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "constituentActiveIngredientQualifier", start: 5, end: 5, length: 1, type: "A", status: "C" },
-    { name: "nameOfConstituentElement", start: 6, end: 56, length: 51, type: "X", status: "C" },
-    { name: "quantityOfConstituentElement", start: 57, end: 68, length: 12, type: "N", status: "C", impliedDecimals: 2 },
-    { name: "unitOfMeasureConstituentElement", start: 69, end: 73, length: 5, type: "AN", status: "C" },
-    { name: "percentOfConstituentElement", start: 74, end: 80, length: 7, type: "N", status: "C", impliedDecimals: 4 },
-  ],
-};
-
-export const PG06_SOURCE_PROCESSING_SPEC: PgaRecordSpec = {
-  recordType: "PG06",
-  name: "Source / Processing / Origin",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "sourceTypeCode", start: 5, end: 7, length: 3, type: "AN", status: "M" },
-    { name: "countryCode", start: 8, end: 9, length: 2, type: "X", status: "C" },
-    { name: "geographicLocation", start: 10, end: 29, length: 20, type: "X", status: "C" },
-    { name: "processingStartDate", start: 30, end: 37, length: 8, type: "N", status: "C" },
-    { name: "processingEndDate", start: 38, end: 45, length: 8, type: "N", status: "C" },
-    { name: "processingTypeCode", start: 46, end: 50, length: 5, type: "AN", status: "C" },
-    { name: "processingDescription", start: 51, end: 80, length: 30, type: "X", status: "C" },
-  ],
-};
-
-export const PG07_TRADE_NAME_MODEL_SPEC: PgaRecordSpec = {
-  recordType: "PG07",
-  name: "Trade Name / Brand Name / Model / Item Identity Header",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "tradeNameBrandName", start: 5, end: 39, length: 35, type: "X", status: "C" },
-    { name: "model", start: 40, end: 54, length: 15, type: "X", status: "C" },
-    { name: "manufactureMonthAndYear", start: 55, end: 60, length: 6, type: "N", status: "C" },
-    { name: "itemIdentityNumberQualifier", start: 61, end: 63, length: 3, type: "AN", status: "C" },
-    { name: "itemIdentityNumber", start: 64, end: 80, length: 17, type: "X", status: "C" },
-  ],
-};
-
-export const PG08_ITEM_IDENTITY_OVERFLOW_SPEC: PgaRecordSpec = {
-  recordType: "PG08",
-  name: "Multiple Item Identity Numbers",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "itemIdentityNumber1", start: 5, end: 21, length: 17, type: "X", status: "C" },
-    { name: "itemIdentityNumber2", start: 22, end: 38, length: 17, type: "X", status: "C" },
-    { name: "itemIdentityNumber3", start: 39, end: 55, length: 17, type: "X", status: "C" },
-    { name: "itemIdentityNumber4", start: 56, end: 72, length: 17, type: "X", status: "C" },
-    { name: "filler", start: 73, end: 80, length: 8, type: "X", status: "M" },
-  ],
-};
-
-export const PG10_CATEGORY_CHARACTERISTIC_SPEC: PgaRecordSpec = {
-  recordType: "PG10",
-  name: "Commodity Category & Characteristic",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "categoryTypeCode", start: 5, end: 10, length: 6, type: "AN", status: "C" },
-    { name: "categoryCode", start: 11, end: 15, length: 5, type: "AN", status: "C" },
-    { name: "commodityQualifierCode", start: 16, end: 19, length: 4, type: "X", status: "C" },
-    { name: "commodityCharacteristicQualifier", start: 20, end: 23, length: 4, type: "AN", status: "C" },
-    { name: "commodityCharacteristicDescription", start: 24, end: 80, length: 57, type: "X", status: "C" },
-  ],
-};
-
-export const PG13_LPCO_ISSUER_SPEC: PgaRecordSpec = {
-  recordType: "PG13",
-  name: "LPCO Issuer & Geographic Location",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "issuerOfLpco", start: 5, end: 39, length: 35, type: "X", status: "C" },
-    { name: "lpcoIssuerGovernmentGeographicCodeQualifier", start: 40, end: 42, length: 3, type: "A", status: "C" },
-    { name: "locationOfIssuerOfTheLpco", start: 43, end: 45, length: 3, type: "A", status: "C" },
-    { name: "regionalDescriptionOfLocationOfAgencyIssuingLpco", start: 46, end: 70, length: 25, type: "X", status: "C" },
-    { name: "filler", start: 71, end: 80, length: 10, type: "X", status: "M" },
-  ],
-};
-
-export const PG14_LPCO_DETAILS_SPEC: PgaRecordSpec = {
-  recordType: "PG14",
-  name: "LPCO Details & Quantity",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "lpcoTransactionType", start: 5, end: 5, length: 1, type: "N", status: "C" },
-    { name: "lpcoType", start: 6, end: 8, length: 3, type: "AN", status: "C" },
-    { name: "lpcoNumberOrName", start: 9, end: 41, length: 33, type: "X", status: "C" },
-    { name: "lpcoDateQualifier", start: 42, end: 42, length: 1, type: "N", status: "C" },
-    { name: "lpcoDate", start: 43, end: 50, length: 8, type: "N", status: "C" },
-    { name: "lpcoQuantity", start: 51, end: 66, length: 16, type: "N", status: "C", impliedDecimals: 4 },
-    { name: "lpcoUnitOfMeasure", start: 67, end: 71, length: 5, type: "AN", status: "C" },
-    { name: "exemptionCode", start: 72, end: 80, length: 9, type: "X", status: "C" },
-  ],
-};
-
-export const PG18_HAZMAT_SPEC: PgaRecordSpec = {
-  recordType: "PG18",
-  name: "Hazardous Material & Dangerous Goods",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "unDangerousGoodsCode", start: 5, end: 14, length: 10, type: "AN", status: "C" },
-    { name: "hazardousClassCode", start: 15, end: 18, length: 4, type: "X", status: "C" },
-    { name: "epaHazardousWasteCode", start: 19, end: 22, length: 4, type: "AN", status: "C" },
-    { name: "hazardousMaterialDescription", start: 23, end: 72, length: 50, type: "X", status: "C" },
-    { name: "packagingGroupCode", start: 73, end: 73, length: 1, type: "N", status: "C" },
-    { name: "filler", start: 74, end: 80, length: 7, type: "X", status: "M" },
-  ],
-};
-
-export const PG19_ENTITY_IDENTIFICATION_SPEC: PgaRecordSpec = {
-  recordType: "PG19",
-  name: "Entity Identification",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "entityRoleCode", start: 5, end: 7, length: 3, type: "AN", status: "M" },
-    { name: "entityIdentificationCode", start: 8, end: 10, length: 3, type: "AN", status: "C" },
-    { name: "entityNumber", start: 11, end: 25, length: 15, type: "X", status: "C" },
-    { name: "entityName", start: 26, end: 57, length: 32, type: "X", status: "C" },
-    { name: "entityAddress1", start: 58, end: 80, length: 23, type: "X", status: "C" },
-  ],
-};
-
-export const PG20_ENTITY_ADDRESS_SPEC: PgaRecordSpec = {
-  recordType: "PG20",
-  name: "Entity Address Line 2 & City/State/Zip",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "entityAddress2", start: 5, end: 36, length: 32, type: "X", status: "C" },
-    { name: "entityApartmentSuiteNumber", start: 37, end: 41, length: 5, type: "X", status: "C" },
-    { name: "entityCity", start: 42, end: 62, length: 21, type: "X", status: "C" },
-    { name: "entityStateProvince", start: 63, end: 65, length: 3, type: "AN", status: "C" },
-    { name: "entityCountry", start: 66, end: 67, length: 2, type: "A", status: "C" },
-    { name: "entityZipPostalCode", start: 68, end: 76, length: 9, type: "X", status: "C" },
-    { name: "filler", start: 77, end: 80, length: 4, type: "X", status: "M" },
-  ],
-};
-
-export const PG21_INDIVIDUAL_CONTACT_SPEC: PgaRecordSpec = {
-  recordType: "PG21",
-  name: "Individual Contact Information",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "individualQualifier", start: 5, end: 7, length: 3, type: "AN", status: "C" },
-    { name: "individualName", start: 8, end: 30, length: 23, type: "X", status: "C" },
-    { name: "telephoneNumberOfTheIndividual", start: 31, end: 45, length: 15, type: "X", status: "C" },
-    { name: "emailAddressOrFaxNumberForTheIndividual", start: 46, end: 80, length: 35, type: "X", status: "C" },
-  ],
-};
-
-export const PG22_IMPORTER_DECLARATION_SPEC: PgaRecordSpec = {
-  recordType: "PG22",
-  name: "Importer Declaration / Substantiating Document",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "importersSubstantiatingSignedDocument", start: 5, end: 5, length: 1, type: "A", status: "C" },
-    { name: "documentIdentifier", start: 6, end: 12, length: 7, type: "AN", status: "C" },
-    { name: "conformanceDeclaration", start: 13, end: 17, length: 5, type: "X", status: "C" },
-    { name: "entityRoleCode", start: 18, end: 20, length: 3, type: "AN", status: "C" },
-    { name: "declarationCode", start: 21, end: 24, length: 4, type: "AN", status: "C" },
-    { name: "declarationCertification", start: 25, end: 25, length: 1, type: "A", status: "C" },
-    { name: "dateOfSignature", start: 26, end: 33, length: 8, type: "N", status: "C" },
-    { name: "invoiceNumber", start: 34, end: 50, length: 17, type: "X", status: "C" },
-    { name: "complianceDescription", start: 51, end: 80, length: 30, type: "X", status: "C" },
-  ],
-};
-
-export const PG24_REMARKS_SPEC: PgaRecordSpec = {
-  recordType: "PG24",
-  name: "Remarks",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "remarksTypeCode", start: 5, end: 7, length: 3, type: "AN", status: "C" },
-    { name: "remarksCode", start: 8, end: 12, length: 5, type: "AN", status: "C" },
-    { name: "remarksText", start: 13, end: 80, length: 68, type: "X", status: "C" },
-  ],
-};
-
-export const PG25_TEMPERATURE_LOT_VALUES_SPEC: PgaRecordSpec = {
-  recordType: "PG25",
-  name: "Temperature, Lot & PGA Values",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "temperatureQualifier", start: 5, end: 5, length: 1, type: "A", status: "C" },
-    { name: "degreeType", start: 6, end: 6, length: 1, type: "A", status: "C" },
-    { name: "negativeNumber", start: 7, end: 7, length: 1, type: "A", status: "C" },
-    { name: "actualTemperature", start: 8, end: 13, length: 6, type: "N", status: "C", impliedDecimals: 2 },
-    { name: "locationOfTemperatureRecording", start: 14, end: 14, length: 1, type: "A", status: "C" },
-    { name: "lotNumberQualifier", start: 15, end: 15, length: 1, type: "AN", status: "C" },
-    { name: "lotNumber", start: 16, end: 40, length: 25, type: "X", status: "C" },
-    { name: "productionStartDateOfTheLot", start: 41, end: 48, length: 8, type: "N", status: "C" },
-    { name: "productionEndDateOfTheLot", start: 49, end: 56, length: 8, type: "N", status: "C" },
-    { name: "pgaLineValue", start: 57, end: 68, length: 12, type: "N", status: "C", impliedDecimals: 0 },
-    { name: "pgaUnitValue", start: 69, end: 80, length: 12, type: "N", status: "C", impliedDecimals: 2 },
-  ],
-};
-
-export const PG26_PACKAGING_BREAKDOWN_SPEC: PgaRecordSpec = {
-  recordType: "PG26",
-  name: "Packaging Level Breakdown & Quantity",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "packagingQualifier", start: 5, end: 5, length: 1, type: "N", status: "M" },
-    { name: "quantity", start: 6, end: 17, length: 12, type: "N", status: "C", impliedDecimals: 2 },
-    { name: "unitOfMeasurePackagingLevel", start: 18, end: 22, length: 5, type: "X", status: "C" },
-    { name: "packageIdentifier", start: 23, end: 47, length: 25, type: "X", status: "C" },
-    { name: "packagingMethod", start: 48, end: 50, length: 3, type: "AN", status: "C" },
-    { name: "packageMaterial", start: 51, end: 65, length: 15, type: "X", status: "C" },
-    { name: "packageFiller", start: 66, end: 80, length: 15, type: "X", status: "C" },
-  ],
-};
-
-export const PG27_SHIPPING_CONTAINER_SPEC: PgaRecordSpec = {
-  recordType: "PG27",
-  name: "Shipping Container Information",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "containerNumber1", start: 5, end: 24, length: 20, type: "AN", status: "M" },
-    { name: "typeOfContainer1", start: 25, end: 25, length: 1, type: "N", status: "C" },
-    { name: "containerLength1", start: 26, end: 27, length: 2, type: "N", status: "C" },
-    { name: "containerNumber2", start: 28, end: 47, length: 20, type: "AN", status: "C" },
-    { name: "typeOfContainer2", start: 48, end: 48, length: 1, type: "N", status: "C" },
-    { name: "containerLength2", start: 49, end: 50, length: 2, type: "N", status: "C" },
-    { name: "containerNumber3", start: 51, end: 70, length: 20, type: "AN", status: "C" },
-    { name: "typeOfContainer3", start: 71, end: 71, length: 1, type: "N", status: "C" },
-    { name: "containerLength3", start: 72, end: 73, length: 2, type: "N", status: "C" },
-    { name: "filler", start: 74, end: 80, length: 7, type: "X", status: "C" },
-  ],
-};
-
-export const PG29_COMMODITY_QUANTITIES_SPEC: PgaRecordSpec = {
-  recordType: "PG29",
-  name: "Commodity Quantities & Unit of Measure",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "unitOfMeasurePgaLineNet", start: 5, end: 7, length: 3, type: "AN", status: "C" },
-    { name: "commodityNetQuantityPgaLineNet", start: 8, end: 19, length: 12, type: "N", status: "C", impliedDecimals: 2 },
-    { name: "unitOfMeasurePgaLineGross", start: 20, end: 22, length: 3, type: "AN", status: "C" },
-    { name: "commodityGrossQuantityPgaLineGross", start: 23, end: 34, length: 12, type: "N", status: "C", impliedDecimals: 2 },
-    { name: "unitOfMeasureIndividualUnitNet", start: 35, end: 37, length: 3, type: "AN", status: "C" },
-    { name: "commodityNetQuantityIndividualUnitNet", start: 38, end: 49, length: 12, type: "N", status: "C", impliedDecimals: 2 },
-    { name: "unitOfMeasureIndividualUnitGross", start: 50, end: 52, length: 3, type: "AN", status: "C" },
-    { name: "commodityGrossQuantityIndividualUnitGross", start: 53, end: 64, length: 12, type: "N", status: "C", impliedDecimals: 2 },
-    { name: "filler", start: 65, end: 80, length: 16, type: "X", status: "M" },
-  ],
-};
-
-export const PG30_INSPECTION_LOCATION_SPEC: PgaRecordSpec = {
-  recordType: "PG30",
-  name: "Inspection / Lab Test / Arrival Location",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "inspectionLaboratoryTestingStatus", start: 5, end: 5, length: 1, type: "A", status: "M" },
-    { name: "requestedOrScheduledDateOfInspection", start: 6, end: 13, length: 8, type: "N", status: "C" },
-    { name: "requestedOrScheduledTimeOfInspection", start: 14, end: 17, length: 4, type: "N", status: "C" },
-    { name: "inspectionOrArrivalLocationCode", start: 18, end: 21, length: 4, type: "AN", status: "C" },
-    { name: "inspectionOrArrivalLocation", start: 22, end: 71, length: 50, type: "X", status: "C" },
-    { name: "filler", start: 72, end: 80, length: 9, type: "X", status: "M" },
-  ],
-};
-
-export const PG32_COMMODITY_ROUTING_SPEC: PgaRecordSpec = {
-  recordType: "PG32",
-  name: "Commodity Routing",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "commodityRoutingTypeCode", start: 5, end: 7, length: 3, type: "AN", status: "M" },
-    { name: "commodityRoutingCountryCode", start: 8, end: 9, length: 2, type: "A", status: "C" },
-    { name: "commodityPoliticalSubunitOfRoutingQualifier", start: 10, end: 12, length: 3, type: "AN", status: "C" },
-    { name: "commodityPoliticalSubunitOfRoutingNumber", start: 13, end: 21, length: 9, type: "X", status: "C" },
-    { name: "commodityPoliticalSubunitOfRoutingName", start: 22, end: 76, length: 55, type: "X", status: "C" },
-    { name: "filler", start: 77, end: 80, length: 4, type: "X", status: "M" },
-  ],
-};
-
-export const PG34_TRAVEL_DOCUMENT_SPEC: PgaRecordSpec = {
-  recordType: "PG34",
-  name: "Travel Document",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "travelDocumentTypeCode", start: 5, end: 7, length: 3, type: "AN", status: "M" },
-    { name: "travelDocumentNationality", start: 8, end: 9, length: 2, type: "A", status: "C" },
-    { name: "travelDocumentIdentifier", start: 10, end: 44, length: 35, type: "X", status: "C" },
-    { name: "filler", start: 45, end: 80, length: 36, type: "X", status: "M" },
-  ],
-};
-
-export const PG50_GROUP_START_SPEC: PgaRecordSpec = {
-  recordType: "PG50",
-  name: "Start of Grouping",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "filler", start: 5, end: 80, length: 76, type: "X", status: "M" },
-  ],
-};
-
-export const PG51_GROUP_END_SPEC: PgaRecordSpec = {
-  recordType: "PG51",
-  name: "End of Grouping",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "filler", start: 5, end: 80, length: 76, type: "X", status: "M" },
-  ],
-};
-
-export const PG55_ADDITIONAL_ENTITY_ROLES_SPEC: PgaRecordSpec = {
-  recordType: "PG55",
-  name: "Additional Entity Roles",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "entityRoleCode1", start: 5, end: 7, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode2", start: 8, end: 10, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode3", start: 11, end: 13, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode4", start: 14, end: 16, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode5", start: 17, end: 19, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode6", start: 20, end: 22, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode7", start: 23, end: 25, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode8", start: 26, end: 28, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode9", start: 29, end: 31, length: 3, type: "AN", status: "C" },
-    { name: "entityRoleCode10", start: 32, end: 34, length: 3, type: "AN", status: "C" },
-    { name: "filler", start: 35, end: 80, length: 46, type: "X", status: "M" },
-  ],
-};
-
-export const PG60_ADDITIONAL_REFERENCE_SPEC: PgaRecordSpec = {
-  recordType: "PG60",
-  name: "Additional Reference Information",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "additionalInformationQualifierCode", start: 5, end: 7, length: 3, type: "AN", status: "M" },
-    { name: "additionalInformation", start: 8, end: 80, length: 73, type: "X", status: "M" },
-  ],
-};
-
-export const PG00_SUBSTITUTION_SPEC: PgaRecordSpec = {
-  recordType: "PG00",
-  name: "Substitution Grouping",
-  length: 80,
-  fields: [
-    { name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" },
-    { name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" },
-    { name: "substitutionIndicator", start: 5, end: 5, length: 1, type: "X", status: "M" },
-    { name: "substitutionNumber", start: 6, end: 9, length: 4, type: "AN", status: "M" },
-    { name: "filler", start: 10, end: 80, length: 71, type: "X", status: "M" },
-  ],
-};
-
-export const ALL_GENERIC_PGA_SPECS: PgaRecordSpec[] = [
+const ALL_PGA_SPECS = [
   OI_LINE_ITEM_SPEC,
   PG01_HEADER_SPEC,
   PG02_PRODUCT_COMPONENT_SPEC,
@@ -598,16 +189,12 @@ export const ALL_GENERIC_PGA_SPECS: PgaRecordSpec[] = [
   PG00_SUBSTITUTION_SPEC,
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VITEST SUITE: 80-COLUMN LAYOUT & POSITION MATH VALIDATION
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe("PGA Message Set Generic Backbone Records — 80-Column Spec Validation", () => {
   it("covers exactly 28 generic cross-agency backbone records", () => {
-    expect(ALL_GENERIC_PGA_SPECS.length).toBe(28);
+    expect(ALL_PGA_SPECS.length).toBe(28);
   });
 
-  it.each(ALL_GENERIC_PGA_SPECS.map((spec) => [spec.recordType, spec] as const))(
+  it.each(ALL_PGA_SPECS.map((spec) => [spec.recordType, spec]))(
     "%s has length 80 and field lengths sum to exactly 80",
     (_recordType, spec) => {
       expect(spec.length).toBe(80);
@@ -616,75 +203,100 @@ describe("PGA Message Set Generic Backbone Records — 80-Column Spec Validation
     }
   );
 
-  it.each(ALL_GENERIC_PGA_SPECS.map((spec) => [spec.recordType, spec] as const))(
-    "%s fields have contiguous, non-overlapping positions covering 1 to 80",
+  it.each(ALL_PGA_SPECS.map((spec) => [spec.recordType, spec]))(
+    "%s has contiguous 1-indexed field position ranges",
     (_recordType, spec) => {
       let expectedStart = 1;
       for (const field of spec.fields) {
         expect(field.start).toBe(expectedStart);
-        expect(field.end - field.start + 1).toBe(field.length);
-        expectedStart = field.end + 1;
+        expectedStart += field.length;
       }
       expect(expectedStart - 1).toBe(80);
     }
   );
+});
 
-  describe("Specific Field Layout Assertions against PDF Chapter 8", () => {
-    it("OI Commercial Line Item Description positions match PDF p. 16", () => {
-      const spec = OI_LINE_ITEM_SPEC;
-      expect(spec.fields[0]).toEqual({ name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" });
-      expect(spec.fields[1]).toEqual({ name: "filler", start: 3, end: 10, length: 8, type: "AN", status: "M" });
-      expect(spec.fields[2]).toEqual({ name: "commercialDescription", start: 11, end: 80, length: 70, type: "X", status: "M" });
-    });
+describe("Specific Field Layout Assertions against PDF Chapter 8", () => {
+  it("OI-Record (Commercial Line Item Description) positions match PDF p. 16", () => {
+    const fields = Object.fromEntries(
+      OI_LINE_ITEM_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+    );
+    expect(fields.filler_1).toMatchObject({ start: 1, length: 2, class: "A", designation: "M", constant: "OI" });
+    expect(fields.filler_3).toMatchObject({ start: 3, length: 8, class: "S", designation: "M" });
+    expect(fields.commercialDescription).toMatchObject({ start: 11, length: 70, class: "X", designation: "M" });
+  });
 
-    it("PG01 Header positions match PDF pp. 17-19", () => {
-      const spec = PG01_HEADER_SPEC;
-      expect(spec.fields[0]).toEqual({ name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" });
-      expect(spec.fields[1]).toEqual({ name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" });
-      expect(spec.fields[2]).toEqual({ name: "pgaLineNumber", start: 5, end: 7, length: 3, type: "N", status: "M" });
-      expect(spec.fields[3]).toEqual({ name: "governmentAgencyCode", start: 8, end: 10, length: 3, type: "AN", status: "M" });
-      expect(spec.fields[4]).toEqual({ name: "governmentAgencyProgramCode", start: 11, end: 13, length: 3, type: "X", status: "M" });
-      expect(spec.fields[12]).toEqual({ name: "correctionIndicator", start: 79, end: 79, length: 1, type: "X", status: "C" });
-      expect(spec.fields[13]).toEqual({ name: "disclaimer", start: 80, end: 80, length: 1, type: "A", status: "C" });
-    });
+  it("PG01-Record (Header) positions match PDF pp. 17-19", () => {
+    const fields = Object.fromEntries(
+      PG01_HEADER_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+    );
+    expect(fields.filler_1).toMatchObject({ start: 1, length: 4, class: "A", designation: "M", constant: "PG01" });
+    expect(fields.pgaLineNumber).toMatchObject({ start: 5, length: 3, class: "N", designation: "M" });
+    expect(fields.governmentAgencyCode).toMatchObject({ start: 8, length: 3, class: "AN", designation: "M" });
+    expect(fields.governmentAgencyProgramCode).toMatchObject({ start: 11, length: 3, class: "X", designation: "M" });
+    expect(fields.correctionIndicator).toMatchObject({ start: 79, length: 1, class: "X", designation: "C" });
+    expect(fields.disclaimer).toMatchObject({ start: 80, length: 1, class: "A", designation: "C" });
+  });
 
-    it("PG04 Constituent Element implied decimals match PDF p. 23", () => {
-      const spec = PG04_CONSTITUENT_ELEMENT_SPEC;
-      const qtyField = spec.fields.find((f) => f.name === "quantityOfConstituentElement");
-      const pctField = spec.fields.find((f) => f.name === "percentOfConstituentElement");
-      expect(qtyField?.impliedDecimals).toBe(2);
-      expect(pctField?.impliedDecimals).toBe(4);
+  it("PG04-Record Quantity/Percent implied decimals (2dp / 4dp) match PDF p. 23", () => {
+    const qtyLine = encodeRecord(PG04_CONSTITUENT_ELEMENT_SPEC, {
+      quantityOfConstituentElement: new Decimal("1250.75"),
     });
+    expect(qtyLine.slice(56, 68)).toBe("000000125075"); // pos 57-68, 12 chars, 2 implied decimals
+    expect(decodeRecord(PG04_CONSTITUENT_ELEMENT_SPEC, qtyLine).quantityOfConstituentElement?.toString()).toBe(
+      "1250.75"
+    );
 
-    it("PG14 LPCO Quantity implied decimals match PDF p. 32", () => {
-      const spec = PG14_LPCO_DETAILS_SPEC;
-      const qtyField = spec.fields.find((f) => f.name === "lpcoQuantity");
-      expect(qtyField?.impliedDecimals).toBe(4);
+    const pctLine = encodeRecord(PG04_CONSTITUENT_ELEMENT_SPEC, {
+      percentOfConstituentElement: new Decimal("9.0009"),
     });
+    expect(pctLine.slice(73, 80)).toBe("0090009"); // pos 74-80, 7 chars, 4 implied decimals
+    expect(decodeRecord(PG04_CONSTITUENT_ELEMENT_SPEC, pctLine).percentOfConstituentElement?.toString()).toBe(
+      "9.0009"
+    );
+  });
 
-    it("PG25 Temperature & Value implied decimals match PDF p. 41", () => {
-      const spec = PG25_TEMPERATURE_LOT_VALUES_SPEC;
-      const tempField = spec.fields.find((f) => f.name === "actualTemperature");
-      const lineValField = spec.fields.find((f) => f.name === "pgaLineValue");
-      const unitValField = spec.fields.find((f) => f.name === "pgaUnitValue");
-      expect(tempField?.impliedDecimals).toBe(2);
-      expect(lineValField?.impliedDecimals).toBe(0);
-      expect(unitValField?.impliedDecimals).toBe(2);
+  it("PG14-Record LPCO Quantity implied decimals (4dp) match PDF p. 32", () => {
+    const line = encodeRecord(PG14_LPCO_DETAILS_SPEC, {
+      lpcoQuantity: new Decimal("50.1234"),
     });
+    expect(line.slice(50, 66)).toBe("0000000000501234"); // pos 51-66, 16 chars, 4 implied decimals
+    expect(decodeRecord(PG14_LPCO_DETAILS_SPEC, line).lpcoQuantity?.toString()).toBe("50.1234");
+  });
 
-    it("PG27 Shipping Container positions match PDF p. 43 (including status cell omission noted)", () => {
-      const spec = PG27_SHIPPING_CONTAINER_SPEC;
-      expect(spec.fields[4]).toEqual({ name: "containerLength1", start: 26, end: 27, length: 2, type: "N", status: "C" });
-      expect(spec.fields[spec.fields.length - 1]).toEqual({ name: "filler", start: 74, end: 80, length: 7, type: "X", status: "C" });
+  it("PG25-Record Temperature/Line Value/Unit Value implied decimals match PDF p. 41", () => {
+    const line = encodeRecord(PG25_TEMPERATURE_LOT_VALUES_SPEC, {
+      actualTemperature: new Decimal("39.5"), // pos 8-13, 6 chars, 2 implied decimals
+      pgaLineValue: new Decimal("75000"), // pos 57-68, 12 chars, 0 implied decimals (whole dollars)
+      pgaUnitValue: new Decimal("49.99"), // pos 69-80, 12 chars, 2 implied decimals
     });
+    expect(line.slice(7, 13)).toBe("003950");
+    expect(line.slice(56, 68)).toBe("000000075000");
+    expect(line.slice(68, 80)).toBe("000000004999");
 
-    it("PG00 Substitution Grouping positions match PDF p. 59", () => {
-      const spec = PG00_SUBSTITUTION_SPEC;
-      expect(spec.fields[0]).toEqual({ name: "controlIdentifier", start: 1, end: 2, length: 2, type: "A", status: "M" });
-      expect(spec.fields[1]).toEqual({ name: "recordType", start: 3, end: 4, length: 2, type: "N", status: "M" });
-      expect(spec.fields[2]).toEqual({ name: "substitutionIndicator", start: 5, end: 5, length: 1, type: "X", status: "M" });
-      expect(spec.fields[3]).toEqual({ name: "substitutionNumber", start: 6, end: 9, length: 4, type: "AN", status: "M" });
-      expect(spec.fields[4]).toEqual({ name: "filler", start: 10, end: 80, length: 71, type: "X", status: "M" });
-    });
+    const decoded = decodeRecord(PG25_TEMPERATURE_LOT_VALUES_SPEC, line);
+    expect(decoded.actualTemperature?.toString()).toBe("39.5");
+    expect(decoded.pgaLineValue?.toString()).toBe("75000");
+    expect(decoded.pgaUnitValue?.toString()).toBe("49.99");
+  });
+
+  it("PG27-Record (Shipping Container) positions match PDF p. 43 (including status cell omission at Container Length 1)", () => {
+    const fields = Object.fromEntries(
+      PG27_SHIPPING_CONTAINER_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+    );
+    expect(fields.containerNumber1).toMatchObject({ start: 5, length: 20, class: "AN", designation: "M" });
+    expect(fields.typeOfContainer1).toMatchObject({ start: 25, length: 1, class: "N", designation: "C" });
+    expect(fields.containerLength1).toMatchObject({ start: 26, length: 2, class: "N", designation: "C" });
+    expect(fields.filler_74).toMatchObject({ start: 74, length: 7, class: "S", designation: "M" });
+  });
+
+  it("PG00-Record (Substitution Grouping) positions match PDF p. 59", () => {
+    const fields = Object.fromEntries(
+      PG00_SUBSTITUTION_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+    );
+    expect(fields.filler_1).toMatchObject({ start: 1, length: 4, class: "A", designation: "M", constant: "PG00" });
+    expect(fields.substitutionIndicator).toMatchObject({ start: 5, length: 1, class: "X", designation: "M" });
+    expect(fields.substitutionNumber).toMatchObject({ start: 6, length: 4, class: "AN", designation: "M" });
+    expect(fields.filler_10).toMatchObject({ start: 10, length: 71, class: "S", designation: "M" });
   });
 });

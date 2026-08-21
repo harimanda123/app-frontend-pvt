@@ -350,6 +350,67 @@ export function dateFieldCCYY<K extends string>(
   return { key, start, length: 8, class: "N", designation, encodeValue: encodeMMDDCCYY, decodeValue: decodeMMDDCCYY };
 }
 
+// ACE Broker Download's (Chapter 9) Status Notification records (NS05's
+// Estimated Date of Arrival, NS30's Action Date) use a 6-char "YYMMDD"
+// (year, month, day) date format — a different field order from every other
+// chapter's 6-char "MMDDYY" (class D, `dateField` above), even though both
+// are 6 digits. Per the source PDF, both fields are documented as class "N"
+// (matching PGA's `dateFieldCCYY` rationale for trusting the PDF's stated
+// class over an assumed "D"). Shared here (not chapter-local) since a future
+// chapter could plausibly reuse a CBP-assigned "YYMMDD" field too.
+
+function encodeYYMMDD(raw: unknown): string {
+  const date = raw as Date;
+  const yy = String(date.getFullYear() % 100).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}${mm}${dd}`;
+}
+
+function decodeYYMMDD(field: string): Date | undefined {
+  if (field.trim().length === 0) return undefined;
+  const yy = parseInt(field.slice(0, 2), 10);
+  const mm = parseInt(field.slice(2, 4), 10);
+  const dd = parseInt(field.slice(4, 6), 10);
+  return new Date(2000 + yy, mm - 1, dd);
+}
+
+/** A 6-char class-N "YYMMDD" (year, month, day) date field bound to a
+ * `Date | undefined` value. Unlike `dateField` (6-char, class D, MMDDYY),
+ * this format's field order and class-N designation are specific to ACE
+ * Broker Download's Status Notification records (Chapter 9) — see the
+ * module-level comment above. */
+export function dateFieldYYMMDD<K extends string>(
+  key: K,
+  start: number,
+  designation: Designation
+): FieldSpec<K> {
+  return { key, start, length: 6, class: "N", designation, encodeValue: encodeYYMMDD, decodeValue: decodeYYMMDD };
+}
+
+// ACE Cargo Manifest/In-bond/Entry Status Query's (Chapter 4b) output records
+// (WO10's Estimated Date of Arrival, WO60's Disposition Action Date & Release
+// Date, WR1-Output's Date of Arrival) use the same 6-char "MMDDYY" digit order
+// as `dateField` above, but the source PDF documents every one of them as
+// class "N" — not class "D". Same rationale as `dateFieldCCYY`/`dateFieldYYMMDD`
+// for trusting the PDF's stated class over an assumed "D": class N's
+// validation (strictly numeric, no blank-tolerant carve-out beyond an empty
+// trimmed string) differs from class D's, so this reuses `dateField`'s
+// MMDDYY encode/decode logic under a distinct class tag rather than aliasing
+// `dateField` itself. Shared here (not chapter-local) since a future chapter
+// could plausibly reuse a CBP-assigned class-N MMDDYY field too.
+
+/** A 6-char class-N "MMDDYY" date field bound to a `Date | undefined` value.
+ * Same digit order as `dateField` (6-char, class D, MMDDYY) but a different
+ * declared wire class — see the module-level comment above. */
+export function dateFieldNumericMMDDYY<K extends string>(
+  key: K,
+  start: number,
+  designation: Designation
+): FieldSpec<K> {
+  return { key, start, length: 6, class: "N", designation, encodeValue: encodeMMDDYY, decodeValue: decodeMMDDYY };
+}
+
 /**
  * A right-justified, zero-padded numeric-*looking* identifier (class N) whose
  * leading zeros are semantically significant — e.g. an Entry Type Code ("01"),
