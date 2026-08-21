@@ -7,7 +7,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { db, withAccountIdContext } from "@/lib/db";
 import { authenticateApiKey, apiKeyHasScope } from "@/lib/api/api-key-auth";
 import { generateRequestId } from "@/lib/api/error";
 import { createAuditLog, AuditAction } from "@/lib/audit";
@@ -73,6 +73,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const { externalReference, importerName, estimatedArrival, portOfEntry, destinationCountry, lineItems, sourceSystem } = parsed.data;
 
+  return withAccountIdContext(apiCtx.accountId, async () => {
   // Use poReference as the ERP reference number field for matching.
   const existing = await db.shipment.findFirst({
     where: { accountId: apiCtx.accountId, poReference: externalReference },
@@ -173,4 +174,5 @@ export async function POST(req: Request): Promise<Response> {
     },
     { status: existing !== null ? 200 : 201 }
   );
+  });
 }

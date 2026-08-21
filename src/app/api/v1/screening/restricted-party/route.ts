@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateApiKey, apiKeyHasScope } from "@/lib/api/api-key-auth";
+import { withAccountIdContext } from "@/lib/db";
 import { generateRequestId, handleApiError } from "@/lib/api/error";
 import { checkIdempotency, persistIdempotency } from "@/lib/api/idempotency";
 import { checkRestrictedPartyRate } from "@/lib/api/restrictedPartyRateLimit";
@@ -77,6 +78,7 @@ export async function POST(req: Request): Promise<Response> {
   const { externalReference, party, threshold, addressThreshold, countryMatch, redFlagCheck } = parsed.data;
 
   try {
+    return await withAccountIdContext(apiCtx.accountId, async () => {
     const input = {
       accountId: apiCtx.accountId,
       source: "PUBLIC_API" as const,
@@ -135,6 +137,7 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     return NextResponse.json(responseBody, { status: 200 });
+    });
   } catch (error) {
     return handleApiError(error, requestId);
   }
