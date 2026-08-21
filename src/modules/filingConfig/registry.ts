@@ -821,6 +821,41 @@ export async function getFilingConfigTableMeta(tableKey: FilingConfigTableKey): 
     };
   }
 
+  // For customer-customs-version table, populate Customer and Country Customs Version dropdowns
+  if (tableKey === "customer-customs-version") {
+    const [customers, countryVersions] = await Promise.all([
+      db.account.findMany({ 
+        select: { id: true, name: true }, 
+        orderBy: { name: "asc" } 
+      }),
+      db.filingCountryCustomsVersion.findMany({ 
+        select: { id: true, country: true, procedureCode: true, release: true }, 
+        orderBy: [{ country: "asc" }, { procedureCode: "asc" }, { release: "asc" }] 
+      })
+    ]);
+
+    const customerOptions = customers.map(c => ({ value: c.id, label: c.name }));
+    const countryVersionOptions = countryVersions.map(v => ({ 
+      value: v.id, 
+      label: `${v.country} ${v.procedureCode} ${v.release}` 
+    }));
+
+    const fieldsWithOptions: FieldDef[] = tableDef.fields.map(field => {
+      if (field.key === "customerId") {
+        return { ...field, options: customerOptions };
+      }
+      if (field.key === "filingCountryCustomsId") {
+        return { ...field, options: countryVersionOptions, optionLabels: Object.fromEntries(countryVersionOptions.map(o => [o.value, o.label])) };
+      }
+      return field;
+    });
+
+    return {
+      ...tableDef,
+      fields: fieldsWithOptions
+    };
+  }
+
   return tableDef;
 }
 
