@@ -433,7 +433,10 @@ feature's linked doc for what "unconfigured" looks like in the UI.
 
 | Variable | Gates | Notes |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | AI agents (classification, document intelligence, normalization, product intelligence, HTS classification) and the `/chat` assistant | No default; agent calls fail closed without it, and `/api/assistant/chat` reports itself unconfigured |
+| `GEMINI_API_KEY` | AI agents (classification, document intelligence, normalization, product intelligence, HTS classification) and the `/chat` assistant | No default; agent calls fail closed without it, and `/api/assistant/chat` reports itself unconfigured. `ANTHROPIC_API_KEY` below is an alternative provider for the `/chat` assistant and the advisory-query/product-enrich/AD-CVD-scope-screening routes — either key alone is enough for those surfaces |
+| `ANTHROPIC_API_KEY` | Alternative AI provider (Claude) for the `/chat` assistant, `/api/advisory/query`, product enrichment, and AD/CVD scope screening | No default; those routes fall back to Gemini (if configured) or report themselves unconfigured without either key |
+| `CLAUDE_MODEL` | Fallback Claude model name when `COPILOT_MODEL`/`ADVISORY_MODEL` aren't set | Defaults to `claude-3-5-sonnet-20241022` |
+| `ADVISORY_MODEL` | Claude model override for `/api/advisory/query` specifically | Falls back to `CLAUDE_MODEL`, then the built-in default |
 | `AI_DEFAULT_MODEL` | The model every AI surface calls | Falls back to a built-in name. See [AI model selection](#-ai-model-selection) |
 | `COPILOT_MODEL`, `HTS_CLASSIFICATION_MODEL`, `DOCUMENT_INTELLIGENCE_MODEL`, `PRODUCT_INTELLIGENCE_MODEL`, `NORMALIZATION_MODEL`, `COMPLIANCE_AUDIT_MODEL`, `DOCUMENT_INTAKE_MODEL` | One surface each | Each overrides `AI_DEFAULT_MODEL` for that surface alone. `COPILOT_MODEL` governs the `/chat` assistant — it reuses the `"copilot"` surface name rather than a new one |
 | `GEMINI_MODEL` | Deprecated global model name | Still honoured below `AI_DEFAULT_MODEL` so existing environments do not move; prefer the variables above |
@@ -442,13 +445,24 @@ feature's linked doc for what "unconfigured" looks like in the UI.
 | `COPILOT_USER_REQUESTS_PER_MIN`, `COPILOT_ACCOUNT_REQUESTS_PER_MIN` | `/chat` assistant request ceilings | Default 15 per user and 60 per account per minute |
 | `BLOB_READ_WRITE_TOKEN` | Document upload storage (Vercel Blob) | Required for any document upload in production; see [docs/document-intelligence.md](docs/document-intelligence.md) |
 | `MAX_UPLOAD_BYTES` | Upload size limit | Defaults to 50 MB |
+| `UPLOAD_TOKEN_SECRET` (or `NEXTAUTH_SECRET`) | Signs shipment-document upload-request tokens (`src/lib/uploadToken.ts`) | `NEXTAUTH_SECRET` is checked first — a legacy name kept for compatibility, not NextAuth config (this app uses Clerk). One of the two is required; token signing throws without either |
+| `DOCUMENT_MALWARE_SCAN_MODE` | Malware-scan policy for uploaded documents when no real scanner is configured | `advisory` (default, accepts unscanned) \| `block` (quarantines unscanned uploads) |
 | `DOCUMENT_PARSER_PROVIDER` | Document Intelligence parsing pipeline | `ibm-docling` \| `mock` \| `none` (default `none` — see [docs/document-intelligence.md](docs/document-intelligence.md)) |
-| `DOCLING_API_BASE_URL`, `DOCLING_API_KEY`, `DOCLING_AUTH_HEADER_NAME`, `DOCLING_AUTH_HEADER_SCHEME`, `DOCLING_SUBMIT_PATH`, `DOCLING_STATUS_PATH`, `DOCLING_RESULT_PATH`, `DOCLING_SOURCE_DELIVERY`, `DOCLING_SUBMIT_ENCODING` | IBM-hosted Docling connection, only read when `DOCUMENT_PARSER_PROVIDER=ibm-docling` | All but base URL and API key have working defaults |
+| `DOCLING_API_BASE_URL`, `DOCLING_API_KEY`, `DOCLING_AUTH_HEADER_NAME`, `DOCLING_AUTH_HEADER_SCHEME`, `DOCLING_SUBMIT_PATH`, `DOCLING_STATUS_PATH`, `DOCLING_RESULT_PATH`, `DOCLING_SOURCE_DELIVERY`, `DOCLING_SUBMIT_ENCODING`, `DOCLING_ARTIFACT_HOSTS`, `DOCLING_SOURCE_ENVELOPE` | IBM-hosted Docling connection, only read when `DOCUMENT_PARSER_PROVIDER=ibm-docling` | All but base URL and API key have working defaults |
 | `DOCUMENT_PARSER_REQUEST_TIMEOUT_MS` | Docling request timeout | Defaults to 60000 |
 | `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` | Inbound email → document intake | Required to receive documents by email |
 | `RESEND_ALLOWED_INBOUND_RECIPIENTS`, `RESEND_PUBLIC_DOCUMENT_ADDRESS` | Inbound email allow-list / displayed address | Optional even with Resend configured |
+| `RESEND_FROM_ADDRESS` | From-address on outbound document-request emails | Defaults to `noreply@qubere.ai` |
+| `TRADE_GOV_API_KEY` | BIS Consolidated Screening List ingestion (`api.trade.gov`) | No default; requests are unauthenticated and likely rate-limited/fail without it |
+| `CURRENCYFREAKS_API_KEY` | `ExchangeRateService` — powers automatic filing exchange-rate resolution when no manual rate is on file. See [Customs Filing — Canonical Messaging](#10-customs-filing--canonical-messaging) | No default; rate fetches are unauthenticated and likely fail without it |
+| `CBP_ABI_FILER_CODE`, `CBP_ABI_FILER_PASSWORD` | Real CBP ABI filer credentials, activate `RealAceProvider` for customs transmission | No default; without both, `MockCustomsTransmissionProvider` stays active (a hard failure in production — see `/api/health`) |
+| `CBP_ABI_BASE_URL` | ACE/ABI transmission endpoint | Defaults to `https://ace.cbp.dhs.gov/abi` |
+| `NEXT_PUBLIC_APP_URL` | Base app URL used in emails, dataset-registry/cron self-calls | Defaults to `http://localhost:3000` (one call site defaults to `https://app.qubere.ai` instead) |
+| `APP_ENV`, `NEXT_PUBLIC_APP_ENV` | Marks the environment as production for `isProductionEnv()` checks (e.g. malware-scan/transmission-provider hard failures) | Optional; `NODE_ENV=production` or a `NEXT_PUBLIC_APP_URL` pointing off localhost also count as production |
 | `ALLOW_DEMO_SEEDING` | Enables demo/mock seeding routines outside of `NODE_ENV=development` | Always blocked in production regardless of this flag — see `src/lib/environment.ts` |
 | `PLATFORM_ADMIN_EMAIL` | `scripts/bootstrap-admin.ts` | Only used by that one-off script |
+| `DEMO_ADMIN_EMAIL`, `DEMO_SENDER_EMAIL` | `scripts/seed-inbound-demo.ts` | Only used by that one-off script |
+| `SYSTEM_REVIEWER_ACCOUNT_ID`, `SYSTEM_REVIEWER_USER_ID` | `scripts/publish-compliance-keyword-rules.ts` — attributes the resulting audit-log rows | Only used by that one-off script; `accountId` is required for it to run |
 | `ENABLE_LEGACY_CLASSIFICATION_MOCK` | Legacy `/api/classification/classify` mock path | Dev/testing only |
 | `CUSTOMS_FILING_MOCK_RESPONSES` | Simulated third-party customs response on transmit/resubmit/cancel | Defaults on (`true`); set `false` once a real customs integration is wired up. See [Customs Filing — Canonical Messaging](#10-customs-filing--canonical-messaging) |
 
