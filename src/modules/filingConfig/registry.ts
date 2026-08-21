@@ -443,10 +443,10 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
     description: "Configure form fields and layouts for declaration and response views",
     idField: "id",
     fields: [
-      { key: "country", label: "Country", type: "text" },
-      { key: "procedureCode", label: "Procedure Code", type: "text" },
-      { key: "messageName", label: "Message Name", type: "text" },
-      { key: "messageType", label: "Message Type", type: "text", help: "request or response" },
+      { key: "country", label: "Country", type: "select", options: [] },
+      { key: "procedureCode", label: "Procedure Code", type: "select", options: [] },
+      { key: "messageName", label: "Message Name", type: "select", options: [] },
+      { key: "release", label: "Release", type: "text", help: "Release version (e.g., 1.0)" },
       { key: "version", label: "Version", type: "text" },
       { key: "description", label: "Description", type: "text" },
       { key: "totalFields", label: "Total Fields", type: "text", help: "Number of configured fields" },
@@ -846,6 +846,43 @@ export async function getFilingConfigTableMeta(tableKey: FilingConfigTableKey): 
       }
       if (field.key === "filingCountryCustomsId") {
         return { ...field, options: countryVersionOptions, optionLabels: Object.fromEntries(countryVersionOptions.map(o => [o.value, o.label])) };
+      }
+      return field;
+    });
+
+    return {
+      ...tableDef,
+      fields: fieldsWithOptions
+    };
+  }
+
+  // For ui-configuration table, populate Country, ProcedureCode, and MessageName dropdowns
+  if (tableKey === "ui-configuration") {
+    // Get distinct values from TransactionType table
+    const transactionTypes = await db.transactionType.findMany({
+      select: { country: true, code: true, messageName: true },
+      distinct: ['country', 'code', 'messageName'],
+      orderBy: [{ country: 'asc' }, { code: 'asc' }, { messageName: 'asc' }]
+    });
+
+    // Extract unique values
+    const countries = [...new Set(transactionTypes.map(t => t.country))].sort();
+    const procedures = [...new Set(transactionTypes.map(t => t.code))].sort();
+    const messages = [...new Set(transactionTypes.map(t => t.messageName).filter(Boolean))].sort();
+
+    const countryOptions = countries.map(c => ({ value: c, label: c }));
+    const procedureOptions = procedures.map(p => ({ value: p, label: p }));
+    const messageOptions = messages.map(m => ({ value: m, label: m }));
+
+    const fieldsWithOptions: FieldDef[] = tableDef.fields.map(field => {
+      if (field.key === "country") {
+        return { ...field, options: countryOptions };
+      }
+      if (field.key === "procedureCode") {
+        return { ...field, options: procedureOptions };
+      }
+      if (field.key === "messageName") {
+        return { ...field, options: messageOptions };
       }
       return field;
     });
