@@ -15,7 +15,11 @@ const dbMock = {
   pipelineJob: { findFirst: vi.fn(), updateMany: vi.fn() },
 };
 
-vi.mock("@/lib/db", () => ({ db: dbMock }));
+vi.mock("@/lib/db", () => ({
+  db: dbMock,
+  runWithAccountId: (_accountId: string | null | undefined, fn: () => unknown) => fn(),
+  withAccountIdContext: (_accountId: string | null | undefined, fn: () => Promise<unknown>) => fn(),
+}));
 vi.mock("@/lib/auth", () => ({
   getAccountContext: () => ctxMock(),
   hasPermission: async () => true,
