@@ -10,8 +10,8 @@ import {
   auditError,
   auditQuery,
   auditToolExecuted,
-} from "@/modules/copilot/copilotAudit";
-import type { CopilotStatus } from "@/modules/copilot/copilotContract";
+} from "@/modules/assistant/shared/audit";
+import type { CopilotStatus } from "@/modules/assistant/shared/contract";
 
 const aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const CHAT_SURFACE = "copilot" as const;

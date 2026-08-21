@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-vi.mock("@/modules/copilot/copilotAudit", () => ({
+vi.mock("@/modules/assistant/shared/audit", () => ({
   auditConversationStarted: vi.fn().mockResolvedValue(undefined),
   auditError: vi.fn().mockResolvedValue(undefined),
   auditQuery: vi.fn().mockResolvedValue(undefined),
