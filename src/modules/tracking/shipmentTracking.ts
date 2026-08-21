@@ -327,7 +327,7 @@ export function buildTrackingProjection(input: BuildTrackingProjectionInput): Sh
     mode: input.shipment.transportMode,
     movement: {
       status: movementStatus(orderedEvents, input.legs),
-      currentLocation: lastActual?.locationName ?? null,
+      currentLocation: lastActual?.locationName ?? lastActual?.unlocode ?? null,
       nextStop,
       eta: eta.eta,
       etaDeltaMinutes: eta.deltaMinutes,
