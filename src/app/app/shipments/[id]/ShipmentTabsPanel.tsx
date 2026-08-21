@@ -1,30 +1,31 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Activity, FileText, Layers } from "lucide-react";
+import { Activity, FileText, Layers, Route } from "lucide-react";
 
-type ShipmentTab = "workspace" | "filing" | "audit";
+type ShipmentTab = "workspace" | "tracking" | "filing" | "audit";
 
 interface ShipmentTabsPanelProps {
   initialTab: string;
   auditCount: number;
   workspaceContent: ReactNode;
+  trackingContent: ReactNode;
   filingContent: ReactNode;
   auditContent: ReactNode;
 }
 
 function normalizeTab(tab: string): ShipmentTab {
-  return tab === "filing" || tab === "audit" ? tab : "workspace";
+  return tab === "tracking" || tab === "filing" || tab === "audit" ? tab : "workspace";
 }
 
 /**
- * Switches between the shipment detail page's three tabs entirely
+ * Switches between the shipment detail page's four tabs entirely
  * client-side.
  *
  * `view` used to be a server searchParam driving which tab the page's Server
  * Component rendered, so every tab click re-fetched and re-rendered the
  * entire page (readiness ribbon, exceptions, everything) just to swap which
- * pre-computed section was visible. All three tab bodies are cheap to build
+ * pre-computed section was visible. All four tab bodies are cheap to build
  * server-side (same data already loaded for the page), so they're rendered
  * once and handed to this component as props; switching tabs here just
  * changes which already-rendered tree is mounted.
@@ -33,6 +34,7 @@ export function ShipmentTabsPanel({
   initialTab,
   auditCount,
   workspaceContent,
+  trackingContent,
   filingContent,
   auditContent,
 }: ShipmentTabsPanelProps) {
@@ -50,7 +52,7 @@ export function ShipmentTabsPanel({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-2 pt-2 border-t border-border">
+      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
         <button
           type="button"
           onClick={() => selectTab("workspace")}
@@ -60,6 +62,16 @@ export function ShipmentTabsPanel({
         >
           <Activity className="w-3.5 h-3.5" />
           <span>Operational Workspace</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => selectTab("tracking")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+            activeTab === "tracking" ? "bg-brand text-white" : "bg-slate-100 text-ink-muted hover:text-ink"
+          }`}
+        >
+          <Route className="w-3.5 h-3.5" />
+          <span>Tracking</span>
         </button>
         <button
           type="button"
@@ -84,7 +96,13 @@ export function ShipmentTabsPanel({
       </div>
 
       <div key={activeTab} className="space-y-6">
-        {activeTab === "filing" ? filingContent : activeTab === "workspace" ? workspaceContent : auditContent}
+        {activeTab === "filing"
+          ? filingContent
+          : activeTab === "tracking"
+            ? trackingContent
+            : activeTab === "workspace"
+              ? workspaceContent
+              : auditContent}
       </div>
     </div>
   );

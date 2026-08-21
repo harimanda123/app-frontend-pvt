@@ -32,6 +32,8 @@ import { computeReadinessBreakdown } from "@/lib/shipmentReadiness";
 import type { ExtractedLineItem } from "./workspaceTypes";
 import type { CategoryDetail } from "./PreFilingReadiness";
 import type { ReadinessBreakdown } from "@/lib/shipmentReadiness";
+import { getShipmentTrackingProjection } from "@/modules/tracking/shipmentTracking";
+import { ShipmentTrackingPanel } from "./ShipmentTrackingPanel";
 
 /**
  * Sums the quantities on a document's extracted line items.
@@ -79,7 +81,7 @@ export default async function ShipmentWorkspacePage(props: {
     (context.roleNames.includes("PLANNER") && shipment.assignedBrokerId === context.userId);
 
   // None of these four depend on each other; run them in parallel.
-  const [canonical, clients, fieldApprovals, reconciliationIssues] = await Promise.all([
+  const [canonical, clients, fieldApprovals, reconciliationIssues, trackingProjection] = await Promise.all([
     CanonicalShipmentService.getCanonicalState(shipment.id),
     canEditClient
       ? db.client.findMany({
@@ -98,7 +100,10 @@ export default async function ShipmentWorkspacePage(props: {
       where: { shipmentId: shipment.id, accountId: context.accountId, status: "Open" },
       orderBy: { createdAt: "desc" },
     }),
+    getShipmentTrackingProjection(context.accountId, shipment.id),
   ]);
+
+  if (!trackingProjection) notFound();
 
   const { metrics, facts, agentExecutionLogs } = canonical;
   const fullShipment = canonical.shipment;
@@ -1162,6 +1167,8 @@ export default async function ShipmentWorkspacePage(props: {
     </div>
   );
 
+  const trackingContent = <ShipmentTrackingPanel projection={trackingProjection} />;
+
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
       <PipelineProgressTracker shipmentId={shipment.id} />
@@ -1299,6 +1306,7 @@ export default async function ShipmentWorkspacePage(props: {
         initialTab={activeTab}
         auditCount={agentInvocations.length}
         workspaceContent={workspaceContent}
+        trackingContent={trackingContent}
         filingContent={filingContent}
         auditContent={auditContent}
       />
