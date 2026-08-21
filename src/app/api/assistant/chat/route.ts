@@ -1,7 +1,7 @@
 import type { Content } from "@google/genai";
 import { withAuthenticatedRoute } from "@/lib/api/auth-guards";
 import { runAssistantTurn } from "@/modules/assistant/orchestrator";
-import { checkCopilotRate } from "@/modules/copilot/copilotRateLimit";
+import { checkCopilotRate } from "@/modules/assistant/shared/rateLimit";
 import { checkAiQuota } from "@/lib/ai/aiQuota";
 
 interface ChatRequestBody {

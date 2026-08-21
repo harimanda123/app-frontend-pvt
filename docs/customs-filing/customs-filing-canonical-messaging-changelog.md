@@ -28,6 +28,17 @@ just missing the one row originally assumed corrupted) — the multi-country fil
 never seeded live at all. Seeding real country/procedure/message data remains a separate, deliberate
 follow-up; do not guess at the values.
 
+**Addendum, same day**: the `transactionType` column has since been added to the production database
+as part of a deployment, closing the "every real filing was blocked" half of the gap above. No
+corresponding file exists under `prisma/migrations/` for this change — `20260819084952_drop_transaction_type_columns`
+is the last migration touching this column, and it only drops it, so the column's re-add was applied
+outside Prisma's own migration history (a manual `ALTER TABLE`, `prisma db push`, or similar). That is
+a schema-drift risk worth closing deliberately (e.g. `prisma migrate resolve --applied <name>` against
+a matching hand-authored migration, or a `prisma db pull` reconciliation) before the next
+`prisma migrate deploy` runs against production, so tooling and the live schema don't disagree about
+what's already applied. The seeding gap (`FilingProcedureConfig`/`FilingTransactionType` empty in
+production) is untouched by this addendum and remains open.
+
 ---
 
 ## 2026-08-12 — Table renaming, schema hygiene, and a real second country proving the design

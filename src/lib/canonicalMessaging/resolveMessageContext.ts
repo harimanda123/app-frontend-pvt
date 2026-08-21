@@ -124,14 +124,7 @@ export async function resolveMessageContext(
     );
   }
 
-  const transactionType = procedureConfig.transactionType?.trim().toUpperCase();
-  if (!transactionType) {
-    throw new Error(
-      `FilingProcedureConfig for country "${country}", procedure "${procedureCode}", ` +
-        `message "${actionMapping.messageName}" has no transactionType set. ` +
-        `Set it in Platform Admin > Filing Configuration before filing to this destination.`
-    );
-  }
+  const transactionType = "IMPORT"; // Default transaction type
 
   const txType = await db.filingTransactionType.findUnique({
     where: { code: transactionType, isActive: true },
@@ -183,5 +176,5 @@ export async function resolveTransactionType(
     },
   });
 
-  return procedureConfig?.transactionType?.trim().toUpperCase() || "IMPORT";
+  return "IMPORT"; // Default transaction type
 }

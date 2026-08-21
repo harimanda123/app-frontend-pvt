@@ -93,47 +93,53 @@ deliberately not implemented.
 
 A conversational layer over the data the console already shows, reached at
 `/chat`. It is not a database agent: the model never sees SQL, an internal API,
-or the page's DOM. It may call a registry of tools (`src/modules/assistant/tools.ts`
-— shipments, value-at-risk, shipment creation, products, parties, documents,
-team members, compliance/Country Embargo Screening), each reading through the
-same services and permission checks the screens use, in a single streaming
-tool-calling loop
+or the page's DOM. It calls a registry of 41 tools (`src/modules/assistant/tools.ts`
+— shipments, value-at-risk, shipment creation, products (including change
+history and sourcing evidence), parties (including change history, evidence,
+and restricted-party screening/rescreening), documents, team members, decisions,
+exceptions, classification, duty/HTS lookups, filing status and per-shipment
+filing readiness, a prioritized task queue, and compliance/Country Embargo
+Screening), each reading through the same services and permission checks the
+screens use, in a single streaming tool-calling loop
 (`src/modules/assistant/orchestrator.ts`) — everything the model produces is
 streamed straight to the client, so there is no hidden reasoning stage to guard.
 
-This surface reuses the guardrail layer originally built for a standalone
-"Qubere AI Copilot" panel (`src/modules/copilot/`), which has since been
-removed in favour of wiring those same guardrails directly onto this chat
-interface instead of maintaining two parallel AI surfaces:
+An earlier, standalone "Qubere AI Copilot" panel (`src/modules/copilot/`) was
+built in parallel with this surface, never wired into any route, and has since
+been deleted outright; its guardrails and any capability it had that this
+registry lacked were folded directly into `src/modules/assistant/` so there is
+only one AI surface to maintain:
 
 - **RBAC.** Each tool optionally declares the nav route or permission it
-  requires (`canUseTool`, reused from `src/modules/copilot/copilotAccess.ts`).
+  requires (`canUseTool`, in `src/modules/assistant/shared/toolAccess.ts`).
   `availableAssistantTools(ctx)` filters the registry down to what the caller
   may use *before* it is declared to the model, and the orchestrator re-checks
   a called tool name against that same filtered set before executing it — a
   model that names a tool it was never offered still cannot run it. Tools with
   no access requirement (e.g. team member lookup) are available to any
-  authenticated account member.
+  authenticated account member. A regression test
+  (`tests/assistant-tools-rbac.test.ts`) asserts every tool whose name matches
+  a write-verb pattern (create/update/delete/approve/screen/etc.) declares a
+  non-empty access requirement.
 - **Tenancy.** Every tool reads through the account-scoped services the
   screens already use — there is no path from a chat message to another
   tenant's rows.
 - **Origin safety.** A `get_product_origin_position` tool surfaces a
-  product's legal country-of-origin position, backed directly by the
-  original Copilot's `resolveOriginPosition()` (`copilotOrigin.ts`). The
+  product's legal country-of-origin position, backed by
+  `resolveOriginPosition()` (`src/modules/assistant/shared/origin.ts`). The
   system prompt requires the model to quote its verbatim result rather than
   rephrase or reason past it, and forbids falling back to a manufacturing,
   supplier, ship-from, port or export country as a stand-in — even when the
   tool's own physical-fact fields mention one — when no approved
   determination exists.
-- **Audit.** Turns are recorded in the existing audit log via the same
+- **Audit.** Turns are recorded in the existing audit log via
   `COPILOT_CONVERSATION_STARTED`, `COPILOT_QUERY`, `COPILOT_TOOL_EXECUTED` and
-  `COPILOT_ERROR` actions the original Copilot used (`src/modules/copilot/copilotAudit.ts`),
+  `COPILOT_ERROR` actions (`src/modules/assistant/shared/audit.ts`),
   keyed by the chat request's own request id (this surface has no persisted
   server-side conversation id to key off instead) — question, outcome and
   counts, never tool arguments or answer prose. `COPILOT_QUERY`'s status is
   only ever `ANSWERED`, `PARTIAL` (stopped after too many tool rounds in one
-  turn) or `ERROR`; the richer statuses the original Copilot could report have
-  no equivalent signal on this freeform surface.
+  turn) or `ERROR`.
 
 Retrieved business content — extracted document fields especially — is passed to
 the model inside a labelled data envelope and is never treated as instruction,
@@ -596,16 +602,15 @@ npm test
 ```
 
 Some suites read the configured database, so prefer running the files that cover
-what you changed. The guardrails the `/chat` assistant reuses from the original
-Copilot backend (RBAC gating, origin safety, rate limiting) and the shared AI
-cost controls are covered by eight files that need no database and run in
-seconds:
+what you changed. The `/chat` assistant's guardrails (RBAC gating, origin
+safety, rate limiting, tool coverage) and the shared AI cost controls are
+covered by the following files, which need no database and run in seconds:
 
 ```bash
-npx vitest run tests/copilot-grounding.test.ts tests/copilot-tools.test.ts \
-  tests/copilot-rbac.test.ts tests/copilot-service.test.ts \
-  tests/copilot-origin-safety.test.ts tests/copilot-rate-limit.test.ts \
-  tests/ai-quota.test.ts tests/ai-meter.test.ts
+npx vitest run tests/assistant-tools.test.ts tests/assistant-tools-rbac.test.ts \
+  tests/assistant-orchestrator.test.ts tests/assistant-advisory.test.ts \
+  tests/assistant-embargo-tools.test.ts tests/assistant-origin-safety.test.ts \
+  tests/assistant-rate-limit.test.ts tests/ai-quota.test.ts tests/ai-meter.test.ts
 ```
 
 ### Production Build Verification

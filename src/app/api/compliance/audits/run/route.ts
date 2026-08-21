@@ -59,11 +59,6 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     coveredByAdCvd = adCvdOrder !== null ? true : adCvdOrder === null && htsForAdCvd ? false : null;
   }
 
-  // Was the entry classified by a broker? Check for broker.approve transition in AuditLog
-  const brokerApprovalLog = await db.auditLog.findFirst({
-    where: { entityId: filing.id, action: "filing.approve" },
-  });
-
   const totalValue = filing.totalValue ? Number(filing.totalValue) : null;
   const overFormalEntryThreshold = totalValue !== null ? totalValue > 2500 : null;
 
@@ -78,7 +73,10 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     bondExpirationDate: filing.bond?.expirationDate ?? null,
     liquidationDate: filing.releasedAt ?? null,
     overFormalEntryThreshold,
-    hasBrokerApproval: brokerApprovalLog !== null,
+    // approvedByUserId is set directly on CustomsFiling by POST /api/filing/[id]/approve --
+    // querying AuditLog for a "filing.approve" action string was dead code: the approve
+    // route actually writes AuditAction.FILING_APPROVED, so that lookup never matched.
+    hasBrokerApproval: filing.approvedByUserId !== null,
   };
 
   const checkResults = runAuditChecks(snapshotInput);

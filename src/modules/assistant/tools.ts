@@ -21,10 +21,11 @@ import { HtsSearchService } from "@/modules/hts/htsSearchService";
 import { RulingService } from "@/modules/classification/rulingService";
 import { calculateDutyStack, loadHtsCodesMap, parsePublishedDutyRate, type TariffLineInput } from "@/lib/tariff/dutyEngine";
 import { ImpactAnalysisService } from "@/modules/regulatory/impactAnalysisService";
-import { canUseTool } from "@/modules/copilot/copilotAccess";
-import type { CopilotToolAccess } from "@/modules/copilot/copilotToolTypes";
+import { canUseTool } from "@/modules/assistant/shared/toolAccess";
+import type { CopilotToolAccess } from "@/modules/assistant/shared/toolTypes";
 import { holdsPermission } from "@/modules/product/productActor";
-import { resolveOriginPosition, type CountryFactInput } from "@/modules/copilot/copilotOrigin";
+import { productActor } from "@/modules/product/productActor";
+import { resolveOriginPosition, type CountryFactInput } from "@/modules/assistant/shared/origin";
 import {
   resolveOwnedShipmentId as resolveOwnedShipmentIdByAccount,
   latestEmbargoScreening as latestEmbargoScreeningByAccount,
@@ -33,6 +34,32 @@ import {
 } from "@/modules/agents/compliance/embargo/screeningQuery";
 // Lazy import: pulls in the full agent pipeline, only needed when a rescreen is actually triggered.
 const getPipelineOrchestrator = () => import("@/modules/agents/pipelineOrchestrator");
+import { getProductHistory as getProductHistoryService } from "@/modules/product/productService";
+import { getParty, getPartyHistory as getPartyHistoryService } from "@/modules/party/partyService";
+import { partyActor } from "@/modules/party/partyActor";
+import { partyDisplayName } from "@/modules/party/partyDisplay";
+import { openStatusVariants } from "@/modules/exceptions/exceptionState";
+import { getActionableDecisionWhereFilter } from "@/modules/decisions/decisionState";
+import {
+  DOCUMENT_ACTIONABLE_STATUSES,
+  FILING_ACTIONABLE_STATUSES,
+  FINDING_ACTIONABLE_STATUSES,
+  buildWorkQueue,
+  countByKind,
+  countByPriority,
+} from "@/modules/work/workQueue";
+import {
+  FILING_READINESS_MAX_CHECKS,
+  evaluateFilingReadiness,
+} from "@/modules/filing/filingReadiness";
+import { doEmbargoCheck } from "@/modules/agents/compliance/embargo/doEmbargoCheck";
+import { getAccountEmbargoConfig } from "@/modules/agents/compliance/embargo/embargoRepository";
+import {
+  rescreenParty,
+  PartyHasNoActiveNameError,
+} from "@/modules/agents/compliance/restrictedParty/partyScreeningLifecycle";
+import { runRestrictedPartyScreening } from "@/modules/agents/compliance/restrictedParty/restrictedPartyScreening";
+import { persistScreeningRun } from "@/modules/agents/compliance/restrictedParty/persistResult";
 
 /**
  * Helper to convert Zod Object Schema into Gemini-compatible Schema object
@@ -1340,6 +1367,752 @@ const validateShipmentFiling: AssistantTool = {
   },
 };
 
+// ---- tool: get_product_history ----
+
+const getProductHistorySchema = z.object({
+  productId: z.string().describe("Product UUID."),
+  limit: z.number().int().min(1).max(50).optional().describe("Maximum change events to return, newest first."),
+});
+
+const getProductHistoryTool: AssistantTool = {
+  schema: getProductHistorySchema,
+  declaration: {
+    name: "get_product_history",
+    description: "Recorded change history for one product: what changed, when, and how customs-significant it was.",
+    parameters: zodToGeminiSchema(getProductHistorySchema),
+  },
+  access: { navHref: "/app/products" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getProductHistorySchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { productId, limit } = parsed.data;
+
+    const actor = productActor(ctx, `assistant-${ctx.userId}`);
+    let events;
+    try {
+      events = await getProductHistoryService(actor, productId);
+    } catch {
+      return { error: "Product not found" };
+    }
+
+    const page = events.slice(0, limit ?? 20);
+    return {
+      productId,
+      totalEvents: events.length,
+      returned: page.length,
+      truncated: events.length > page.length,
+      events: page.map((event) => ({
+        changedAt: event.createdAt,
+        version: event.versionNumber,
+        entity: event.entity,
+        field: event.field,
+        significance: event.significance,
+        impactFlags: event.impactFlags,
+        previousValue: event.oldValue,
+        newValue: event.newValue,
+        reason: event.changeReason,
+      })),
+    };
+  },
+};
+
+// ---- tool: get_product_evidence ----
+
+const getProductEvidenceSchema = z.object({
+  productId: z.string().describe("Product UUID."),
+});
+
+const getProductEvidence: AssistantTool = {
+  schema: getProductEvidenceSchema,
+  declaration: {
+    name: "get_product_evidence",
+    description: "The provenance behind a product's facts: which document, page and extraction each fact came from.",
+    parameters: zodToGeminiSchema(getProductEvidenceSchema),
+  },
+  access: { navHref: "/app/products" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getProductEvidenceSchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { productId } = parsed.data;
+
+    const product = await db.product.findFirst({
+      where: { id: productId, accountId: ctx.accountId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!product) return { error: "Product not found" };
+
+    const [rows, total] = await Promise.all([
+      db.productEvidence.findMany({
+        where: { productId: product.id, accountId: ctx.accountId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: {
+          sourceDocument: { select: { id: true, fileName: true, docType: true } },
+          _count: {
+            select: { attributes: true, compositions: true, parties: true, countryFacts: true, classifications: true },
+          },
+        },
+      }),
+      db.productEvidence.count({ where: { productId: product.id, accountId: ctx.accountId } }),
+    ]);
+
+    return {
+      productId,
+      totalEvidence: total,
+      returned: rows.length,
+      truncated: total > rows.length,
+      evidence: rows.map((item) => ({
+        evidenceId: item.id,
+        sourceType: item.sourceType,
+        documentId: item.sourceDocument?.id ?? null,
+        documentName: item.sourceDocument?.fileName ?? null,
+        documentType: item.sourceDocument?.docType ?? null,
+        page: item.page,
+        reference: item.sourceReference,
+        description: item.description,
+        supports: item._count,
+        recordedAt: item.createdAt,
+      })),
+    };
+  },
+};
+
+// ---- tool: get_party ----
+
+const getPartySchema = z.object({
+  partyId: z.string().describe("Party UUID."),
+});
+
+const getPartyTool: AssistantTool = {
+  schema: getPartySchema,
+  declaration: {
+    name: "get_party",
+    description:
+      "Full detail for one party: names, identifiers, registrations, addresses, roles, sites and relationships. " +
+      "Registration/address countries describe where a party is registered or located -- never the country of " +
+      "origin of any product it supplies.",
+    parameters: zodToGeminiSchema(getPartySchema),
+  },
+  access: { navHref: "/app/parties" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getPartySchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { partyId } = parsed.data;
+
+    const actor = partyActor(ctx, `assistant-${ctx.userId}`);
+    const party = await getParty(actor, partyId);
+    if (!party) return { error: "Party not found" };
+
+    const active = <T extends { status: string }>(rows: readonly T[]) => rows.filter((r) => r.status === "ACTIVE");
+
+    return {
+      partyId: party.id,
+      name: partyDisplayName(party),
+      internalCode: party.internalPartyCode,
+      partyKind: party.partyKind,
+      status: party.status,
+      reviewStatus: party.reviewStatus,
+      names: active(party.names).map((row) => ({ name: row.rawName, type: row.nameType, isPrimary: row.isPrimary })),
+      identifiers: active(party.identifiers).map((row) => ({
+        type: row.identifierType,
+        value: row.value,
+        issuingCountry: row.issuingCountry,
+        isPrimary: row.isPrimary,
+      })),
+      registrations: party.registrations.map((row) => ({
+        registrationNumber: row.registrationNumber,
+        authority: row.registeringAuthority,
+        countryOfRegistration: row.country,
+        legalForm: row.legalForm,
+        status: row.status,
+      })),
+      addresses: active(party.addresses).map((row) => ({
+        type: row.addressType,
+        city: row.city,
+        stateProvince: row.stateProvince,
+        country: row.country,
+        isPrimary: row.isPrimary,
+      })),
+      roles: active(party.roles).map((row) => ({ roleType: row.roleType, since: row.effectiveFrom })),
+      relationships: [
+        ...party.relationshipsFrom.map((row) => ({
+          direction: "FROM_THIS_PARTY" as const,
+          relationshipType: row.relationshipType,
+          counterpartyId: row.toPartyId,
+        })),
+        ...party.relationshipsTo.map((row) => ({
+          direction: "TO_THIS_PARTY" as const,
+          relationshipType: row.relationshipType,
+          counterpartyId: row.fromPartyId,
+        })),
+      ],
+      countryNote:
+        "Registration and address countries describe this party. They are not the country of origin of any product it supplies.",
+    };
+  },
+};
+
+// ---- tool: get_party_history ----
+
+const getPartyHistorySchema = z.object({
+  partyId: z.string().describe("Party UUID."),
+  limit: z.number().int().min(1).max(50).optional().describe("Maximum change events to return, newest first."),
+});
+
+const getPartyHistory: AssistantTool = {
+  schema: getPartyHistorySchema,
+  declaration: {
+    name: "get_party_history",
+    description: "Recorded change history for one party: what changed, when, and how significant it was for customs.",
+    parameters: zodToGeminiSchema(getPartyHistorySchema),
+  },
+  access: { navHref: "/app/parties" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getPartyHistorySchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { partyId, limit } = parsed.data;
+
+    const actor = partyActor(ctx, `assistant-${ctx.userId}`);
+    let events;
+    try {
+      events = await getPartyHistoryService(actor, partyId);
+    } catch {
+      return { error: "Party not found" };
+    }
+
+    const page = events.slice(0, limit ?? 20);
+    return {
+      partyId,
+      totalEvents: events.length,
+      returned: page.length,
+      truncated: events.length > page.length,
+      events: page.map((event) => ({
+        changedAt: event.createdAt,
+        version: event.versionNumber,
+        entity: event.entity,
+        field: event.field,
+        significance: event.significance,
+        impactFlags: event.impactFlags,
+        previousValue: event.oldValue,
+        newValue: event.newValue,
+        reason: event.changeReason,
+      })),
+    };
+  },
+};
+
+// ---- tool: get_party_evidence ----
+
+const getPartyEvidenceSchema = z.object({
+  partyId: z.string().describe("Party UUID."),
+});
+
+const getPartyEvidence: AssistantTool = {
+  schema: getPartyEvidenceSchema,
+  declaration: {
+    name: "get_party_evidence",
+    description: "The provenance behind a party's facts: which document, page and extraction each fact came from.",
+    parameters: zodToGeminiSchema(getPartyEvidenceSchema),
+  },
+  access: { navHref: "/app/parties" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getPartyEvidenceSchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { partyId } = parsed.data;
+
+    const party = await db.party.findFirst({
+      where: { id: partyId, accountId: ctx.accountId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!party) return { error: "Party not found" };
+
+    const [rows, total] = await Promise.all([
+      db.partyEvidence.findMany({
+        where: { partyId: party.id, accountId: ctx.accountId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: {
+          sourceDocument: { select: { id: true, fileName: true, docType: true } },
+          _count: { select: { names: true, identifiers: true, registrations: true, addresses: true, roles: true, relationships: true } },
+        },
+      }),
+      db.partyEvidence.count({ where: { partyId: party.id, accountId: ctx.accountId } }),
+    ]);
+
+    return {
+      partyId,
+      totalEvidence: total,
+      returned: rows.length,
+      truncated: total > rows.length,
+      evidence: rows.map((item) => ({
+        evidenceId: item.id,
+        sourceType: item.sourceType,
+        documentId: item.sourceDocument?.id ?? null,
+        documentName: item.sourceDocument?.fileName ?? null,
+        documentType: item.sourceDocument?.docType ?? null,
+        page: item.page,
+        reference: item.sourceReference,
+        description: item.description,
+        supports: item._count,
+        recordedAt: item.createdAt,
+      })),
+    };
+  },
+};
+
+// ---- tool: get_shipment_filing_readiness ----
+
+const getShipmentFilingReadinessSchema = z.object({
+  shipmentId: z.string().describe("Shipment UUID or shipment number."),
+});
+
+const getShipmentFilingReadiness: AssistantTool = {
+  schema: getShipmentFilingReadinessSchema,
+  declaration: {
+    name: "get_shipment_filing_readiness",
+    description:
+      "Whether one shipment can be filed right now, computed from stored shipment columns only (line items, " +
+      "documents, importer of record, entry type, open exceptions, open reconciliation issues). Returns the " +
+      "blockers found together with how many checks were actually run -- bond sufficiency, PGA requirements " +
+      "and licence conditions are never among them. Distinct from validate_shipment_filing, which validates an " +
+      "existing CustomsFiling record for the CBP 7501 form.",
+    parameters: zodToGeminiSchema(getShipmentFilingReadinessSchema),
+  },
+  access: { navHref: "/app/shipments" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getShipmentFilingReadinessSchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    let { shipmentId } = parsed.data;
+
+    if (!shipmentId.includes("-")) {
+      const match = await db.shipment.findFirst({
+        where: { accountId: ctx.accountId, shipmentNumber: shipmentId },
+        select: { id: true },
+      });
+      if (match) shipmentId = match.id;
+    }
+
+    const shipment = await db.shipment.findFirst({
+      where: { id: shipmentId, accountId: ctx.accountId, deletedAt: null },
+      select: {
+        id: true,
+        shipmentNumber: true,
+        importerOfRecordId: true,
+        entryType: true,
+        status: true,
+        lineItems: { orderBy: { lineNumber: "asc" }, select: { lineNumber: true, htsCode: true, countryOfOrigin: true } },
+        documents: { select: { docType: true, status: true } },
+        exceptionItems: { where: { status: { in: openStatusVariants() } }, select: { severity: true } },
+        reconciliationIssues: { where: { status: "Open" }, select: { severity: true } },
+      },
+    });
+    if (!shipment) return { error: "Shipment not found" };
+
+    const readiness = evaluateFilingReadiness({
+      importerOfRecordId: shipment.importerOfRecordId,
+      entryType: shipment.entryType,
+      lineItems: shipment.lineItems,
+      documents: shipment.documents,
+      openExceptions: shipment.exceptionItems,
+      openReconciliationIssues: shipment.reconciliationIssues,
+    });
+
+    return {
+      shipmentId: shipment.id,
+      shipmentNumber: shipment.shipmentNumber,
+      shipmentStatus: shipment.status,
+      ready: readiness.ready,
+      checksPerformed: readiness.checksPerformed,
+      checksPassed: readiness.checksPassed,
+      maxChecks: FILING_READINESS_MAX_CHECKS,
+      blockers: readiness.blockers.map((b) => ({ code: b.code, requirement: b.label, detail: b.detail })),
+      scopeNote:
+        "These are the only checks performed from stored shipment data. Bond sufficiency, PGA requirements and licence conditions are not among them and have not been verified.",
+    };
+  },
+};
+
+// ---- tool: list_tasks ----
+
+const listTasksSchema = z.object({
+  assignedToMe: z.boolean().optional().describe("Only work assigned to the signed-in user."),
+  kind: z.enum(["decision", "finding", "filing", "document", "exception"]).optional().describe("Restrict to one kind of work item."),
+  limit: z.number().int().min(1).max(50).optional().describe("Maximum items to return."),
+});
+
+const QUEUE_SOURCE_LIMIT = 50;
+
+const listTasks: AssistantTool = {
+  schema: listTasksSchema,
+  declaration: {
+    name: "list_tasks",
+    description:
+      "The prioritised work queue for the signed-in account: decisions awaiting review, open compliance findings, " +
+      "filings needing attention, documents needing review and open exceptions. Use for 'what should I work on' questions.",
+    parameters: zodToGeminiSchema(listTasksSchema),
+  },
+  access: { navHref: "/app/actions" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = listTasksSchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { assignedToMe, kind, limit } = parsed.data;
+
+    const [decisions, findings, filings, documents, exceptions] = await Promise.all([
+      db.agentDecision.findMany({
+        where: { accountId: ctx.accountId, ...getActionableDecisionWhereFilter() },
+        orderBy: { createdAt: "desc" },
+        take: QUEUE_SOURCE_LIMIT,
+        select: {
+          id: true, agentName: true, decisionSummary: true, status: true, createdAt: true,
+          shipmentId: true, shipment: { select: { shipmentNumber: true } },
+        },
+      }),
+      db.complianceFinding.findMany({
+        where: { accountId: ctx.accountId, status: { in: FINDING_ACTIONABLE_STATUSES } },
+        orderBy: { createdAt: "desc" },
+        take: QUEUE_SOURCE_LIMIT,
+        select: { id: true, rule: true, severity: true, status: true, createdAt: true, filingId: true, assignedToUserId: true },
+      }),
+      db.customsFiling.findMany({
+        where: { accountId: ctx.accountId, filingStatus: { in: FILING_ACTIONABLE_STATUSES } },
+        orderBy: { createdAt: "desc" },
+        take: QUEUE_SOURCE_LIMIT,
+        select: { id: true, entryNumber: true, filingStatus: true, createdAt: true, shipment: { select: { shipmentNumber: true } } },
+      }),
+      db.shipmentDocument.findMany({
+        where: { accountId: ctx.accountId, status: { in: DOCUMENT_ACTIONABLE_STATUSES } },
+        orderBy: { createdAt: "desc" },
+        take: QUEUE_SOURCE_LIMIT,
+        select: { id: true, fileName: true, status: true, createdAt: true, shipmentId: true, shipment: { select: { shipmentNumber: true } } },
+      }),
+      db.exceptionItem.findMany({
+        where: { accountId: ctx.accountId, status: { in: openStatusVariants() } },
+        orderBy: { createdAt: "desc" },
+        take: QUEUE_SOURCE_LIMIT,
+        select: {
+          id: true, type: true, description: true, severity: true, status: true, createdAt: true,
+          shipmentId: true, assignedToUserId: true, shipment: { select: { shipmentNumber: true } },
+        },
+      }),
+    ]);
+
+    const queue = buildWorkQueue({
+      userId: ctx.userId,
+      decisions: decisions.map((row) => ({
+        id: row.id, agentName: row.agentName, decisionSummary: row.decisionSummary, status: row.status,
+        createdAt: row.createdAt, shipmentId: row.shipmentId, shipmentNumber: row.shipment?.shipmentNumber ?? null,
+      })),
+      findings: findings.map((row) => ({
+        id: row.id, rule: row.rule, severity: row.severity, status: row.status,
+        createdAt: row.createdAt, filingId: row.filingId, assignedToUserId: row.assignedToUserId,
+      })),
+      filings: filings.map((row) => ({
+        id: row.id, entryNumber: row.entryNumber, filingStatus: row.filingStatus,
+        createdAt: row.createdAt, shipmentNumber: row.shipment?.shipmentNumber ?? null,
+      })),
+      documents: documents.map((row) => ({
+        id: row.id, fileName: row.fileName, status: row.status, createdAt: row.createdAt,
+        shipmentId: row.shipmentId, shipmentNumber: row.shipment?.shipmentNumber ?? null,
+      })),
+      exceptions: exceptions.map((row) => ({
+        id: row.id, type: row.type, description: row.description, severity: row.severity, status: row.status,
+        createdAt: row.createdAt, shipmentId: row.shipmentId, shipmentNumber: row.shipment?.shipmentNumber ?? null,
+        assignedToUserId: row.assignedToUserId,
+      })),
+    });
+
+    const filtered = queue.filter((item) => {
+      if (kind && item.kind !== kind) return false;
+      if (assignedToMe && !item.assignedToMe) return false;
+      return true;
+    });
+
+    const page = filtered.slice(0, limit ?? 20);
+    return {
+      totalMatching: filtered.length,
+      returned: page.length,
+      truncated: filtered.length > page.length,
+      byPriority: countByPriority(filtered),
+      byKind: countByKind(filtered),
+      items: page.map((item) => {
+        const [, recordId] = item.id.split(":");
+        return {
+          kind: item.kind,
+          recordId: recordId ?? null,
+          title: item.title,
+          reason: item.reason,
+          priority: item.priority,
+          shipmentNumber: item.shipmentNumber,
+          assignedToMe: item.assignedToMe,
+          waitingSince: item.createdAt,
+        };
+      }),
+      sourceLimitNote: `Each source was read up to ${QUEUE_SOURCE_LIMIT} rows, so counts describe the most recent work rather than the account's entire history.`,
+    };
+  },
+};
+
+// ---- tool: get_country_embargo_screening ----
+
+const getCountryEmbargoScreeningSchema = z.object({
+  shipFromCountry: z.string().describe("Ship-from or compliance country name/code, for example US."),
+  shipToCountry: z.string().describe("Ship-to or destination country name/code, for example Iran."),
+});
+
+const getCountryEmbargoScreening: AssistantTool = {
+  schema: getCountryEmbargoScreeningSchema,
+  declaration: {
+    name: "get_country_embargo_screening",
+    description:
+      "Screen a hypothetical export country pair directly against deterministic embargo reference data, with no " +
+      "shipment involved. Use when the user names a ship-from and ship-to country but no shipment. This checks " +
+      "only the named country pair -- it does not screen transaction parties, goods, HTS classifications, " +
+      "ECCNs, end use, or licences. For an existing shipment, use screen_shipment_embargo instead.",
+    parameters: zodToGeminiSchema(getCountryEmbargoScreeningSchema),
+  },
+  access: { navHref: "/app/compliance" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getCountryEmbargoScreeningSchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { shipFromCountry, shipToCountry } = parsed.data;
+
+    const accountConfig = await getAccountEmbargoConfig(ctx.accountId);
+    if (!accountConfig.embargoScreeningEnabled) {
+      return {
+        status: "SKIPPED",
+        screeningPerformed: false,
+        isEmbargoed: null,
+        shipFromCountry,
+        shipToCountry,
+        reason: "EMBARGO_SCREENING_DISABLED",
+        scope: "COUNTRY_PAIR_ONLY",
+        scopeNote: "Account-level embargo screening is disabled. No country-pair verdict was produced.",
+      };
+    }
+
+    const checkedAt = new Date();
+    const check = await doEmbargoCheck({
+      accountId: ctx.accountId,
+      shipmentId: "assistant-country-pair",
+      screeningLevel: "TRANSACTION",
+      complianceCountry: shipFromCountry,
+      targetCountry: shipToCountry,
+      type: "D",
+      screeningDate: checkedAt,
+      accountConfig,
+    });
+
+    const evidence = check.evidence ?? {};
+    return {
+      status: check.result,
+      screeningPerformed: check.result !== "SKIPPED",
+      isEmbargoed: check.result === "HIT" ? true : check.result === "CLEAR" ? false : null,
+      shipFromCountry: check.complianceCountry,
+      shipToCountry: check.screenedCountry,
+      direction: "DESTINATION",
+      matcher: check.matcher,
+      reason: check.reason ?? null,
+      referenceRuleId: check.ruleId ?? null,
+      sanctionIndicators: {
+        national: evidence.nationalSanction ?? null,
+        eu: evidence.euSanction ?? null,
+        un: evidence.unSanction ?? null,
+      },
+      checkedAt: checkedAt.toISOString(),
+      scope: "COUNTRY_PAIR_ONLY",
+      scopeNote:
+        "This checks only the named country pair. It does not screen transaction parties, goods, HTS classifications, ECCNs, end use, licences, or shipment-specific facts.",
+    };
+  },
+};
+
+// ---- tool: screen_restricted_party ----
+
+const screenRestrictedPartySchema = z.object({
+  partyId: z.string().optional().describe("An existing party id to rescreen using its current Party Master identity. Omit to screen ad-hoc fields instead."),
+  name: z.string().optional().describe("Party name to screen. Required when partyId is omitted."),
+  address: z.string().optional().describe("Street address, if known."),
+  city: z.string().optional().describe("City, if known."),
+  country: z.string().optional().describe("Country, if known."),
+  contactName: z.string().optional().describe("A named contact for this party, if known. Screened as an independent pass."),
+});
+
+const screenRestrictedParty: AssistantTool = {
+  schema: screenRestrictedPartySchema,
+  declaration: {
+    name: "screen_restricted_party",
+    description:
+      "Screen a party against restricted/denied-party denial-order lists (OFAC SDN, BIS DPL, and related lists) " +
+      "plus Know-Your-Customer red-flag words. Pass an existing partyId to rescreen a Party Master record's " +
+      "current identity, or pass ad-hoc name/address/country/contactName fields to screen a hypothetical identity " +
+      "not in Party Master. This persists a new screening result. Never fabricate a match, citation, or " +
+      "clearance -- only report what this tool returns.",
+    parameters: zodToGeminiSchema(screenRestrictedPartySchema),
+  },
+  access: { permission: "compliance.restrictedParty.screen" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = screenRestrictedPartySchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { partyId, name, address, city, country, contactName } = parsed.data;
+
+    if (partyId) {
+      const party = await db.party.findFirst({
+        where: { id: partyId, accountId: ctx.accountId },
+        select: { id: true, internalPartyCode: true, names: { select: { rawName: true, isPrimary: true, nameType: true } } },
+      });
+      if (!party) return { error: "Party not found" };
+
+      try {
+        const { overallStatus, results } = await rescreenParty(ctx.accountId, party.id);
+        return {
+          partyId: party.id,
+          overallStatus,
+          results: results.map((r) => ({
+            passType: r.passType,
+            status: r.status,
+            hitCount: r.hitCount,
+            redFlagCount: r.redFlagCount,
+            matches: r.matches
+              .filter((m) => !m.suppressedByApprovedParty)
+              .map((m) => ({ matchedName: m.matchedName, nameScore: m.nameScore, matchMethod: m.matchMethod, sourceList: m.sourceList, programCodes: m.programCodes })),
+            redFlagHits: r.redFlagHits.map((h) => ({ matchedWord: h.matchedWord })),
+          })),
+        };
+      } catch (error) {
+        if (error instanceof PartyHasNoActiveNameError) {
+          return { error: error.message };
+        }
+        throw error;
+      }
+    }
+
+    if (!name) return { error: "Either partyId or name must be provided." };
+
+    const screeningInput = {
+      accountId: ctx.accountId,
+      source: "COPILOT" as const,
+      identity: { name, address: address ?? null, city: city ?? null, country: country ?? null, contactName: contactName ?? null },
+    };
+
+    const runResult = await runRestrictedPartyScreening(screeningInput);
+    const persisted = await persistScreeningRun(screeningInput, runResult);
+
+    return {
+      correlationId: runResult.correlationId,
+      results: persisted.map((r) => ({
+        screeningId: r.id,
+        passType: r.passType,
+        status: r.status,
+        hitCount: r.hitCount,
+        redFlagCount: r.redFlagCount,
+        matches: r.matches
+          .filter((m) => !m.suppressedByApprovedParty)
+          .map((m) => ({ matchedName: m.matchedName, nameScore: m.nameScore, matchMethod: m.matchMethod, sourceList: m.sourceList, programCodes: m.programCodes })),
+        redFlagHits: r.redFlagHits.map((h) => ({ matchedWord: h.matchedWord })),
+      })),
+    };
+  },
+};
+
+// ---- tool: get_restricted_party_screening_details ----
+
+const getRestrictedPartyScreeningDetailsSchema = z.object({
+  screeningId: z.string().describe("The restricted-party screening result id, from screen_restricted_party or a party's screening history."),
+});
+
+const getRestrictedPartyScreeningDetails: AssistantTool = {
+  schema: getRestrictedPartyScreeningDetailsSchema,
+  declaration: {
+    name: "get_restricted_party_screening_details",
+    description:
+      "Full detail for one persisted restricted/denied-party screening result: the screened identity, thresholds " +
+      "used, matched denial-order entries, and red-flag hits.",
+    parameters: zodToGeminiSchema(getRestrictedPartyScreeningDetailsSchema),
+  },
+  access: { permission: "compliance.restrictedParty.read" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getRestrictedPartyScreeningDetailsSchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { screeningId } = parsed.data;
+
+    const result = await db.restrictedPartyScreeningResult.findFirst({
+      where: { id: screeningId, accountId: ctx.accountId },
+      include: { matches: true, redFlagHits: true, disposition: true },
+    });
+    if (!result) return { error: "Screening result not found" };
+
+    return {
+      screeningId: result.id,
+      source: result.source,
+      passType: result.passType,
+      screenedName: result.screenedName,
+      screenedAddress: result.screenedAddress,
+      screenedCity: result.screenedCity,
+      screenedCountry: result.screenedCountry,
+      nameThreshold: result.nameThreshold,
+      countryMatchRequired: result.countryMatchRequired,
+      status: result.status,
+      screeningDate: result.screeningDate.toISOString(),
+      matches: result.matches.map((m) => ({
+        matchedName: m.matchedName, nameScore: m.nameScore, matchMethod: m.matchMethod,
+        sourceList: m.sourceList, programCodes: m.programCodes, suppressedByApprovedParty: m.suppressedByApprovedParty,
+      })),
+      redFlagHits: result.redFlagHits.map((h) => ({ matchedWord: h.matchedWord })),
+      disposition: result.disposition
+        ? { status: result.disposition.status, reviewedAt: result.disposition.reviewedAt?.toISOString() ?? null, notes: result.disposition.notes }
+        : null,
+    };
+  },
+};
+
+// ---- tool: get_party_restricted_party_screening_history ----
+
+const getPartyScreeningHistorySchema = z.object({
+  partyId: z.string().describe("Party UUID."),
+});
+
+const getPartyRestrictedPartyScreeningHistory: AssistantTool = {
+  schema: getPartyScreeningHistorySchema,
+  declaration: {
+    name: "get_party_restricted_party_screening_history",
+    description:
+      "The current restricted/denied-party screening status and screening history for one Party Master record. " +
+      "Use for 'when was this party last screened' or 'has this party ever hit a denial list' questions.",
+    parameters: zodToGeminiSchema(getPartyScreeningHistorySchema),
+  },
+  access: { navHref: "/app/parties", permission: "compliance.restrictedParty.read" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getPartyScreeningHistorySchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { partyId } = parsed.data;
+
+    const party = await db.party.findFirst({
+      where: { id: partyId, accountId: ctx.accountId },
+      select: { id: true },
+    });
+    if (!party) return { error: "Party not found" };
+
+    const [summary, results] = await Promise.all([
+      db.partyScreeningSummary.findUnique({ where: { partyId: party.id } }),
+      db.restrictedPartyScreeningResult.findMany({
+        where: { partyId: party.id, accountId: ctx.accountId },
+        orderBy: { screeningDate: "desc" },
+        take: 20,
+      }),
+    ]);
+
+    return {
+      partyId: party.id,
+      currentStatus: summary?.screeningStatus ?? null,
+      lastScreenedAt: summary?.lastScreenedAt?.toISOString() ?? null,
+      history: results.map((r) => ({
+        screeningId: r.id, passType: r.passType, status: r.status,
+        hitCount: r.hitCount, redFlagCount: r.redFlagCount, screeningDate: r.screeningDate.toISOString(),
+      })),
+    };
+  },
+};
+
 export const ASSISTANT_TOOLS: AssistantTool[] = [
   listShipments,
   getValueAtRisk,
@@ -1371,6 +2144,17 @@ export const ASSISTANT_TOOLS: AssistantTool[] = [
   getClassificationRationale,
   getDutyExposureRisks,
   validateShipmentFiling,
+  getProductHistoryTool,
+  getProductEvidence,
+  getPartyTool,
+  getPartyHistory,
+  getPartyEvidence,
+  getShipmentFilingReadiness,
+  listTasks,
+  getCountryEmbargoScreening,
+  screenRestrictedParty,
+  getRestrictedPartyScreeningDetails,
+  getPartyRestrictedPartyScreeningHistory,
 ];
 
 const TOOLS_BY_NAME = new Map(ASSISTANT_TOOLS.map((t) => [t.declaration.name, t]));

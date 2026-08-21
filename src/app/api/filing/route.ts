@@ -308,7 +308,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     const timestamp = Date.now().toString(36).toUpperCase();
     const randomSuffix = randomUUID().slice(0, 6).toUpperCase();
     const standaloneEntryNumber = `${country}-${procedureCode}-${timestamp}-${randomSuffix}`;
-    const transactionType = procedureConfig.transactionType?.trim().toUpperCase() || "IMPORT";
+    const transactionType = "IMPORT"; // Default transaction type
 
     const filing = await db.customsFiling.create({
       data: {

@@ -74,6 +74,16 @@ const modelsWithAccountRelation = new Set<string>();
 // silently exclude legitimate global rows from queries that intentionally span both.
 const modelsWithRequiredAccountId = new Set<string>();
 
+/**
+ * Prisma model names (PascalCase, as in schema.prisma) that carry a required
+ * accountId field. Exposed so static checks (see tenant-context-adoption.test.ts)
+ * can recognize genuinely tenant-scoped Prisma calls without hand-maintaining a
+ * duplicate list that drifts from the schema.
+ */
+export function getTenantScopedModelNames(): string[] {
+  return Array.from(modelsWithRequiredAccountId);
+}
+
 if (Prisma.dmmf?.datamodel?.models) {
   for (const model of Prisma.dmmf.datamodel.models) {
     const fieldNames = new Set(model.fields.map((f) => f.name));

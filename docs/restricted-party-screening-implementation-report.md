@@ -152,8 +152,8 @@ Five new routes under `/api/v1/`:
 | `POST /parties/[partyId]/restricted-party-screening/rescreen` | Session | `compliance.restrictedParty.screen` |
 
 The public API-key route additionally enforces a per-key sliding-window rate
-limit (`restrictedPartyRateLimit.ts`, 60 requests/60s, modeled on
-`copilotRateLimit.ts` — explicitly documented as in-memory/per-instance, a
+limit (`restrictedPartyRateLimit.ts`, 60 requests/60s, modeled on the
+assistant chat rate limiter (`src/modules/assistant/shared/rateLimit.ts`) — explicitly documented as in-memory/per-instance, a
 guard against a runaway integration rather than a defence against a
 determined attacker) and `Idempotency-Key` support (`idempotency.ts`) so ERP
 retries never duplicate immutable screening history. All four session-auth
@@ -164,16 +164,23 @@ account-enumeration oracle). All five routes are registered in
 
 ## H. Copilot integration
 
-Three tools added to the existing `src/modules/copilot/tools/complianceTools.ts`
-(auto-registered via the `complianceTools` array, no separate registration
-step): `screenRestrictedParty` (rescreens an existing `partyId` or screens an
-ad-hoc identity), `getRestrictedPartyScreeningDetails`, and
-`getPartyRestrictedPartyScreeningHistory`. All three follow the existing
-`CopilotTool<T>` contract — zod-validated input, tenant-scoped queries keyed
-off `ctx.actor.accountId` (never a model-supplied value), and
-`ctx.ledger.recordEntity("PARTY", id, label)` grounding so the model can only
-cite a party it actually retrieved. No matching logic lives in any prompt —
-the model only calls these deterministic tools and summarizes their output.
+Three tools were originally added to `src/modules/copilot/tools/complianceTools.ts`
+(auto-registered via the `complianceTools` array): `screenRestrictedParty`
+(rescreens an existing `partyId` or screens an ad-hoc identity),
+`getRestrictedPartyScreeningDetails`, and
+`getPartyRestrictedPartyScreeningHistory`. That module was never wired into
+any live route and has since been deleted (2026-08-21); the same three
+capabilities now live directly in the registry the `/chat` route actually
+imports (`src/modules/assistant/tools.ts`) as `screen_restricted_party`,
+`get_restricted_party_screening_details`, and
+`get_party_restricted_party_screening_history`. Each follows the live
+registry's own contract — a zod `schema` validated via `safeParse` inside
+`execute`, tenant-scoped queries keyed off `ctx.accountId` (never a
+model-supplied value) — and `screen_restricted_party`, the one mutating tool
+of the three, declares `access: { permission: "compliance.restrictedParty.screen" }`,
+asserted by `tests/assistant-tools-rbac.test.ts`. No matching logic lives in
+any prompt — the model only calls these deterministic tools and summarizes
+their output.
 
 ## I. Permissions
 

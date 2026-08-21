@@ -50,7 +50,11 @@ export default async function FilingConfigPage() {
         label: tableMeta.label,
         description: tableMeta.description,
         idField: tableMeta.idField,
-        fields: tableMeta.fields,
+        fields: tableMeta.fields.map((field) => ({
+          ...field,
+          // Convert options from {value, label}[] to string[]
+          options: field.options ? field.options.map((opt) => opt.value) : undefined,
+        })),
       };
     })
   );
