@@ -116,7 +116,7 @@ export interface FieldMeta {
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldMeta[];
   /** Only present when type === "select": the dropdown options. */
-  options?: string[];
+  options?: Array<{ value: string; label: string }>;
   /** Only present when type === "select": map of value -> display label. */
   optionLabels?: Record<string, string>;
 }

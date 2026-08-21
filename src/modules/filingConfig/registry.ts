@@ -59,10 +59,14 @@ export interface SubFieldDef {
 export interface FieldDef {
   key: string;
   label: string;
-  type: "text" | "boolean" | "fieldArray";
+  type: "text" | "boolean" | "fieldArray" | "date" | "select";
   help?: string;
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldDef[];
+  /** Only present when type === "select": options for dropdown */
+  options?: Array<{ value: string; label: string }>;
+  /** Only present when type === "select": map of option values to readable labels */
+  optionLabels?: Record<string, string>;
 }
 
 interface TableDef<TRow> {
