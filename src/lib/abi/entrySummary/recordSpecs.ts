@@ -23,6 +23,26 @@ import type {
   FtzPrivilegedStatusDetailInput,
   AdcvdCaseDetailInput,
   AdcvdDutyTotalsInput,
+  InvoiceLineReferenceInput,
+  RulingsDetailInput,
+  CommercialDescriptionInput,
+  LicenseCertificatePermitInput,
+  LineEntityInput,
+  LineEntityGbiInput,
+  LineEntityStreetAddressInput,
+  LineEntityGeographicAreaInput,
+  GbiPartyTypeDescriptionInput,
+  ArticlePartyInput,
+  StandardVisaInput,
+  ImportersAdditionalDeclarationInput,
+  HeaderFeesInput,
+  LineUserFeeInput,
+  IrTaxInput,
+  OtherRevenueInput,
+  PscHeaderReasonsInput,
+  PscFilingExplanationInput,
+  PscLineReasonsInput,
+  CensusWarningOverrideInput,
 } from "./types";
 
 // RecordSpecs for the CATAIR Entry Summary Create/Update (AE) input records —
@@ -327,6 +347,392 @@ export const ADCVD_DUTY_TOTALS_SPEC: RecordSpec<AdcvdDutyTotalsInput> = {
     filler(38, 1),
     impliedDecimalField("totalCashDepositCvDutyAmount", 39, 11, 2, "C"),
     filler(50, 31),
+  ],
+};
+
+// ── 42-Record: Invoice Line Reference Detail ─────────────────────────────────
+// The source PDF's field order is Control Identifier / Supplier ID Code (15AN,
+// 3-17) / Invoice Number (17X, 18-34) / ... — an earlier reading of this record
+// mistook the Supplier ID Code column for filler and shifted every field after
+// it 15 positions early. The invoice line range fields are plain integers (no
+// implied decimals — class "(S)N" per the PDF, distinct from an implied-decimal
+// money amount), so they use a plain `SN`-class field rather than
+// `impliedDecimalField`.
+
+export const INVOICE_LINE_REFERENCE_SPEC: RecordSpec<InvoiceLineReferenceInput> = {
+  recordType: "42-Record (Invoice Line Reference Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "42"),
+    { key: "supplierIdCode", start: 3, length: 15, class: "AN", designation: "M" },
+    { key: "invoiceNumber", start: 18, length: 17, class: "X", designation: "M" },
+    filler(35, 1),
+    { key: "invoiceLineRange1Begin", start: 36, length: 4, class: "SN", designation: "M" },
+    filler(40, 1),
+    { key: "invoiceLineRange1End", start: 41, length: 4, class: "SN", designation: "M" },
+    filler(45, 1),
+    { key: "invoiceLineRange2Begin", start: 46, length: 4, class: "SN", designation: "C" },
+    filler(50, 1),
+    { key: "invoiceLineRange2End", start: 51, length: 4, class: "SN", designation: "C" },
+    filler(55, 1),
+    { key: "invoiceLineRange3Begin", start: 56, length: 4, class: "SN", designation: "C" },
+    filler(60, 1),
+    { key: "invoiceLineRange3End", start: 61, length: 4, class: "SN", designation: "C" },
+    filler(65, 1),
+    { key: "invoiceLineRange4Begin", start: 66, length: 4, class: "SN", designation: "C" },
+    filler(70, 1),
+    { key: "invoiceLineRange4End", start: 71, length: 4, class: "SN", designation: "C" },
+    filler(75, 6),
+  ],
+};
+
+// ── 43-Record: Rulings Detail ────────────────────────────────────────────────
+
+export const RULINGS_DETAIL_SPEC: RecordSpec<RulingsDetailInput> = {
+  recordType: "43-Record (Rulings Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "43"),
+    { key: "rulingTypeCode", start: 3, length: 1, class: "AN", designation: "M" },
+    filler(4, 5),
+    { key: "rulingNumber", start: 9, length: 6, class: "AN", designation: "C" },
+    filler(15, 66),
+  ],
+};
+
+// ── 44-Record: Commercial Description ────────────────────────────────────────
+
+export const COMMERCIAL_DESCRIPTION_SPEC: RecordSpec<CommercialDescriptionInput> = {
+  recordType: "44-Record (Commercial Description)",
+  length: 80,
+  fields: [
+    constantField(1, "44"),
+    { key: "commercialDescriptionText", start: 3, length: 70, class: "X", designation: "M" },
+    filler(73, 8),
+  ],
+};
+
+// ── 52-Record: License/Certificate/Permit Detail ─────────────────────────────
+
+export const LICENSE_CERTIFICATE_PERMIT_SPEC: RecordSpec<LicenseCertificatePermitInput> = {
+  recordType: "52-Record (License/Certificate/Permit Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "52"),
+    { key: "licenseCertificatePermitTypeCode", start: 3, length: 2, class: "AN", designation: "M" },
+    { key: "licenseCertificatePermitNumber", start: 5, length: 10, class: "X", designation: "M" },
+    filler(15, 10),
+    filler(25, 56),
+  ],
+};
+
+// ── SE50-Record: Line Entity Name and Type ───────────────────────────────────
+
+export const LINE_ENTITY_SPEC: RecordSpec<LineEntityInput> = {
+  recordType: "SE50-Record (Line Entity Name and Type)",
+  length: 80,
+  fields: [
+    constantField(1, "SE50"),
+    { key: "entityCode", start: 5, length: 3, class: "A", designation: "M" },
+    { key: "entityName", start: 8, length: 35, class: "X", designation: "C" },
+    { key: "entityIdentifierQualifier", start: 43, length: 3, class: "X", designation: "C" },
+    { key: "entityIdentifier", start: 46, length: 20, class: "X", designation: "C" },
+    filler(66, 15),
+  ],
+};
+
+// ── SE51-Record: Line Entity GBI Identifier ──────────────────────────────────
+
+export const LINE_ENTITY_GBI_SPEC: RecordSpec<LineEntityGbiInput> = {
+  recordType: "SE51-Record (Line Entity GBI Identifier)",
+  length: 80,
+  fields: [
+    constantField(1, "SE51"),
+    { key: "gbiIdentifierQualifier", start: 5, length: 4, class: "A", designation: "M" },
+    { key: "identifier", start: 9, length: 35, class: "AN", designation: "M" },
+    filler(44, 37),
+  ],
+};
+
+// ── SE55-Record: Line Entity Street Address ──────────────────────────────────
+
+export const LINE_ENTITY_STREET_ADDRESS_SPEC: RecordSpec<LineEntityStreetAddressInput> = {
+  recordType: "SE55-Record (Line Entity Street Address)",
+  length: 80,
+  fields: [
+    constantField(1, "SE55"),
+    { key: "addressComponentQualifier1", start: 5, length: 2, class: "AN", designation: "M" },
+    { key: "addressInformation1", start: 7, length: 35, class: "X", designation: "M" },
+    { key: "addressComponentQualifier2", start: 42, length: 2, class: "AN", designation: "O" },
+    { key: "addressInformation2", start: 44, length: 35, class: "X", designation: "O" },
+    filler(79, 2),
+  ],
+};
+
+// ── SE56-Record: Line Entity Geographic Area ─────────────────────────────────
+
+export const LINE_ENTITY_GEOGRAPHIC_AREA_SPEC: RecordSpec<LineEntityGeographicAreaInput> = {
+  recordType: "SE56-Record (Line Entity Geographic Area)",
+  length: 80,
+  fields: [
+    constantField(1, "SE56"),
+    { key: "cityName", start: 5, length: 35, class: "X", designation: "M" },
+    { key: "countrySubEntityCode", start: 40, length: 3, class: "AN", designation: "C" },
+    filler(43, 6),
+    { key: "postalCode", start: 49, length: 15, class: "X", designation: "C" },
+    { key: "countryCode", start: 64, length: 2, class: "A", designation: "M" },
+    filler(66, 15),
+  ],
+};
+
+// ── SE32/SE52-Record: Entity GBI Party Type Description ──────────────────────
+// Identical layout at header and line level bar the control identifier.
+// See PDF pages ESF-62 (header) and ESF-86 (line).
+
+export const HEADER_ENTITY_GBI_PARTY_TYPE_SPEC: RecordSpec<GbiPartyTypeDescriptionInput> = {
+  recordType: "SE32-Record (Header Entity GBI Party Type Description)",
+  length: 80,
+  fields: [
+    constantField(1, "SE32"),
+    { key: "sequenceNumber", start: 5, length: 1, class: "N", designation: "M" },
+    { key: "description", start: 6, length: 75, class: "X", designation: "M" },
+  ],
+};
+
+export const LINE_ENTITY_GBI_PARTY_TYPE_SPEC: RecordSpec<GbiPartyTypeDescriptionInput> = {
+  recordType: "SE52-Record (Line Entity GBI Party Type Description)",
+  length: 80,
+  fields: [
+    constantField(1, "SE52"),
+    { key: "sequenceNumber", start: 5, length: 1, class: "N", designation: "M" },
+    { key: "description", start: 6, length: 75, class: "X", designation: "M" },
+  ],
+};
+
+// ── SE30/SE31/SE35/SE36-Record: Header Level Cargo Entity Grouping ───────────
+// Same field layouts as SE50/SE51/SE55/SE56 (only the control identifier
+// differs) — verified field-for-field against the PDF. See PDF pages ESF-59
+// through ESF-64.
+
+export const HEADER_ENTITY_SPEC: RecordSpec<LineEntityInput> = {
+  recordType: "SE30-Record (Header Entity Name and Type)",
+  length: 80,
+  fields: [
+    constantField(1, "SE30"),
+    { key: "entityCode", start: 5, length: 3, class: "A", designation: "M" },
+    { key: "entityName", start: 8, length: 35, class: "X", designation: "C" },
+    { key: "entityIdentifierQualifier", start: 43, length: 3, class: "X", designation: "C" },
+    { key: "entityIdentifier", start: 46, length: 20, class: "X", designation: "C" },
+    filler(66, 15),
+  ],
+};
+
+export const HEADER_ENTITY_GBI_SPEC: RecordSpec<LineEntityGbiInput> = {
+  recordType: "SE31-Record (Header Entity GBI Identifier)",
+  length: 80,
+  fields: [
+    constantField(1, "SE31"),
+    { key: "gbiIdentifierQualifier", start: 5, length: 4, class: "A", designation: "M" },
+    { key: "identifier", start: 9, length: 35, class: "AN", designation: "M" },
+    filler(44, 37),
+  ],
+};
+
+export const HEADER_ENTITY_STREET_ADDRESS_SPEC: RecordSpec<LineEntityStreetAddressInput> = {
+  recordType: "SE35-Record (Header Entity Street Address)",
+  length: 80,
+  fields: [
+    constantField(1, "SE35"),
+    { key: "addressComponentQualifier1", start: 5, length: 2, class: "AN", designation: "M" },
+    { key: "addressInformation1", start: 7, length: 35, class: "X", designation: "M" },
+    { key: "addressComponentQualifier2", start: 42, length: 2, class: "AN", designation: "O" },
+    { key: "addressInformation2", start: 44, length: 35, class: "X", designation: "O" },
+    filler(79, 2),
+  ],
+};
+
+export const HEADER_ENTITY_GEOGRAPHIC_AREA_SPEC: RecordSpec<LineEntityGeographicAreaInput> = {
+  recordType: "SE36-Record (Header Entity Geographic Area)",
+  length: 80,
+  fields: [
+    constantField(1, "SE36"),
+    { key: "cityName", start: 5, length: 35, class: "X", designation: "M" },
+    { key: "countrySubEntityCode", start: 40, length: 3, class: "AN", designation: "C" },
+    filler(43, 6),
+    { key: "postalCode", start: 49, length: 15, class: "X", designation: "C" },
+    { key: "countryCode", start: 64, length: 2, class: "A", designation: "M" },
+    filler(66, 15),
+  ],
+};
+
+// ── 47-Record: Article Party ──────────────────────────────────────────────────
+// See PDF page ESF-78.
+
+export const ARTICLE_PARTY_SPEC: RecordSpec<ArticlePartyInput> = {
+  recordType: "47-Record (Article Party)",
+  length: 80,
+  fields: [
+    constantField(1, "47"),
+    { key: "partyTypeCode", start: 3, length: 1, class: "AN", designation: "M" },
+    { key: "partyIdentifier", start: 4, length: 15, class: "AN", designation: "M" },
+    filler(19, 62),
+  ],
+};
+
+// ── 51-Record: Standard Visa Information ─────────────────────────────────────
+// See PDF page ESF-94.
+
+export const STANDARD_VISA_SPEC: RecordSpec<StandardVisaInput> = {
+  recordType: "51-Record (Standard Visa Information)",
+  length: 80,
+  fields: [
+    constantField(1, "51"),
+    { key: "standardVisaNumber", start: 3, length: 9, class: "AN", designation: "M" },
+    filler(12, 69),
+  ],
+};
+
+// ── 54-Record: Importer's Additional Declaration Detail ──────────────────────
+// Only the outer envelope (control id, type code, 76-char text blob) is
+// modeled — see the `ImportersAdditionalDeclarationInput.declarationInformation`
+// doc comment in types.ts for why the 12 type-specific sub-layouts aren't
+// individually decoded in this slice.
+
+export const IMPORTERS_ADDITIONAL_DECLARATION_SPEC: RecordSpec<ImportersAdditionalDeclarationInput> = {
+  recordType: "54-Record (Importer's Additional Declaration Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "54"),
+    { key: "declarationTypeCode", start: 3, length: 2, class: "AN", designation: "M" },
+    { key: "declarationInformation", start: 5, length: 76, class: "X", designation: "M" },
+  ],
+};
+
+// ── 34-Record: Entry Summary Header Fees ─────────────────────────────────────
+// Accounting Class Code is class "3AN" per the source PDF (not "3N") — a plain
+// string field, not `numericCodeField`, per this chapter's established
+// AN-vs-N distinction (see `impliedDecimalField`'s doc comment and the 53-Record
+// above for the same judgment call elsewhere in this file).
+
+export const HEADER_FEES_SPEC: RecordSpec<HeaderFeesInput> = {
+  recordType: "34-Record (Entry Summary Header Fees)",
+  length: 80,
+  fields: [
+    constantField(1, "34"),
+    { key: "accountingClassCode1", start: 3, length: 3, class: "AN", designation: "M" },
+    impliedDecimalField("headerFeeAmount1", 6, 8, 2, "M"),
+    { key: "accountingClassCode2", start: 14, length: 3, class: "AN", designation: "C" },
+    impliedDecimalField("headerFeeAmount2", 17, 8, 2, "C"),
+    filler(25, 56),
+  ],
+};
+
+// ── 62-Record: Line User Fee Detail ───────────────────────────────────────────
+
+export const LINE_USER_FEE_SPEC: RecordSpec<LineUserFeeInput> = {
+  recordType: "62-Record (Line User Fee Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "62"),
+    { key: "accountingClassCode", start: 3, length: 3, class: "AN", designation: "M" },
+    impliedDecimalField("userFeeAmount", 6, 8, 2, "M"),
+    filler(14, 67),
+  ],
+};
+
+// ── 60-Record: IR Tax Information ────────────────────────────────────────────
+
+export const IR_TAX_SPEC: RecordSpec<IrTaxInput> = {
+  recordType: "60-Record (IR Tax Information)",
+  length: 80,
+  fields: [
+    constantField(1, "60"),
+    { key: "accountingClassCode", start: 3, length: 3, class: "AN", designation: "M" },
+    impliedDecimalField("irTaxAmount", 6, 10, 2, "M"),
+    filler(16, 65),
+  ],
+};
+
+// ── 61-Record: Other Revenue Information ──────────────────────────────────────
+
+export const OTHER_REVENUE_SPEC: RecordSpec<OtherRevenueInput> = {
+  recordType: "61-Record (Other Revenue Information)",
+  length: 80,
+  fields: [
+    constantField(1, "61"),
+    { key: "accountingClassCode", start: 3, length: 3, class: "AN", designation: "M" },
+    impliedDecimalField("otherRevenueAmount", 6, 10, 2, "M"),
+    filler(16, 65),
+  ],
+};
+
+// ── 35-Record: PSC Header Reasons ─────────────────────────────────────────────
+
+export const PSC_HEADER_REASONS_SPEC: RecordSpec<PscHeaderReasonsInput> = {
+  recordType: "35-Record (PSC Header Reasons)",
+  length: 80,
+  fields: [
+    constantField(1, "35"),
+    { key: "reasonCode1", start: 3, length: 3, class: "AN", designation: "M" },
+    { key: "reasonCode2", start: 6, length: 3, class: "AN", designation: "C" },
+    { key: "reasonCode3", start: 9, length: 3, class: "AN", designation: "C" },
+    { key: "reasonCode4", start: 12, length: 3, class: "AN", designation: "C" },
+    { key: "reasonCode5", start: 15, length: 3, class: "AN", designation: "C" },
+    filler(18, 63),
+  ],
+};
+
+// ── 36-Record: PSC Filing Explanation ─────────────────────────────────────────
+
+export const PSC_FILING_EXPLANATION_SPEC: RecordSpec<PscFilingExplanationInput> = {
+  recordType: "36-Record (PSC Filing Explanation)",
+  length: 80,
+  fields: [
+    constantField(1, "36"),
+    { key: "explanationText", start: 3, length: 75, class: "X", designation: "M" },
+    filler(78, 3),
+  ],
+};
+
+// ── 63-Record: PSC Line Reasons ───────────────────────────────────────────────
+
+export const PSC_LINE_REASONS_SPEC: RecordSpec<PscLineReasonsInput> = {
+  recordType: "63-Record (PSC Line Reasons)",
+  length: 80,
+  fields: [
+    constantField(1, "63"),
+    { key: "reasonCode1", start: 3, length: 3, class: "AN", designation: "M" },
+    { key: "reasonCode2", start: 6, length: 3, class: "AN", designation: "C" },
+    { key: "reasonCode3", start: 9, length: 3, class: "AN", designation: "C" },
+    { key: "reasonCode4", start: 12, length: 3, class: "AN", designation: "C" },
+    { key: "reasonCode5", start: 15, length: 3, class: "AN", designation: "C" },
+    filler(18, 63),
+  ],
+};
+
+// ── CW02-Record: Census Warning Condition Override Information ──────────────
+
+export const CENSUS_WARNING_OVERRIDE_SPEC: RecordSpec<CensusWarningOverrideInput> = {
+  recordType: "CW02-Record (Census Warning Condition Override Information)",
+  length: 80,
+  fields: [
+    constantField(1, "CW02"),
+    filler(5, 5),
+    { key: "conditionCode1", start: 10, length: 3, class: "AN", designation: "M" },
+    { key: "overrideCode1", start: 13, length: 2, class: "AN", designation: "M" },
+    { key: "conditionCode2", start: 15, length: 3, class: "AN", designation: "C" },
+    { key: "overrideCode2", start: 18, length: 2, class: "AN", designation: "C" },
+    { key: "conditionCode3", start: 20, length: 3, class: "AN", designation: "C" },
+    { key: "overrideCode3", start: 23, length: 2, class: "AN", designation: "C" },
+    { key: "conditionCode4", start: 25, length: 3, class: "AN", designation: "C" },
+    { key: "overrideCode4", start: 28, length: 2, class: "AN", designation: "C" },
+    { key: "conditionCode5", start: 30, length: 3, class: "AN", designation: "C" },
+    { key: "overrideCode5", start: 33, length: 2, class: "AN", designation: "C" },
+    { key: "conditionCode6", start: 35, length: 3, class: "AN", designation: "C" },
+    { key: "overrideCode6", start: 38, length: 2, class: "AN", designation: "C" },
+    { key: "conditionCode7", start: 40, length: 3, class: "AN", designation: "C" },
+    { key: "overrideCode7", start: 43, length: 2, class: "AN", designation: "C" },
+    filler(45, 36),
   ],
 };
 

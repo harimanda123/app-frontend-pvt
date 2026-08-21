@@ -31,8 +31,8 @@ export const INVOICE_RECORD_42: RecordSpec = {
   totalLength: 80,
   fields: [
     { name: 'Control Identifier', start: 1, end: 2, length: 2, class: '2AN', designation: 'M' },
-    { name: 'Invoice Number', start: 3, end: 19, length: 17, class: '17AN', designation: 'M' },
-    { name: 'Filler', start: 20, end: 34, length: 15, class: '15S', designation: 'M' },
+    { name: 'Supplier ID Code', start: 3, end: 17, length: 15, class: '15AN', designation: 'M' },
+    { name: 'Invoice Number', start: 18, end: 34, length: 17, class: '17X', designation: 'M' },
     { name: 'Filler Line 1 Begin', start: 35, end: 35, length: 1, class: '1S', designation: 'M' },
     { name: 'Invoice Line Range 1 - Begin', start: 36, end: 39, length: 4, class: '4(S)N', designation: 'M' },
     { name: 'Filler Line 1 End', start: 40, end: 40, length: 1, class: '1S', designation: 'M' },

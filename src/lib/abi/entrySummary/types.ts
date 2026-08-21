@@ -88,6 +88,12 @@ export interface TariffDetailInput {
   unitOfMeasureCode2?: string;
   quantity3?: Decimal;
   unitOfMeasureCode3?: string;
+  /**
+   * SE61: FTZ Privileged Foreign Status Additional Detail.
+   * Reported at most once per Tariff/Value/Quantity Detail (50-Record).
+   * PDF page ESF-92 explicitly states: "The SE61 record may be reported only once per Tariff/Value/Quantity Detail (Input 50-Record)."
+   */
+  ftzPrivilegedStatusDetail?: FtzPrivilegedStatusDetailInput;
 }
 
 /** One Accounting Class Code + Total Fee Amount pair, as reported on the 89-Record. */
@@ -217,19 +223,347 @@ export interface GrandTotalsInput {
   grandTotalOtherRevenueAmount?: Decimal;
 }
 
-/** One line item: its 40-Record plus 1+ tariff (50-Record) details. */
-export interface LineItemInput {
-  header: LineItemHeaderInput;
-  tariffDetails: TariffDetailInput[];
+/**
+ * Structured Line-Level Cargo Entity Grouping (SE50 + optional SE51s + optional SE55s + optional SE56).
+ * See PDF pages ESF-80 through ESF-88.
+ */
+export interface LineEntityGroupInput {
+  entity: LineEntityInput;
+  gbiIdentifiers?: LineEntityGbiInput[];
+  streetAddresses?: LineEntityStreetAddressInput[];
+  geographicArea?: LineEntityGeographicAreaInput;
 }
 
-/** One full Entry Summary TRANSACTION grouping: 10(+11), N line items, optional totals. */
+/**
+ * Structured EIP Invoice Grouping (42 Invoice Line Reference + optional 43 Ruling + optional 44 Commercial Descriptions).
+ * See PDF pages ESF-23 & ESF-74.
+ */
+export interface EipInvoiceGroupInput {
+  invoice: InvoiceLineReferenceInput;
+  ruling?: RulingsDetailInput;
+  commercialDescriptions?: CommercialDescriptionInput[];
+}
+
+/** One line item: 40-Record plus conditional line-level records and 1-32 Tariff (50) details. */
+export interface LineItemInput {
+  header: LineItemHeaderInput;
+  ftzStatus?: FtzStatusInput;
+  /** EIP Invoice Groupings (42 + optional 43 + optional 44s) */
+  eipInvoices?: EipInvoiceGroupInput[];
+  /** Flat array options for 42 / 43 / 44 if not using eipInvoices */
+  invoices?: InvoiceLineReferenceInput[];
+  ruling?: RulingsDetailInput;
+  rulings?: RulingsDetailInput[];
+  commercialDescriptions?: CommercialDescriptionInput[];
+  /** Article Party Grouping (47), up to 4 — see ArticlePartyInput's doc comment
+   * on the PDF's own structure-map/narrative discrepancy for this limit. */
+  articleParties?: ArticlePartyInput[];
+  /** Line Level Cargo Entity Grouping (SE50 + optional SE51, SE55, SE56) */
+  entities?: (LineEntityInput | LineEntityGroupInput)[];
+  /** 1 to 32 Tariff/Value/Quantity details (50), each with optional SE61 */
+  tariffDetails: TariffDetailInput[];
+  /** Standard Visa Information (51), at most one per line item. */
+  standardVisa?: StandardVisaInput;
+  licenseCertificatePermit?: LicenseCertificatePermitInput;
+  licenses?: LicenseCertificatePermitInput[];
+  adcvdCases?: AdcvdCaseDetailInput[];
+  importersAdditionalDeclarations?: ImportersAdditionalDeclarationInput[];
+  irTax?: IrTaxInput;
+  otherRevenue?: OtherRevenueInput;
+  userFees?: LineUserFeeInput[];
+  pscLineReasons?: PscLineReasonsInput;
+}
+
+/** One full Entry Summary TRANSACTION grouping: 10(+11), optional header records, N line items, optional totals. */
 export interface EntrySummaryTransactionInput {
   headerControl: HeaderControlInput;
   headerContent?: HeaderContentInput;
+  bonds?: BondDetailInput[];
+  headerFees?: HeaderFeesInput;
+  pscHeaderReasons?: PscHeaderReasonsInput;
+  pscFilingExplanations?: PscFilingExplanationInput[];
+  /** Header Level Cargo Entity Grouping (SE30 + optional SE31, SE35, SE36), up
+   * to 12 — see HeaderEntityGroupInput's doc comment. */
+  headerEntities?: HeaderEntityGroupInput[];
   lineItems: LineItemInput[];
+  adcvdDutyTotals?: AdcvdDutyTotalsInput;
   feeTotals?: FeeTotalEntry[];
   grandTotals?: GrandTotalsInput;
+}
+
+// ── 42-Record: Invoice Line Reference Detail ─────────────────────────────────
+// Line-item-level, conditional, repeated as often as needed to cross-reference
+// all invoice lines comprising the Entry Summary line. See PDF pages ESF-74
+// through ESF-75. Note: the source PDF's Supplier ID Code (positions 3-17)
+// shifts every subsequent field 15 columns later than a naive reading of the
+// invoice-line-range fields alone would suggest — see recordSpecs.ts comment.
+
+export interface InvoiceLineReferenceInput {
+  /** Per CBP Directive 3500-13 (Nov 24, 1986). */
+  supplierIdCode: string;
+  /** Alphanumeric and dash only, per the source PDF's own field note. */
+  invoiceNumber: string;
+  invoiceLineRange1Begin: number;
+  invoiceLineRange1End: number;
+  invoiceLineRange2Begin?: number;
+  invoiceLineRange2End?: number;
+  invoiceLineRange3Begin?: number;
+  invoiceLineRange3End?: number;
+  invoiceLineRange4Begin?: number;
+  invoiceLineRange4End?: number;
+}
+
+// ── 43-Record: Rulings Detail ────────────────────────────────────────────────
+// Line-item-level, conditional. See PDF page ESF-76.
+
+export interface RulingsDetailInput {
+  /** "C" = Pre-Classification, "P" = Pre-Approval, "R" = Binding Ruling. */
+  rulingTypeCode: "C" | "P" | "R";
+  /** The numeric portion only — do not report the ruling's leading alpha code (e.g. "N", "H"). */
+  rulingNumber?: string;
+}
+
+// ── 44-Record: Commercial Description ────────────────────────────────────────
+// Line-item-level, conditional, reported up to 999 times per grouping. See PDF
+// page ESF-77.
+
+export interface CommercialDescriptionInput {
+  commercialDescriptionText: string;
+}
+
+// ── 52-Record: License/Certificate/Permit Detail ─────────────────────────────
+// Line-item-level, conditional, reported at most once per line item. See PDF
+// pages ESF-95 through ESF-97.
+
+export interface LicenseCertificatePermitInput {
+  /** "01" = Steel Import License, "06" = Diamond Certificate, "28" = Aluminum
+   * Import License, "31" = Argentine White Grape Juice Concentrate Export
+   * License, among others — see the source PDF's full 31-code list. */
+  licenseCertificatePermitTypeCode: string;
+  licenseCertificatePermitNumber: string;
+}
+
+// ── SE50-Record: Line Entity Name and Type ───────────────────────────────────
+// Line-item-level, conditional (Cargo Release Certification only). See PDF
+// pages ESF-80 through ESF-82.
+
+export interface LineEntityInput {
+  /** MF=Manufacturer, SE=Seller, BY=Buyer, ST=Ship To, LG=Scheduled Container
+   * Stuffing Location, CS=Consolidator, CN=Consignee, SH=Shipper, EX=Exporter,
+   * DR=Distributor, PK=Packager (SH/EX/DR/PK only under the GBI test). */
+  entityCode: string;
+  entityName?: string;
+  /** Mandatory (in lieu of name/address) when entityCode is "CN". */
+  entityIdentifierQualifier?: string;
+  entityIdentifier?: string;
+}
+
+// ── SE51-Record: Line Entity GBI Identifier ──────────────────────────────────
+// Line-item-level, conditional (GBI test participation only). Must immediately
+// follow its SE50-Record. See PDF page ESF-85.
+
+export interface LineEntityGbiInput {
+  gbiIdentifierQualifier: "LEI" | "GLN" | "DUNS" | "ALTA";
+  identifier: string;
+  /** SE52/SE32: GBI Party Type Description, up to 9 per GBI identifier. Sequence
+   * number is derived from array order, not supplied here. PDF page ESF-86 (line),
+   * ESF-62 (header). */
+  partyTypeDescriptions?: string[];
+}
+
+/** SE32/SE52: Entity GBI Party Type Description. Identical layout at header and
+ * line level bar the control identifier. See PDF pages ESF-62 and ESF-86. */
+export interface GbiPartyTypeDescriptionInput {
+  sequenceNumber: number;
+  description: string;
+}
+
+// ── SE55-Record: Line Entity Street Address ──────────────────────────────────
+// Line-item-level, conditional — used together with SE50/SE56 whenever the
+// entity is reported by name/address rather than identifier. See PDF page
+// ESF-87.
+
+export interface LineEntityStreetAddressInput {
+  /** See PDF Note 1 for the full code list, e.g. "01" = Street Number, "02" =
+   * Street Name, "05" = P.O. Box Number. */
+  addressComponentQualifier1: string;
+  addressInformation1: string;
+  addressComponentQualifier2?: string;
+  addressInformation2?: string;
+}
+
+// ── SE56-Record: Line Entity Geographic Area ─────────────────────────────────
+// Line-item-level, conditional — used together with SE50/SE55. See PDF page
+// ESF-88.
+
+export interface LineEntityGeographicAreaInput {
+  cityName: string;
+  /** ISO subdivision code. */
+  countrySubEntityCode?: string;
+  postalCode?: string;
+  /** ISO country code (Appendix B). */
+  countryCode: string;
+}
+
+// ── SE30/SE31/SE35/SE36: Header Level Cargo Entity Grouping ──────────────────
+// Header-level counterpart of the Line Level Cargo Entity Grouping above —
+// same field layouts as SE50/SE51/SE55/SE56 (only the control identifier
+// differs), so this reuses those input types rather than duplicating them.
+// Only transmit when certifying the entry summary for ACE Cargo Release
+// processing (Cargo Release Certification Request Indicator = "A").
+// See PDF pages ESF-58 through ESF-64.
+
+export interface HeaderEntityGroupInput {
+  entity: LineEntityInput;
+  gbiIdentifiers?: LineEntityGbiInput[];
+  streetAddresses?: LineEntityStreetAddressInput[];
+  geographicArea?: LineEntityGeographicAreaInput;
+}
+
+// ── 47-Record: Article Party ──────────────────────────────────────────────────
+// Line-item-level, conditional. PDF page ESF-78 narrative says "up to four
+// times per Line Item"; the ES Line Grouping Input Structure Map (page ESF-23)
+// says "6" for the same grouping — a genuine discrepancy in the source PDF.
+// Trusting the narrative's "4" since it matches the 4 valid Party Type Codes
+// (M/C/S/E) exactly, one occurrence per code.
+
+export interface ArticlePartyInput {
+  /** M=Manufacturer/Supplier, C=Delivered To Party, S=Sold To Party, E=Foreign Exporter. */
+  partyTypeCode: "M" | "C" | "S" | "E";
+  partyIdentifier: string;
+}
+
+// ── 51-Record: Standard Visa Information ─────────────────────────────────────
+// Line-item-level, conditional, at most once per line item. See PDF page ESF-94.
+
+export interface StandardVisaInput {
+  standardVisaNumber: string;
+}
+
+// ── 54-Record: Importer's Additional Declaration Detail ──────────────────────
+// Line-item-level, conditional, reported up to 9 times per line item. See PDF
+// pages ESF-101 through ESF-117 (Note 1's 12 type-specific sub-layouts).
+
+export type ImportersAdditionalDeclarationTypeCode =
+  | "01" // Softwood Lumber Export Information
+  | "02" // Product Exclusion Information - Steel products
+  | "03" // Product Exclusion Information - Aluminum products
+  | "04" // South Korean (KR) Export Steel Certificate
+  | "05" // CBMA Product Detail
+  | "06" // AD/CVD Certification Designation
+  | "07" // Aluminum Smelt and Cast Country Detail
+  | "08" // Steel Melt and Pour Country Detail
+  | "09" // 201 Bifacial Certification Designation
+  | "10" // Ship-to-Shore Crane Certification Designation
+  | "11" // Auto Parts Offset License
+  | "12"; // Copper Smelt and Cast Country Detail
+
+export interface ImportersAdditionalDeclarationInput {
+  declarationTypeCode: ImportersAdditionalDeclarationTypeCode;
+  /**
+   * Raw 76-char declaration payload. Its internal sub-layout is
+   * type-code-specific (PDF Note 1 documents 12 distinct byte layouts, e.g.
+   * Type 01's Softwood Lumber Declaration Indicator/Export Price/Export
+   * Charges sub-fields packed within this same 76 bytes) — not decoded here,
+   * carried through as free text. Same rationale as E0OtherReference's
+   * undecoded Reference Data Text for reference types this slice hasn't
+   * modeled: the outer 54-Record envelope (control id, type code, this text
+   * blob) is what's on the wire; building 12 more RecordSpecs for the
+   * sub-layouts is future scope.
+   */
+  declarationInformation: string;
+}
+
+// ── 34-Record: Entry Summary Header Fees ─────────────────────────────────────
+// Header-level, conditional, reported at most once per summary. See PDF page
+// ESF-53. Both Header Fee Amounts carry 2 implied decimal places.
+
+export interface HeaderFeesInput {
+  accountingClassCode1: string;
+  headerFeeAmount1: Decimal;
+  accountingClassCode2?: string;
+  headerFeeAmount2?: Decimal;
+}
+
+// ── 62-Record: Line User Fee Detail ───────────────────────────────────────────
+// Line-item-level, conditional, reported up to 9 times per line item. See PDF
+// page ESF-120. User Fee Amount carries 2 implied decimal places.
+
+export interface LineUserFeeInput {
+  accountingClassCode: string;
+  userFeeAmount: Decimal;
+}
+
+// ── 60-Record: IR Tax Information ────────────────────────────────────────────
+// Line-item-level, conditional, reported at most once per line item. See PDF
+// page ESF-118. IR Tax Amount carries 2 implied decimal places.
+
+export interface IrTaxInput {
+  accountingClassCode: string;
+  irTaxAmount: Decimal;
+}
+
+// ── 61-Record: Other Revenue Information ──────────────────────────────────────
+// Line-item-level, conditional, reported at most once per line item. See PDF
+// pages ESF-118 through ESF-119. Other Revenue Amount carries 2 implied
+// decimal places.
+
+export interface OtherRevenueInput {
+  accountingClassCode: string;
+  otherRevenueAmount: Decimal;
+}
+
+// ── 35-Record: PSC Header Reasons ─────────────────────────────────────────────
+// Header-level, conditional (PSC filings only), reported at most once per
+// summary. See PDF page ESF-54.
+
+export interface PscHeaderReasonsInput {
+  reasonCode1: string;
+  reasonCode2?: string;
+  reasonCode3?: string;
+  reasonCode4?: string;
+  reasonCode5?: string;
+}
+
+// ── 36-Record: PSC Filing Explanation ─────────────────────────────────────────
+// Header-level, conditional (PSC filings only), reported up to 99 times per
+// summary. See PDF page ESF-55.
+
+export interface PscFilingExplanationInput {
+  explanationText: string;
+}
+
+// ── 63-Record: PSC Line Reasons ───────────────────────────────────────────────
+// Line-item-level, conditional (PSC filings only), reported at most once per
+// line item. See PDF page ESF-125.
+
+export interface PscLineReasonsInput {
+  reasonCode1: string;
+  reasonCode2?: string;
+  reasonCode3?: string;
+  reasonCode4?: string;
+  reasonCode5?: string;
+}
+
+// ── CW02-Record: Census Warning Condition Override Information ──────────────
+// Line-item-level, conditional, reported at most once per line item. See PDF
+// pages ESF-126 through ESF-127.
+
+export interface CensusWarningOverrideInput {
+  conditionCode1: string;
+  overrideCode1: string;
+  conditionCode2?: string;
+  overrideCode2?: string;
+  conditionCode3?: string;
+  overrideCode3?: string;
+  conditionCode4?: string;
+  overrideCode4?: string;
+  conditionCode5?: string;
+  overrideCode5?: string;
+  conditionCode6?: string;
+  overrideCode6?: string;
+  conditionCode7?: string;
+  overrideCode7?: string;
 }
 
 // ── Output response records (E0/E1) ─────────────────────────────────────────

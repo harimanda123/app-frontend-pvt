@@ -23,7 +23,27 @@ import type {
   WarehouseAndLineInfo,
   FormReferenceInfo,
   BondSuretyInfo,
+  BillDetailStatusInfo,
+  CollectionDetailStatusInfo,
+  CollectionClassCodeDetailInfo,
+  SuretyBillDetailStatusInfo,
+  CbpLineNumberInfo,
 } from "./types";
+
+// The Entry Summary Details Grouping's output 10/11/40/50/89/90-Records are
+// reused directly from Entry Summary Create/Update (AE) rather than
+// redefined here — see the module comment on `EntrySummaryDetailsGrouping`
+// in types.ts for the PDF citation establishing they're identical layouts.
+// Re-exported from this module so every ESQ RecordSpec is reachable the same
+// way (`from "./recordSpecs"`), matching this file's own JA-JI constants.
+export {
+  HEADER_CONTROL_SPEC,
+  HEADER_CONTENT_SPEC,
+  LINE_ITEM_HEADER_SPEC,
+  TARIFF_DETAIL_SPEC,
+  FEE_TOTAL_SPEC,
+  GRAND_TOTALS_SPEC,
+} from "@/lib/abi/entrySummary/recordSpecs";
 
 /** A right-justified, zero-padded, unsigned numeric field with `decimals`
  * implied decimal places — same convention as Entry Summary Create/Update's
@@ -376,5 +396,99 @@ export const BOND_SURETY_INFO_SPEC: RecordSpec<BondSuretyInfo> = {
     impliedDecimalField("singleEntryBondAmount", 19, 15, 2, "C"),
     wholeDollarField("suretyLiabilityAmount", 34, 10, "C"),
     filler(44, 37),
+  ],
+};
+
+// ── JK-Record: Bill Detail Status Information (output) ──────────────────────
+// Position math cross-checked against the source PDF (pages ESQ-43/ESQ-44):
+// the field-by-field table continues onto the second page with an Interest
+// Amount field before the real (14-char) filler.
+
+export const BILL_DETAIL_STATUS_INFO_SPEC: RecordSpec<BillDetailStatusInfo> = {
+  recordType: "JK-Record (Bill Detail Status Information)",
+  length: 80,
+  fields: [
+    constantField(1, "JK"),
+    { key: "billNumber", start: 3, length: 11, class: "AN", designation: "M" },
+    dateField("billDate", 14, "M"),
+    numericCodeField("billTypeCode", 20, 1, "M"),
+    numericCodeField("billCollectionStatusCode", 21, 2, "M"),
+    impliedDecimalField("totalBillAmount", 23, 11, 2, "M"),
+    impliedDecimalField("paidAmount", 34, 11, 2, "C"),
+    impliedDecimalField("principalAmount", 45, 11, 2, "C"),
+    impliedDecimalField("interestAmount", 56, 11, 2, "C"),
+    filler(67, 14),
+  ],
+};
+
+// ── JL-Record: Collection Detail Status Information (output) ────────────────
+// Total Amount can be negative (Duty/Tax/Fee/Interest, per the source PDF's
+// usage note) — same signed, non-zero-padded encoding as JD/JE.
+
+export const COLLECTION_DETAIL_STATUS_INFO_SPEC: RecordSpec<CollectionDetailStatusInfo> = {
+  recordType: "JL-Record (Collection Detail Status Information)",
+  length: 80,
+  fields: [
+    constantField(1, "JL"),
+    dateField("collectionDate", 3, "M"),
+    signedImpliedDecimalField("totalAmount", 9, 11, 2, "M"),
+    filler(20, 61),
+  ],
+};
+
+// ── JM-Record: Collection Class Code Detail Information (output) ───────────
+// Class Code Amount shares JL's signed-amount usage note.
+
+export const COLLECTION_CLASS_CODE_DETAIL_INFO_SPEC: RecordSpec<CollectionClassCodeDetailInfo> = {
+  recordType: "JM-Record (Collection Class Code Detail Information)",
+  length: 80,
+  fields: [
+    constantField(1, "JM"),
+    numericCodeField("classCode", 3, 3, "C"),
+    signedImpliedDecimalField("classCodeAmount", 6, 11, 2, "C"),
+    filler(17, 64),
+  ],
+};
+
+// ── JN-Record: Surety Bill Detail Status Information (output) ───────────────
+// Position math cross-checked against the source PDF (pages ESQ-48/ESQ-49):
+// like JK, the field-by-field table continues onto a second page with Paid/
+// Principal/Interest Amount fields before the real (4-char) filler. Bill
+// Number here is class N (not JK's class AN) per the source PDF — a genuine
+// leading-zero-significant numeric identifier, so it uses `numericCodeField`
+// rather than a plain string field or a parsed quantity.
+
+export const SURETY_BILL_DETAIL_STATUS_INFO_SPEC: RecordSpec<SuretyBillDetailStatusInfo> = {
+  recordType: "JN-Record (Surety Bill Detail Status Information)",
+  length: 80,
+  fields: [
+    constantField(1, "JN"),
+    numericCodeField("suretyCode", 3, 3, "C"),
+    { key: "primarySuretyIndicator", start: 6, length: 1, class: "AN", designation: "C" },
+    dateField("report612Date", 7, "C"),
+    numericCodeField("billNumber", 13, 11, "M"),
+    dateField("billDate", 24, "M"),
+    numericCodeField("billTypeCode", 30, 1, "M"),
+    numericCodeField("billCollectionStatusCode", 31, 2, "M"),
+    impliedDecimalField("totalBillAmount", 33, 11, 2, "M"),
+    impliedDecimalField("paidAmount", 44, 11, 2, "C"),
+    impliedDecimalField("principalAmount", 55, 11, 2, "C"),
+    impliedDecimalField("interestAmount", 66, 11, 2, "C"),
+    filler(77, 4),
+  ],
+};
+
+// ── 4A-Record: CBP Line Number (output, Entry Summary Details Grouping) ─────
+// Precedes each 40-Record in the Details Grouping; not part of AE's own input
+// records (AE has no equivalent — see 4A's own PDF section, ESQ-53/ESQ-54),
+// so this one is defined fresh here rather than reused from entrySummary/.
+
+export const CBP_LINE_NUMBER_SPEC: RecordSpec<CbpLineNumberInfo> = {
+  recordType: "4A-Record (CBP Line Number)",
+  length: 80,
+  fields: [
+    constantField(1, "4A"),
+    numericCodeField("cbpLineNumber", 3, 5, "M"),
+    filler(8, 73),
   ],
 };

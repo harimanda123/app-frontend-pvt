@@ -73,8 +73,8 @@ export const CQ_RECORD_WO71: RecordSpec = {
     { name: 'PGA Line Sub Reason Code 8', start: 52, end: 54, length: 3, class: '3AN', status: 'C' },
     { name: 'PGA Line Sub Reason Code 9', start: 55, end: 57, length: 3, class: '3AN', status: 'C' },
     { name: 'PGA Line Sub Reason Code 10', start: 58, end: 60, length: 3, class: '3AN', status: 'C' },
-    { name: 'PGA Reference', start: 61, end: 62, length: 2, class: '2AN', status: 'C' },
-    { name: 'Filler', start: 63, end: 80, length: 18, class: '18X', status: 'M' },
+    { name: 'PGA Reference Identification Number Qualifier', start: 61, end: 62, length: 2, class: '2AN', status: 'C', notes: '1' },
+    { name: 'PGA Reference Identification Number', start: 63, end: 80, length: 18, class: '18X', status: 'C' },
   ],
 };
 

@@ -1,16 +1,23 @@
 import type { Decimal } from "@/lib/tariff/decimal";
+import type {
+  HeaderControlInput,
+  HeaderContentInput,
+  LineItemHeaderInput,
+  TariffDetailInput,
+  FeeTotalInput,
+  GrandTotalsInput,
+} from "@/lib/abi/entrySummary/types";
 
 // Types for the CATAIR Entry Summary Query (ESQ) chapter — input J0/J1/J2
 // records and output records JA/JB through JI (the records the Output Record
-// Structure Map marks "M" — mandatory/always-present in a real response).
+// Structure Map marks "M" — mandatory/always-present in a real response), the
+// conditional detail records JK-JN, and the reused Entry Summary Details
+// Grouping (output 10- through 90-Records) plus its 4A-Record.
 // Source: docs/plans/catair-source-docs/03-entry-summary-query-2026-05-v26.pdf
 //
-// Deferred (not modeled this slice): output JJ-JN (5 records — protest, bill,
-// and collection detail — all conditional ("C") in the Structure Map, only
-// returned when specifically requested via the J2-Record's Collection/Bill
-// Information Code), the reused Entry Summary Details Grouping (output 10-
-// through 90-Records) and the 4A-Record that precedes each 40 in it — tied to
-// a future "Entry Summary Create/Update output parsing" slice.
+// Deferred (not modeled this slice): output JJ (Protest Data, ESQ page 42) —
+// conditional, only returned when specifically requested, same as JK-JN, but
+// absent from this slice's source fixture (no page citation was given for it).
 
 /** Always present (J0's only real field); the record's presence in a query is
  * itself the signal — omit the whole record if detail isn't wanted. */
@@ -189,4 +196,106 @@ export interface BondSuretyInfo {
   singleEntryBondAmount?: Decimal;
   /** Whole US dollars — no implied decimals. */
   suretyLiabilityAmount?: Decimal;
+}
+
+/** JK-Record: one bill's status and amounts. Repeats (whole-record, up to 999)
+ * — see the Output Record Structure Map. Only returned when the J2-Record's
+ * Collection/Bill Information Code requests billing data (codes 2, 4, 6). Not
+ * signed (unlike JL/JM below) — the source PDF attaches no negative-amount
+ * usage note to any of this record's amount fields. */
+export interface BillDetailStatusInfo {
+  /** Class AN (not N) per the source PDF — unlike JN's own Bill Number below. */
+  billNumber: string;
+  billDate?: Date;
+  /** 1=Deferred Tax, 2=Supplemental Duty, 3=Regional Supplemental Duty,
+   * 4=Miscellaneous, 5=Region Reimbursable, 6=System Reimbursable, 7=Debit Voucher. */
+  billTypeCode: string;
+  /** 01=Not Paid .. 11=Write-off with Partial Payment — see the JK-Record's own code table. */
+  billCollectionStatusCode: string;
+  totalBillAmount: Decimal;
+  paidAmount?: Decimal;
+  principalAmount?: Decimal;
+  interestAmount?: Decimal;
+}
+
+/** JL-Record: one collection's date and total amount. Repeats up to 20. Only
+ * returned when Collection/Bill Information Code requests collections data
+ * (codes 1, 4, 5, 6). Total Amount can be negative for certain Entry Types
+ * (Duty/Tax/Fee/Interest) per the source PDF's usage note — same signed,
+ * non-zero-padded wire encoding as JD/JE, see `signedImpliedDecimalField`. */
+export interface CollectionDetailStatusInfo {
+  collectionDate?: Date;
+  totalAmount: Decimal;
+}
+
+/** JM-Record: one collection class code and its amount — paired 1:1 following
+ * a JL-Record. Repeats up to 20. Class Code Amount carries the same
+ * negative-amount usage note (and signed wire encoding) as JL's Total Amount. */
+export interface CollectionClassCodeDetailInfo {
+  classCode?: string;
+  classCodeAmount?: Decimal;
+}
+
+/** JN-Record: one surety-specific bill, carrying the same bill data as JK plus
+ * Surety fields. Repeats up to 999. Only returned when Collection/Bill
+ * Information Code requests surety billing data (codes 3, 5, 6). Not signed,
+ * same rationale as JK. */
+export interface SuretyBillDetailStatusInfo {
+  suretyCode?: string;
+  /** "Y" = Primary Surety, "N" = Non-Primary Surety. */
+  primarySuretyIndicator?: string;
+  /** Date the bill first appeared on CBP Report 612 (Formal Demand on Surety). */
+  report612Date?: Date;
+  /** Class N (not AN) per the source PDF — unlike JK's own Bill Number above;
+   * kept as a leading-zero-preserving string identifier, not a parsed number. */
+  billNumber: string;
+  billDate?: Date;
+  billTypeCode: string;
+  billCollectionStatusCode: string;
+  totalBillAmount: Decimal;
+  paidAmount?: Decimal;
+  principalAmount?: Decimal;
+  interestAmount?: Decimal;
+}
+
+/** 4A-Record: precedes each Entry Summary Details Grouping's 40-Record (Line
+ * Item Header), conveying the ordinal CBP Line Number ACE assigned to that
+ * line. Right-justified, zero-filled; kept as a string (not a parsed number)
+ * since it's an identifier, not a quantity. */
+export interface CbpLineNumberInfo {
+  cbpLineNumber: string;
+}
+
+/** One line item within the Entry Summary Details Grouping: the 4A-Record's
+ * CBP Line Number, the 40-Record itself, and its 1+ 50-Record tariff details. */
+export interface EntrySummaryDetailsLineItem {
+  cbpLineNumber: string;
+  header: LineItemHeaderInput;
+  tariffDetails: TariffDetailInput[];
+}
+
+/**
+ * Entry Summary Details Grouping (output 10- through 90-Records): the latest
+ * detail (content) of the entry summary, returned only when the input
+ * J0-Record's Return Detail Request Indicator was set. Per the source PDF,
+ * "[t]he output 10- through 90-Records provides the latest detail of the
+ * entry summary in the form of input AE 10- through 90-Records" — i.e. these
+ * output records are documented as identical in layout to the respective
+ * input 10- through 90-Records the filer submits in the Entry Summary
+ * Create/Update (AE) transaction (the one documented difference being that
+ * output numeric fields are space-padded rather than AE's own zero-padded
+ * encoding — immaterial for decoding, since this codec's numeric decode
+ * trims either padding style the same way). So these are reused directly from
+ * `@/lib/abi/entrySummary` rather than redefined here — see recordSpecs.ts
+ * for the reuse and the position-by-position evidence. This slice models
+ * only the subset AE itself models (10/11/40/50/89/90); the many other
+ * conditional detail records in the full grouping (20-36, 41-47, OA/OI/FC01/
+ * FC02, 51-54, 60-63, CW02, ...) aren't built in either chapter yet.
+ */
+export interface EntrySummaryDetailsGrouping {
+  headerControl: HeaderControlInput;
+  headerContent?: HeaderContentInput;
+  lineItems: EntrySummaryDetailsLineItem[];
+  feeTotals?: FeeTotalInput;
+  grandTotals?: GrandTotalsInput;
 }

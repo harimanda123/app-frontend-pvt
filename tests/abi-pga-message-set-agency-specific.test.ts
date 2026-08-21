@@ -1,166 +1,295 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
+import { encodeRecord, decodeRecord } from "@/lib/abi/fixedWidth";
+import { Decimal } from "@/lib/tariff/decimal";
+import {
+  PG05_SCIENTIFIC_SPECIES_SPEC,
+  PG17_COMMON_NAME_VENOMOUS_SPEC,
+  PG23_AFFIRMATION_OF_COMPLIANCE_SPEC,
+  PG28_CAN_DIMENSIONS_TRACKING_SPEC,
+  PG31_HARVESTING_VESSEL_SPEC,
+  PG33_GEOGRAPHIC_AREA_SPEC,
+  PG35_CONFORMANCE_BOND_SPEC,
+} from "@/lib/abi/pgaMessageSet/recordSpecs";
 
 /**
- * CATAIR PGA Message Set - Agency-Specific Variant Records Test Suite
+ * CATAIR PGA Message Set (Chapter 8) - Agency-Specific Variant Records Test Suite
  * Source: docs/plans/catair-source-docs/08-pga-message-set-2026-07.pdf
+ *
+ * Covers the 7 previously-deferred agency-specific record variants: PG05
+ * (FWS, p.25), PG17 (FWS, p.33), PG23 (FDA, p.39), PG28 (FDA, p.44), PG31
+ * (NOAA/NMFS, p.50), PG33 (NOAA/NMFS, p.52), PG35 (DOT/NHTSA, p.54).
+ *
+ * Implementation notes: this file previously defined its own locally-scoped
+ * `RecordSpec` interface and 7 record constants and tested only those against
+ * each other (positions contiguous, lengths sum to 80) — never against the
+ * real `src/lib/abi/pgaMessageSet/` implementation. That's the same gap
+ * already reconciled in `abi-pga-message-set-specs.test.ts` for the 28
+ * generic backbone records. It now imports the real `RecordSpec`s and
+ * exercises them via `encodeRecord`/`decodeRecord`. Shape differences from
+ * the old local specs, reconciled below (cross-checked directly against the
+ * source PDF pages cited above):
+ *   - Every record's 2-char "Control Identifier" (always "PG") + 2-char
+ *     numeric "Record Type" (e.g. "05") collapse into a single 4-char
+ *     `constantField` (e.g. "PG05") at positions 1-4, same as every generic
+ *     backbone record — not two separate fields.
+ *   - PG28's three Can Dimension sub-fields (class "4N" per the PDF) use
+ *     `numericCodeField`, not a plain class-N field: each dimension packs two
+ *     2-digit values (inches, then 16ths) where a leading zero on the inches
+ *     portion is semantically significant (e.g. "0308" = 3in + 8/16in), the
+ *     same rationale `numericCodeField` documents for Entry Type Code/Surety
+ *     Code-style identifiers — a plain `parseInt` decode would silently
+ *     collapse "0308" to 308 and lose that structure.
+ *   - PG31's Harvested Commodity Net Weight ("10N", "Two decimal spaces are
+ *     implied") and PG35's DOT Bond Amount ("8N", "whole US dollars") are
+ *     bound to `Decimal` via `impliedDecimalField` (2 and 0 implied decimals
+ *     respectively — the same 0-implied-decimal "whole dollars" convention
+ *     PG25's `pgaLineValue` already established), which encodes/decodes as
+ *     class "SN", not the PDF's stated "N".
+ *   - PG17's Cartons Containing Wildlife ("5N") is a genuine count, so it
+ *     stays a plain class-N field decoding to `number` — unlike the Can
+ *     Dimensions above, no leading-zero semantics apply.
+ *   - No 8-char MMDDCCYY date fields appear in any of these 7 records (unlike
+ *     PG06/PG14/PG22/PG25/PG30 in the generic backbone), so `dateFieldCCYY`
+ *     is not used here.
  */
 
-interface FieldSpec {
-  name: string;
-  start: number;
-  end: number;
-  length: number;
-  class: string;
-  status: 'M' | 'C' | 'O';
-  impliedDecimals?: number;
-  notes?: string;
-}
+describe("PGA Message Set Agency-Specific Variant Records — 80-Column Spec Validation", () => {
+  describe("PG05-Record (FWS/APHIS Scientific Genus/Species Detail, PDF p.25)", () => {
+    it("has contiguous 1-indexed field positions summing to 80", () => {
+      let expectedStart = 1;
+      for (const field of PG05_SCIENTIFIC_SPECIES_SPEC.fields) {
+        expect(field.start).toBe(expectedStart);
+        expectedStart += field.length;
+      }
+      expect(expectedStart - 1).toBe(80);
+    });
 
-interface RecordSpec {
-  recordId: string;
-  name: string;
-  pageCitations: string;
-  totalLength: number;
-  fields: FieldSpec[];
-}
+    it("field layout (positions/lengths/classes) matches PDF p.25", () => {
+      const fields = Object.fromEntries(
+        PG05_SCIENTIFIC_SPECIES_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+      );
+      expect(fields.filler_1).toMatchObject({ start: 1, length: 4, class: "A", designation: "M", constant: "PG05" });
+      expect(fields.scientificGenusName).toMatchObject({ start: 5, length: 22, class: "X", designation: "C" });
+      expect(fields.scientificSpeciesName).toMatchObject({ start: 27, length: 22, class: "X", designation: "C" });
+      expect(fields.scientificSubSpeciesName).toMatchObject({ start: 49, length: 18, class: "X", designation: "C" });
+      expect(fields.scientificSpeciesCode).toMatchObject({ start: 67, length: 7, class: "AN", designation: "C" });
+      expect(fields.fwsDescriptionCode).toMatchObject({ start: 74, length: 7, class: "AN", designation: "C" });
 
-export const PGA_RECORD_PG05: RecordSpec = {
-  recordId: 'PG05',
-  name: 'FWS Genus/Species/Sub-Species Detail',
-  pageCitations: 'Page 25',
-  totalLength: 80,
-  fields: [
-    { name: 'Control Identifier', start: 1, end: 2, length: 2, class: '2A', status: 'M' },
-    { name: 'Record Type', start: 3, end: 4, length: 2, class: '2N', status: 'M' },
-    { name: 'Scientific Genus Name', start: 5, end: 26, length: 22, class: '22X', status: 'C' },
-    { name: 'Scientific Species Name', start: 27, end: 48, length: 22, class: '22X', status: 'C' },
-    { name: 'Scientific Sub Species Name', start: 49, end: 66, length: 18, class: '18X', status: 'C' },
-    { name: 'Scientific Species Code', start: 67, end: 73, length: 7, class: '7AN', status: 'C' },
-    { name: 'FWS Description Code', start: 74, end: 80, length: 7, class: '7AN', status: 'C' },
-  ],
-};
-
-export const PGA_RECORD_PG17: RecordSpec = {
-  recordId: 'PG17',
-  name: 'FWS Common Name & Venomous/Cartons Detail',
-  pageCitations: 'Page 33',
-  totalLength: 80,
-  fields: [
-    { name: 'Control Identifier', start: 1, end: 2, length: 2, class: '2A', status: 'M' },
-    { name: 'Record Type', start: 3, end: 4, length: 2, class: '2N', status: 'M' },
-    { name: 'Common Name (Specific)', start: 5, end: 34, length: 30, class: '30X', status: 'C' },
-    { name: 'Common Name (General)', start: 35, end: 64, length: 30, class: '30X', status: 'C' },
-    { name: 'Live Venomous Wildlife Code', start: 65, end: 65, length: 1, class: '1A', status: 'C' },
-    { name: 'Cartons Containing Wildlife', start: 66, end: 70, length: 5, class: '5N', status: 'C' },
-    { name: 'Filler', start: 71, end: 80, length: 10, class: '10X', status: 'M' },
-  ],
-};
-
-export const PGA_RECORD_PG23: RecordSpec = {
-  recordId: 'PG23',
-  name: 'FDA Affirmation of Compliance',
-  pageCitations: 'Page 39',
-  totalLength: 80,
-  fields: [
-    { name: 'Control Identifier', start: 1, end: 2, length: 2, class: '2A', status: 'M' },
-    { name: 'Record Type', start: 3, end: 4, length: 2, class: '2N', status: 'M' },
-    { name: 'Affirmation of Compliance Code', start: 5, end: 9, length: 5, class: '5X', status: 'M' },
-    { name: 'Affirmation of Compliance Description', start: 10, end: 79, length: 70, class: '70X', status: 'C' },
-    { name: 'Filler', start: 80, end: 80, length: 1, class: '1X', status: 'M' },
-  ],
-};
-
-export const PGA_RECORD_PG28: RecordSpec = {
-  recordId: 'PG28',
-  name: 'FDA Can Dimensions & Tracking Number',
-  pageCitations: 'Page 44',
-  totalLength: 80,
-  fields: [
-    { name: 'Control Identifier', start: 1, end: 2, length: 2, class: '2A', status: 'M' },
-    { name: 'Record Type', start: 3, end: 4, length: 2, class: '2N', status: 'M' },
-    { name: 'Can Dimensions #1', start: 5, end: 8, length: 4, class: '4N', status: 'C' },
-    { name: 'Can Dimensions #2', start: 9, end: 12, length: 4, class: '4N', status: 'C' },
-    { name: 'Can Dimension #3', start: 13, end: 16, length: 4, class: '4N', status: 'C' },
-    { name: 'Package Tracking Number Code', start: 17, end: 20, length: 4, class: '4AN', status: 'C' },
-    { name: 'Package Tracking Number', start: 21, end: 70, length: 50, class: '50AN', status: 'C' },
-    { name: 'Filler', start: 71, end: 80, length: 10, class: '10X', status: 'M' },
-  ],
-};
-
-export const PGA_RECORD_PG31: RecordSpec = {
-  recordId: 'PG31',
-  name: 'NOAA/NMFS Harvesting Vessel Characteristic',
-  pageCitations: 'Page 50',
-  totalLength: 80,
-  fields: [
-    { name: 'Control Identifier', start: 1, end: 2, length: 2, class: '2A', status: 'M' },
-    { name: 'Record Type', start: 3, end: 4, length: 2, class: '2N', status: 'M' },
-    { name: 'Commodity Harvesting Vessel Characteristic Type Code', start: 5, end: 7, length: 3, class: '3AN', status: 'M' },
-    { name: 'Commodity Harvesting Vessel Characteristic', start: 8, end: 42, length: 35, class: '35X', status: 'M' },
-    { name: 'Unit of Measure (conveyance)', start: 43, end: 45, length: 3, class: '3AN', status: 'C' },
-    { name: 'Harvested Commodity Net Weight', start: 46, end: 55, length: 10, class: '10N', status: 'C', impliedDecimals: 2 },
-    { name: 'Filler', start: 56, end: 80, length: 25, class: '25X', status: 'M' },
-  ],
-};
-
-export const PGA_RECORD_PG33: RecordSpec = {
-  recordId: 'PG33',
-  name: 'NOAA/NMFS Commodity Geographic Area',
-  pageCitations: 'Page 52',
-  totalLength: 80,
-  fields: [
-    { name: 'Control Identifier', start: 1, end: 2, length: 2, class: '2A', status: 'M' },
-    { name: 'Record Type', start: 3, end: 4, length: 2, class: '2N', status: 'M' },
-    { name: 'Commodity Geographic Area Code', start: 5, end: 13, length: 9, class: '9X', status: 'C' },
-    { name: 'Commodity Geographic Area Name', start: 14, end: 78, length: 65, class: '65X', status: 'C' },
-    { name: 'Filler', start: 79, end: 80, length: 2, class: '2X', status: 'M' },
-  ],
-};
-
-export const PGA_RECORD_PG35: RecordSpec = {
-  recordId: 'PG35',
-  name: 'DOT/NHTSA Conformance Bond Detail',
-  pageCitations: 'Page 54',
-  totalLength: 80,
-  fields: [
-    { name: 'Control Identifier', start: 1, end: 2, length: 2, class: '2A', status: 'M' },
-    { name: 'Record Type', start: 3, end: 4, length: 2, class: '2N', status: 'M' },
-    { name: 'DOT Surety Code', start: 5, end: 7, length: 3, class: '3AN', status: 'C' },
-    { name: 'DOT Bond Serial Number', start: 8, end: 37, length: 30, class: '30X', status: 'C' },
-    { name: 'DOT Bond Qualifier', start: 38, end: 38, length: 1, class: '1N', status: 'C', notes: '1=Single, 2=Continuous' },
-    { name: 'DOT Bond Amount', start: 39, end: 46, length: 8, class: '8N', status: 'C', impliedDecimals: 0, notes: 'Whole U.S. dollars' },
-    { name: 'Filler', start: 47, end: 80, length: 34, class: '34X', status: 'M' },
-  ],
-};
-
-const ALL_RECORDS: RecordSpec[] = [
-  PGA_RECORD_PG05,
-  PGA_RECORD_PG17,
-  PGA_RECORD_PG23,
-  PGA_RECORD_PG28,
-  PGA_RECORD_PG31,
-  PGA_RECORD_PG33,
-  PGA_RECORD_PG35,
-];
-
-describe('CATAIR PGA Message Set - Agency-Specific Variant Records Validation', () => {
-  ALL_RECORDS.forEach((spec) => {
-    describe(`Record ${spec.recordId}: ${spec.name} (${spec.pageCitations})`, () => {
-      it('should have contiguous field positions starting at 1 and ending at 80', () => {
-        let currentPos = 1;
-        spec.fields.forEach((field) => {
-          expect(field.start).toBe(currentPos);
-          expect(field.end - field.start + 1).toBe(field.length);
-          currentPos = field.end + 1;
-        });
-        expect(currentPos - 1).toBe(spec.totalLength);
-        expect(spec.totalLength).toBe(80);
+      const line = encodeRecord(PG05_SCIENTIFIC_SPECIES_SPEC, {
+        scientificGenusName: "PANTHERA",
+        scientificSpeciesName: "TIGRIS",
+        scientificSpeciesCode: "MAM0012",
       });
+      expect(line.slice(0, 4)).toBe("PG05");
+      expect(line).toHaveLength(80);
+      const decoded = decodeRecord(PG05_SCIENTIFIC_SPECIES_SPEC, line);
+      expect(decoded.scientificGenusName).toBe("PANTHERA");
+      expect(decoded.scientificSpeciesName).toBe("TIGRIS");
+      expect(decoded.scientificSpeciesCode).toBe("MAM0012");
+    });
+  });
 
-      it('should calculate field length sum equal to 80', () => {
-        const sum = spec.fields.reduce((acc, f) => acc + f.length, 0);
-        expect(sum).toBe(80);
+  describe("PG17-Record (FWS Common Name & Venomous/Cartons Detail, PDF p.33)", () => {
+    it("has contiguous 1-indexed field positions summing to 80", () => {
+      let expectedStart = 1;
+      for (const field of PG17_COMMON_NAME_VENOMOUS_SPEC.fields) {
+        expect(field.start).toBe(expectedStart);
+        expectedStart += field.length;
+      }
+      expect(expectedStart - 1).toBe(80);
+    });
+
+    it("field layout matches PDF p.33 and Cartons Containing Wildlife round-trips as a plain count", () => {
+      const fields = Object.fromEntries(
+        PG17_COMMON_NAME_VENOMOUS_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+      );
+      expect(fields.filler_1).toMatchObject({ start: 1, length: 4, class: "A", designation: "M", constant: "PG17" });
+      expect(fields.commonNameSpecific).toMatchObject({ start: 5, length: 30, class: "X", designation: "C" });
+      expect(fields.commonNameGeneral).toMatchObject({ start: 35, length: 30, class: "X", designation: "C" });
+      expect(fields.liveVenomousWildlifeCode).toMatchObject({ start: 65, length: 1, class: "A", designation: "C" });
+      expect(fields.cartonsContainingWildlife).toMatchObject({ start: 66, length: 5, class: "N", designation: "C" });
+      expect(fields.filler_71).toMatchObject({ start: 71, length: 10, class: "S", designation: "M" });
+
+      const line = encodeRecord(PG17_COMMON_NAME_VENOMOUS_SPEC, {
+        commonNameSpecific: "COBRA",
+        liveVenomousWildlifeCode: "Y",
+        cartonsContainingWildlife: 42,
       });
+      expect(line.slice(65, 70)).toBe("00042");
+      const decoded = decodeRecord(PG17_COMMON_NAME_VENOMOUS_SPEC, line);
+      expect(decoded.cartonsContainingWildlife).toBe(42);
+      expect(decoded.liveVenomousWildlifeCode).toBe("Y");
+    });
+  });
+
+  describe("PG23-Record (FDA Affirmation of Compliance, PDF p.39)", () => {
+    it("has contiguous 1-indexed field positions summing to 80", () => {
+      let expectedStart = 1;
+      for (const field of PG23_AFFIRMATION_OF_COMPLIANCE_SPEC.fields) {
+        expect(field.start).toBe(expectedStart);
+        expectedStart += field.length;
+      }
+      expect(expectedStart - 1).toBe(80);
+    });
+
+    it("field layout matches PDF p.39, including the trailing 1-char filler", () => {
+      const fields = Object.fromEntries(
+        PG23_AFFIRMATION_OF_COMPLIANCE_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+      );
+      expect(fields.filler_1).toMatchObject({ start: 1, length: 4, class: "A", designation: "M", constant: "PG23" });
+      expect(fields.affirmationOfComplianceCode).toMatchObject({ start: 5, length: 5, class: "X", designation: "M" });
+      expect(fields.affirmationOfComplianceDescription).toMatchObject({
+        start: 10,
+        length: 70,
+        class: "X",
+        designation: "C",
+      });
+      expect(fields.filler_80).toMatchObject({ start: 80, length: 1, class: "S", designation: "M" });
+
+      const line = encodeRecord(PG23_AFFIRMATION_OF_COMPLIANCE_SPEC, {
+        affirmationOfComplianceCode: "BTA",
+        affirmationOfComplianceDescription: "USA",
+      });
+      expect(line).toHaveLength(80);
+      expect(decodeRecord(PG23_AFFIRMATION_OF_COMPLIANCE_SPEC, line).affirmationOfComplianceCode).toBe("BTA");
+    });
+  });
+
+  describe("PG28-Record (FDA Can Dimensions & Tracking Number, PDF p.44)", () => {
+    it("has contiguous 1-indexed field positions summing to 80", () => {
+      let expectedStart = 1;
+      for (const field of PG28_CAN_DIMENSIONS_TRACKING_SPEC.fields) {
+        expect(field.start).toBe(expectedStart);
+        expectedStart += field.length;
+      }
+      expect(expectedStart - 1).toBe(80);
+    });
+
+    it("Can Dimensions preserve leading zeros as raw strings (numericCodeField), not lossy parseInt", () => {
+      const fields = Object.fromEntries(
+        PG28_CAN_DIMENSIONS_TRACKING_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+      );
+      expect(fields.canDimensions1).toMatchObject({ start: 5, length: 4, class: "N", designation: "C" });
+      expect(fields.canDimensions2).toMatchObject({ start: 9, length: 4, class: "N", designation: "C" });
+      expect(fields.canDimensions3).toMatchObject({ start: 13, length: 4, class: "N", designation: "C" });
+      expect(fields.packageTrackingNumberCode).toMatchObject({ start: 17, length: 4, class: "AN", designation: "C" });
+      expect(fields.packageTrackingNumber).toMatchObject({ start: 21, length: 50, class: "AN", designation: "C" });
+      expect(fields.filler_71).toMatchObject({ start: 71, length: 10, class: "S", designation: "M" });
+
+      // 3 inches + 8/16ths = "0308" — the leading zero on the inches portion
+      // is significant and must survive the round trip as a string.
+      const line = encodeRecord(PG28_CAN_DIMENSIONS_TRACKING_SPEC, {
+        canDimensions1: "0308",
+        packageTrackingNumberCode: "ITN",
+        packageTrackingNumber: "1Z999AA10123456784",
+      });
+      expect(line.slice(4, 8)).toBe("0308");
+      const decoded = decodeRecord(PG28_CAN_DIMENSIONS_TRACKING_SPEC, line);
+      expect(decoded.canDimensions1).toBe("0308");
+      expect(typeof decoded.canDimensions1).toBe("string");
+      expect(decoded.packageTrackingNumberCode).toBe("ITN");
+    });
+  });
+
+  describe("PG31-Record (NOAA/NMFS Harvesting Vessel Characteristic, PDF p.50)", () => {
+    it("has contiguous 1-indexed field positions summing to 80", () => {
+      let expectedStart = 1;
+      for (const field of PG31_HARVESTING_VESSEL_SPEC.fields) {
+        expect(field.start).toBe(expectedStart);
+        expectedStart += field.length;
+      }
+      expect(expectedStart - 1).toBe(80);
+    });
+
+    it("Harvested Commodity Net Weight implied decimals (2dp) match PDF p.50", () => {
+      const fields = Object.fromEntries(
+        PG31_HARVESTING_VESSEL_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+      );
+      expect(fields.commodityHarvestingVesselCharacteristicTypeCode).toMatchObject({
+        start: 5,
+        length: 3,
+        class: "AN",
+        designation: "M",
+      });
+      expect(fields.commodityHarvestingVesselCharacteristic).toMatchObject({
+        start: 8,
+        length: 35,
+        class: "X",
+        designation: "M",
+      });
+      expect(fields.unitOfMeasureConveyance).toMatchObject({ start: 43, length: 3, class: "AN", designation: "C" });
+      expect(fields.harvestedCommodityNetWeight).toMatchObject({ start: 46, length: 10, class: "SN", designation: "C" });
+
+      const line = encodeRecord(PG31_HARVESTING_VESSEL_SPEC, {
+        commodityHarvestingVesselCharacteristicTypeCode: "VNM",
+        commodityHarvestingVesselCharacteristic: "F/V PACIFIC STAR",
+        unitOfMeasureConveyance: "KG",
+        harvestedCommodityNetWeight: new Decimal("1234.56"),
+      });
+      expect(line.slice(45, 55)).toBe("0000123456"); // pos 46-55, 10 chars, 2 implied decimals
+      expect(decodeRecord(PG31_HARVESTING_VESSEL_SPEC, line).harvestedCommodityNetWeight?.toString()).toBe(
+        "1234.56"
+      );
+    });
+  });
+
+  describe("PG33-Record (NOAA/NMFS Commodity Geographic Area, PDF p.52)", () => {
+    it("has contiguous 1-indexed field positions summing to 80", () => {
+      let expectedStart = 1;
+      for (const field of PG33_GEOGRAPHIC_AREA_SPEC.fields) {
+        expect(field.start).toBe(expectedStart);
+        expectedStart += field.length;
+      }
+      expect(expectedStart - 1).toBe(80);
+    });
+
+    it("field layout matches PDF p.52", () => {
+      const fields = Object.fromEntries(
+        PG33_GEOGRAPHIC_AREA_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+      );
+      expect(fields.filler_1).toMatchObject({ start: 1, length: 4, class: "A", designation: "M", constant: "PG33" });
+      expect(fields.commodityGeographicAreaCode).toMatchObject({ start: 5, length: 9, class: "X", designation: "C" });
+      expect(fields.commodityGeographicAreaName).toMatchObject({ start: 14, length: 65, class: "X", designation: "C" });
+      expect(fields.filler_79).toMatchObject({ start: 79, length: 2, class: "S", designation: "M" });
+
+      const line = encodeRecord(PG33_GEOGRAPHIC_AREA_SPEC, {
+        commodityGeographicAreaCode: "NPO",
+        commodityGeographicAreaName: "NORTH PACIFIC OCEAN",
+      });
+      const decoded = decodeRecord(PG33_GEOGRAPHIC_AREA_SPEC, line);
+      expect(decoded.commodityGeographicAreaCode).toBe("NPO");
+      expect(decoded.commodityGeographicAreaName).toBe("NORTH PACIFIC OCEAN");
+    });
+  });
+
+  describe("PG35-Record (DOT/NHTSA Conformance Bond Detail, PDF p.54)", () => {
+    it("has contiguous 1-indexed field positions summing to 80", () => {
+      let expectedStart = 1;
+      for (const field of PG35_CONFORMANCE_BOND_SPEC.fields) {
+        expect(field.start).toBe(expectedStart);
+        expectedStart += field.length;
+      }
+      expect(expectedStart - 1).toBe(80);
+    });
+
+    it("DOT Bond Amount is whole-dollar (0 implied decimals), matching PG25's pgaLineValue convention", () => {
+      const fields = Object.fromEntries(
+        PG35_CONFORMANCE_BOND_SPEC.fields.map((f) => [f.key ?? "filler_" + f.start, f])
+      );
+      expect(fields.dotSuretyCode).toMatchObject({ start: 5, length: 3, class: "AN", designation: "C" });
+      expect(fields.dotBondSerialNumber).toMatchObject({ start: 8, length: 30, class: "X", designation: "C" });
+      expect(fields.dotBondQualifier).toMatchObject({ start: 38, length: 1, class: "N", designation: "C" });
+      expect(fields.dotBondAmount).toMatchObject({ start: 39, length: 8, class: "SN", designation: "C" });
+
+      const line = encodeRecord(PG35_CONFORMANCE_BOND_SPEC, {
+        dotSuretyCode: "123",
+        dotBondQualifier: 2,
+        dotBondAmount: new Decimal("75000"),
+      });
+      expect(line.slice(38, 46)).toBe("00075000"); // pos 39-46, 8 chars, 0 implied decimals
+      const decoded = decodeRecord(PG35_CONFORMANCE_BOND_SPEC, line);
+      expect(decoded.dotBondQualifier).toBe(2);
+      expect(decoded.dotBondAmount?.toString()).toBe("75000");
     });
   });
 });

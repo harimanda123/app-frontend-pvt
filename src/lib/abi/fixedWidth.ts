@@ -411,6 +411,29 @@ export function dateFieldNumericMMDDYY<K extends string>(
   return { key, start, length: 6, class: "N", designation, encodeValue: encodeMMDDYY, decodeValue: decodeMMDDYY };
 }
 
+// ACE Importer/Bond Query's (Application Identifier KI/KR) K1-Output's Bond
+// Effective Date uses the same 6-char "MMDDYY" digit order as `dateField`
+// above, but the source PDF documents it as class "AN" — not class "D" or
+// class "N" — genuinely distinct from every other chapter's MMDDYY date field
+// (confirmed directly against the source PDF,
+// docs/plans/catair-source-docs/importer-bond-query-v7.pdf, page 11/QIB-10;
+// the same chapter's other two MMDDYY dates, K2-Output's Bond Termination
+// Date and Bond User Termination Date, are class D and use `dateField` as
+// normal — this is a field-by-field distinction, not a chapter-wide one).
+// Reuses `dateField`'s MMDDYY encode/decode logic under a distinct class tag,
+// same rationale as `dateFieldNumericMMDDYY` for class N.
+
+/** A 6-char class-AN "MMDDYY" date field bound to a `Date | undefined` value.
+ * Same digit order as `dateField` (6-char, class D, MMDDYY) but a different
+ * declared wire class — see the module-level comment above. */
+export function dateFieldAlphanumericMMDDYY<K extends string>(
+  key: K,
+  start: number,
+  designation: Designation
+): FieldSpec<K> {
+  return { key, start, length: 6, class: "AN", designation, encodeValue: encodeMMDDYY, decodeValue: decodeMMDDYY };
+}
+
 /**
  * A right-justified, zero-padded numeric-*looking* identifier (class N) whose
  * leading zeros are semantically significant — e.g. an Entry Type Code ("01"),

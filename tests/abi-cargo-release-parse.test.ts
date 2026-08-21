@@ -73,13 +73,13 @@ describe("classifyCargoReleaseLine", () => {
     ["SE56" + " ".repeat(76), "SE56"],
     ["SE60" + " ".repeat(76), "SE60"],
     ["SE90" + " ".repeat(76), "SE90"],
-    ["SE17" + " ".repeat(76), "UNKNOWN"], // Equipment detail - deferred
-    ["SE31" + " ".repeat(76), "UNKNOWN"], // GBI detail - deferred
-    ["SE41" + " ".repeat(76), "UNKNOWN"], // FTZ detail - deferred
-    ["SE51" + " ".repeat(76), "UNKNOWN"], // GBI detail - deferred
-    ["SE61" + " ".repeat(76), "UNKNOWN"], // FTZ detail - deferred
-    ["SF10" + " ".repeat(76), "UNKNOWN"], // ISF-10 detail - deferred
-    ["PG01" + " ".repeat(76), "UNKNOWN"], // PGA detail - deferred
+    ["SE17" + " ".repeat(76), "SE17"], // Equipment detail
+    ["SE31" + " ".repeat(76), "SE31"], // Header entity GBI detail
+    ["SE41" + " ".repeat(76), "SE41"], // FTZ detail
+    ["SE51" + " ".repeat(76), "SE51"], // Line entity GBI detail
+    ["SE61" + " ".repeat(76), "SE61"], // FTZ privileged foreign status HTS detail
+    ["SF10" + " ".repeat(76), "UNKNOWN"], // ISF-10 detail - deferred (unique to this chapter, no test coverage this slice)
+    ["PG01" + " ".repeat(76), "UNKNOWN"], // PGA detail - reused from src/lib/abi/pgaMessageSet/, not redefined in cargoRelease
   ] as const)("classifies %j as %s", (line, expected) => {
     expect(classifyCargoReleaseLine(line)).toBe(expected);
   });

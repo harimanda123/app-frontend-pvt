@@ -38,7 +38,11 @@ export const ES_QUERY_RECORD_JK: RecordSpec = {
     { name: 'Total Bill Amount', start: 23, end: 33, length: 11, class: '11N', designation: 'M', impliedDecimals: 2 },
     { name: 'Paid Amount', start: 34, end: 44, length: 11, class: '11N', designation: 'C', impliedDecimals: 2 },
     { name: 'Principal Amount', start: 45, end: 55, length: 11, class: '11N', designation: 'C', impliedDecimals: 2 },
-    { name: 'Filler', start: 56, end: 80, length: 25, class: '25S', designation: 'M' },
+    // Continues onto the PDF's next page (ESQ-44): the original fixture ended
+    // at position 55 with a 25-char filler, silently swallowing this Interest
+    // Amount field into the filler. Restored per the source PDF.
+    { name: 'Interest Amount', start: 56, end: 66, length: 11, class: '11N', designation: 'C', impliedDecimals: 2 },
+    { name: 'Filler', start: 67, end: 80, length: 14, class: '14S', designation: 'M' },
   ],
 };
 
