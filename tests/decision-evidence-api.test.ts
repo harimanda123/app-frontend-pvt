@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 const ctxMock = vi.fn();
+const withAccountIdContextSpy = vi.fn((_accountId: string | null | undefined, fn: () => Promise<unknown>) => fn());
 
 const dbMock = {
   agentDecision: { findFirst: vi.fn() },
@@ -20,7 +21,8 @@ const dbMock = {
 vi.mock("@/lib/db", () => ({
   db: dbMock,
   runWithAccountId: (_accountId: string | null | undefined, fn: () => unknown) => fn(),
-  withAccountIdContext: (_accountId: string | null | undefined, fn: () => Promise<unknown>) => fn(),
+  withAccountIdContext: (accountId: string | null | undefined, fn: () => Promise<unknown>) =>
+    withAccountIdContextSpy(accountId, fn),
 }));
 vi.mock("@/lib/auth", () => ({
   getAccountContext: () => ctxMock(),
@@ -56,6 +58,7 @@ function htsRecord(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  withAccountIdContextSpy.mockImplementation((_accountId, fn) => fn());
   dbMock.htsRelease.findFirst.mockResolvedValue({ id: "rel_published" });
   ctxMock.mockResolvedValue({
     userId: "u_1",
@@ -97,6 +100,15 @@ describe("GET /api/decisions/[id]/evidence", () => {
       id: "dec_1",
       accountId: ACCOUNT,
     });
+  });
+
+  it("establishes the caller's tenant context before the decision lookup, not just a scoped where clause", async () => {
+    await call();
+
+    expect(withAccountIdContextSpy).toHaveBeenCalledWith(ACCOUNT, expect.any(Function));
+    const contextCallOrder = withAccountIdContextSpy.mock.invocationCallOrder[0];
+    const dbCallOrder = dbMock.agentDecision.findFirst.mock.invocationCallOrder[0];
+    expect(contextCallOrder).toBeLessThan(dbCallOrder);
   });
 
   it("looks up both codes by their digits, not their published punctuation", async () => {

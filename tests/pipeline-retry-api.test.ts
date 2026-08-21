@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const ctxMock = vi.fn();
 const auditMock = vi.fn();
+const withAccountIdContextSpy = vi.fn((_accountId: string | null | undefined, fn: () => Promise<unknown>) => fn());
 
 const dbMock = {
   shipment: { findFirst: vi.fn() },
@@ -18,7 +19,8 @@ const dbMock = {
 vi.mock("@/lib/db", () => ({
   db: dbMock,
   runWithAccountId: (_accountId: string | null | undefined, fn: () => unknown) => fn(),
-  withAccountIdContext: (_accountId: string | null | undefined, fn: () => Promise<unknown>) => fn(),
+  withAccountIdContext: (accountId: string | null | undefined, fn: () => Promise<unknown>) =>
+    withAccountIdContextSpy(accountId, fn),
 }));
 vi.mock("@/lib/auth", () => ({
   getAccountContext: () => ctxMock(),
@@ -53,6 +55,7 @@ function call(id = SHIPMENT) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  withAccountIdContextSpy.mockImplementation((_accountId, fn) => fn());
   ctxMock.mockResolvedValue(context());
   dbMock.shipment.findFirst.mockResolvedValue({ id: SHIPMENT });
   dbMock.pipelineJob.findFirst.mockResolvedValue({ id: JOB, status: "FAILED" });
@@ -91,6 +94,19 @@ describe("POST /api/shipments/[id]/pipeline-retry", () => {
       deletedAt: null,
     });
     expect(dbMock.pipelineJob.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("establishes the caller's tenant context before the shipment lookup, not just a scoped where clause", async () => {
+    // A mocked-out withAccountIdContext that silently swallows the call would
+    // let this route pass every other test in this file even if the wrapper
+    // were deleted entirely -- this pins that it actually runs, in the right
+    // order, with the right account.
+    await call();
+
+    expect(withAccountIdContextSpy).toHaveBeenCalledWith(ACCOUNT, expect.any(Function));
+    const contextCallOrder = withAccountIdContextSpy.mock.invocationCallOrder[0];
+    const dbCallOrder = dbMock.shipment.findFirst.mock.invocationCallOrder[0];
+    expect(contextCallOrder).toBeLessThan(dbCallOrder);
   });
 
   it("reports that no run exists rather than inventing one", async () => {
