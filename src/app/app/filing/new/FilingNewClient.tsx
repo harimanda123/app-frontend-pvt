@@ -241,25 +241,6 @@ export function FilingNewClient() {
           </Alert>
         )}
 
-        {/* Filing Information */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-xs font-bold text-ink mb-3">Filing Information</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-            <div>
-              <span className="text-ink-muted font-bold">Country</span>
-              <p className="text-ink font-mono">{country || "—"}</p>
-            </div>
-            <div>
-              <span className="text-ink-muted font-bold">Procedure Code</span>
-              <p className="text-ink font-mono">{procedure || "—"}</p>
-            </div>
-            <div>
-              <span className="text-ink-muted font-bold">Message Name</span>
-              <p className="text-ink font-mono">{message || "—"}</p>
-            </div>
-          </div>
-        </div>
-
         {/* Local Reference Number and Registration Number */}
         <div className="bg-surface border border-border rounded-lg p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -275,9 +256,6 @@ export function FilingNewClient() {
                 placeholder="Enter local reference number"
                 className="mt-1"
               />
-              <p className="text-xs text-ink-muted mt-1">
-                Required for save and transmit.
-              </p>
             </div>
             <div>
               <Label htmlFor="registrationNumber" className="text-xs font-bold text-ink">
@@ -291,9 +269,6 @@ export function FilingNewClient() {
                 placeholder="Enter registration number"
                 className="mt-1"
               />
-              <p className="text-xs text-ink-muted mt-1">
-                Optional registration or license number.
-              </p>
             </div>
           </div>
         </div>
