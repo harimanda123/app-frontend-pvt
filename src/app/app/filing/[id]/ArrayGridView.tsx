@@ -37,7 +37,7 @@ export default function ArrayGridView({
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tempItemIndex, setTempItemIndex] = useState<number | null>(null); // Index of temporary item (removed on cancel)
-  const [isExpanded, setIsExpanded] = useState(true); // Expanded by default
+  const [isExpanded, setIsExpanded] = useState(false); // Collapsed by default
 
   // Get resolved schema
   const getResolvedSchema = (schema: any): any => {
