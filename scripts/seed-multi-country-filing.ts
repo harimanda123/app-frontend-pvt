@@ -97,19 +97,19 @@ async function seedNlNctsProcedures() {
     {
       transactionTypeId: nctsType.id,
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE015", // Declaration
     },
     {
       transactionTypeId: nctsType.id,
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE013", // Amendment
     },
     {
       transactionTypeId: nctsType.id,
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE014", // Cancellation
     },
   ];
@@ -152,19 +152,19 @@ async function seedNlNctsActionMessageMapping() {
   const mappings = [
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       action: "SUBMIT",
       messageName: "IE015", // Submit sends IE015 Declaration
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       action: "AMENDMENT",
       messageName: "IE013", // Amendment sends IE013
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       action: "CANCELLATION",
       messageName: "IE014", // Cancellation sends IE014
     },
@@ -211,7 +211,7 @@ async function seedNlNctsActionConfiguration() {
     // ========================================
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE015", // Request message sent
       status: "TRANSMITTED", // Before response received
       availableActions: ["CANCELLATION"],
@@ -219,7 +219,7 @@ async function seedNlNctsActionConfiguration() {
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE015",
       status: "ACCEPTED", // Positive response (IE028)
       availableActions: ["AMENDMENT", "CANCELLATION"],
@@ -227,7 +227,7 @@ async function seedNlNctsActionConfiguration() {
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE015",
       status: "REJECTED", // Negative response (IE056)
       availableActions: ["CANCELLATION"],
@@ -235,7 +235,7 @@ async function seedNlNctsActionConfiguration() {
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE015",
       status: "PENDING", // Awaiting customs review
       availableActions: ["CANCELLATION"],
@@ -243,7 +243,7 @@ async function seedNlNctsActionConfiguration() {
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE015",
       status: "RELEASED", // Goods released (IE029)
       availableActions: [], // No actions available after release
@@ -255,7 +255,7 @@ async function seedNlNctsActionConfiguration() {
     // ========================================
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE013", // Amendment sent
       status: "TRANSMITTED", // Before response
       availableActions: [], // Wait for response
@@ -263,7 +263,7 @@ async function seedNlNctsActionConfiguration() {
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE013",
       status: "ACCEPTED", // Amendment accepted
       availableActions: ["AMENDMENT", "CANCELLATION"], // Can amend again or cancel
@@ -271,7 +271,7 @@ async function seedNlNctsActionConfiguration() {
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE013",
       status: "REJECTED", // Amendment rejected
       availableActions: [], // Must resubmit original declaration
@@ -283,7 +283,7 @@ async function seedNlNctsActionConfiguration() {
     // ========================================
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE014", // Cancellation sent
       status: "TRANSMITTED", // Before response
       availableActions: [], // Wait for response
@@ -291,7 +291,7 @@ async function seedNlNctsActionConfiguration() {
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE014",
       status: "ACCEPTED", // Cancellation accepted
       availableActions: [], // Declaration cancelled, no further actions
@@ -299,7 +299,7 @@ async function seedNlNctsActionConfiguration() {
     },
     {
       country: "NL",
-      procedureCode: "5100",
+      procedureCode: "NCTS",
       messageName: "IE014",
       status: "REJECTED", // Cancellation rejected
       availableActions: [], // Cannot cancel, declaration stands

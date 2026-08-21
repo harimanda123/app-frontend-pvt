@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { withCronRoute } from "@/lib/api/auth-guards";
-import { db } from "@/lib/db";
+import { db, runWithAccountId } from "@/lib/db";
 import { determineOrigin } from "@/lib/origin/originEngine";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 
 export const maxDuration = 300;
 
 export async function reevaluateProductLineItems(productId: string, accountId: string) {
+  return runWithAccountId(accountId, async () => {
+    return _reevaluateProductLineItems(productId, accountId);
+  });
+}
+
+async function _reevaluateProductLineItems(productId: string, accountId: string) {
   const lineItems = await db.shipmentLineItem.findMany({
     where: { productId, accountId },
     include: {

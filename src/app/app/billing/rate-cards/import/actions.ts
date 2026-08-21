@@ -2,7 +2,7 @@
 
 import { parse } from "csv-parse/sync";
 import ExcelJS from "exceljs";
-import { db } from "@/lib/db";
+import { db, withAccountIdContext } from "@/lib/db";
 import { getAccountContext, hasPermission } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { seedBillingEventDefinitions } from "@/lib/billing/telemetry";
@@ -122,59 +122,61 @@ export async function createImportedRateCardAction(input: {
   if (input.lines.some((line) => !line.lineItemName.trim() || !line.eventCode)) throw new Error("Every imported line must have a description and mapped billing event");
   if (input.lines.some((line) => !Number.isFinite(line.rate) || line.rate < 0)) throw new Error("Imported rates must be valid non-negative numbers");
 
-  await seedBillingEventDefinitions(ctx.accountId);
-  const eventCodes = [...new Set(input.lines.map((line) => line.eventCode))];
-  const definitions = await db.billingEventDefinition.findMany({
-    where: { eventCode: { in: eventCodes } },
-    select: { id: true, eventCode: true },
-  });
-  const definitionByCode = new Map(definitions.map((definition) => [definition.eventCode, definition.id]));
-  const missing = eventCodes.filter((code) => !definitionByCode.has(code));
-  if (missing.length) throw new Error(`Billing event definitions unavailable in the platform catalog: ${missing.join(", ")}`);
+  return withAccountIdContext(ctx.accountId, async () => {
+    await seedBillingEventDefinitions(ctx.accountId);
+    const eventCodes = [...new Set(input.lines.map((line) => line.eventCode))];
+    const definitions = await db.billingEventDefinition.findMany({
+      where: { eventCode: { in: eventCodes } },
+      select: { id: true, eventCode: true },
+    });
+    const definitionByCode = new Map(definitions.map((definition) => [definition.eventCode, definition.id]));
+    const missing = eventCodes.filter((code) => !definitionByCode.has(code));
+    if (missing.length) throw new Error(`Billing event definitions unavailable in the platform catalog: ${missing.join(", ")}`);
 
-  const rateCard = await db.rateCard.create({
-    data: {
-      accountId: ctx.accountId,
-      clientId: input.clientId || null,
-      importerId: input.importerId || null,
-      name: input.name.trim(),
-      description: input.description || "Imported customer rate card",
-      currency: input.currency || "USD",
-      isDefault: input.isDefault ?? false,
-      currentVersion: 1,
-      status: "DRAFT",
-      versions: {
-        create: [{
-          version: 1,
-          effectiveDate: new Date(),
-          status: "DRAFT",
-          rules: {
-            create: input.lines.map((line) => ({
-              lineItemName: line.lineItemName.trim(),
-              serviceCode: line.serviceCode.trim() || line.eventCode,
-              pricingModel: line.pricingModel as any,
-              unit: line.unit.trim() || "unit",
-              rate: line.rate,
-              currency: input.currency || "USD",
-              includedQuantity: Math.max(0, Math.floor(line.includedQuantity ?? 0)),
-              isBillable: true,
-              capabilityMappings: { create: [{ eventDefId: definitionByCode.get(line.eventCode)! }] },
-            })),
-          },
-        }],
+    const rateCard = await db.rateCard.create({
+      data: {
+        accountId: ctx.accountId,
+        clientId: input.clientId || null,
+        importerId: input.importerId || null,
+        name: input.name.trim(),
+        description: input.description || "Imported customer rate card",
+        currency: input.currency || "USD",
+        isDefault: input.isDefault ?? false,
+        currentVersion: 1,
+        status: "DRAFT",
+        versions: {
+          create: [{
+            version: 1,
+            effectiveDate: new Date(),
+            status: "DRAFT",
+            rules: {
+              create: input.lines.map((line) => ({
+                lineItemName: line.lineItemName.trim(),
+                serviceCode: line.serviceCode.trim() || line.eventCode,
+                pricingModel: line.pricingModel as any,
+                unit: line.unit.trim() || "unit",
+                rate: line.rate,
+                currency: input.currency || "USD",
+                includedQuantity: Math.max(0, Math.floor(line.includedQuantity ?? 0)),
+                isBillable: true,
+                capabilityMappings: { create: [{ eventDefId: definitionByCode.get(line.eventCode)! }] },
+              })),
+            },
+          }],
+        },
       },
-    },
-  });
+    });
 
-  await createAuditLog({
-    accountId: ctx.accountId,
-    userId: ctx.userId,
-    action: "billing.ratecard.import",
-    entity: "RateCard",
-    entityId: rateCard.id,
-    metadata: { lineCount: input.lines.length, status: "DRAFT", eventCodes },
-  });
+    await createAuditLog({
+      accountId: ctx.accountId,
+      userId: ctx.userId,
+      action: "billing.ratecard.import",
+      entity: "RateCard",
+      entityId: rateCard.id,
+      metadata: { lineCount: input.lines.length, status: "DRAFT", eventCodes },
+    });
 
-  revalidatePath("/app/billing/rate-cards");
-  return { success: true, rateCardId: rateCard.id };
+    revalidatePath("/app/billing/rate-cards");
+    return { success: true, rateCardId: rateCard.id };
+  });
 }

@@ -308,6 +308,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     const timestamp = Date.now().toString(36).toUpperCase();
     const randomSuffix = randomUUID().slice(0, 6).toUpperCase();
     const standaloneEntryNumber = `${country}-${procedureCode}-${timestamp}-${randomSuffix}`;
+    const transactionType = procedureConfig.transactionType?.trim().toUpperCase() || "IMPORT";
 
     const filing = await db.customsFiling.create({
       data: {
@@ -316,7 +317,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
         localReferenceNumber: localReferenceNumber || standaloneEntryNumber,
         registrationNumber: registrationNumber || null,
         country,
-        procedureCode, // Now stores transaction type (IMPORT, EXPORT, etc.)
+        procedureCode,
         messageName,
         filingType: filingType || "Standard",
         filingStatus: "Draft",
@@ -329,7 +330,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
         entryType: null,
         authority: null,
         dutyBreakdown: declarationData ? ({
-          declarationDraft: wrapDeclarationData(declarationData, procedureCode) // procedureCode is transaction type
+          declarationDraft: wrapDeclarationData(declarationData, transactionType)
         } as any) : undefined,
       },
       include: {
@@ -389,8 +390,6 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     );
   }
 
-  // Get procedure code (which now stores transaction type)
-  let procedureCodeValue: string | null = null;
   if (filingProcedureCode && filingMessageName) {
     const procedureConfig = await db.filingProcedureConfig.findFirst({
       where: {
@@ -401,9 +400,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
       },
     });
 
-    if (procedureConfig) {
-      procedureCodeValue = procedureConfig.procedureCode; // This now contains transaction type
-    } else {
+    if (!procedureConfig) {
       console.warn(
         `[Filing Creation] No active FilingProcedureConfig found for country=${filingCountry}, procedureCode=${filingProcedureCode}, messageName=${filingMessageName}`
       );
@@ -449,7 +446,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
           authority: null,
           entryType: entryTypeCode,
           country: filingCountry,
-          procedureCode: procedureCodeValue || filingProcedureCode, // Stores transaction type
+          procedureCode: filingProcedureCode,
           messageName: filingMessageName,
           localReferenceNumber: entryNumber,
           filingType: filingType || "Standard",

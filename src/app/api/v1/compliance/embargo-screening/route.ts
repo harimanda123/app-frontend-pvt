@@ -22,6 +22,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateApiKey, apiKeyHasScope } from "@/lib/api/api-key-auth";
+import { withAccountIdContext } from "@/lib/db";
 import { generateRequestId } from "@/lib/api/error";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 import {
@@ -67,26 +68,28 @@ export async function GET(req: Request): Promise<Response> {
   }
   const { shipmentId: rawShipmentId, lineItemId, partyId, screeningLevel, type, result } = parsed.data;
 
-  const shipment = await resolveOwnedShipmentId(apiCtx.accountId, rawShipmentId);
-  if (!shipment) {
-    return NextResponse.json({ error: "Shipment not found", requestId }, { status: 404 });
-  }
+  return withAccountIdContext(apiCtx.accountId, async () => {
+    const shipment = await resolveOwnedShipmentId(apiCtx.accountId, rawShipmentId);
+    if (!shipment) {
+      return NextResponse.json({ error: "Shipment not found", requestId }, { status: 404 });
+    }
 
-  const evidence = await latestEmbargoScreening(apiCtx.accountId, shipment.id);
-  const details = buildScreeningDetails(shipment, evidence, { lineItemId, partyId, screeningLevel, type, result });
+    const evidence = await latestEmbargoScreening(apiCtx.accountId, shipment.id);
+    const details = buildScreeningDetails(shipment, evidence, { lineItemId, partyId, screeningLevel, type, result });
 
-  await createAuditLog({
-    accountId: apiCtx.accountId,
-    userId: null,
-    action: AuditAction.EMBARGO_SCREENING_QUERIED,
-    entity: "Shipment",
-    entityId: shipment.id,
-    source: "API",
-    metadata: { shipmentId: shipment.id, filters: { lineItemId, partyId, screeningLevel, type, result } },
-    requestId,
+    await createAuditLog({
+      accountId: apiCtx.accountId,
+      userId: null,
+      action: AuditAction.EMBARGO_SCREENING_QUERIED,
+      entity: "Shipment",
+      entityId: shipment.id,
+      source: "API",
+      metadata: { shipmentId: shipment.id, filters: { lineItemId, partyId, screeningLevel, type, result } },
+      requestId,
+    });
+
+    return NextResponse.json({ success: true, ...details, requestId }, { status: 200 });
   });
-
-  return NextResponse.json({ success: true, ...details, requestId }, { status: 200 });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -112,41 +115,43 @@ export async function POST(req: Request): Promise<Response> {
   }
   const { shipmentId: rawShipmentId, forceRescreen } = parsed.data;
 
-  const shipment = await resolveOwnedShipmentId(apiCtx.accountId, rawShipmentId);
-  if (!shipment) {
-    return NextResponse.json({ error: "Shipment not found", requestId }, { status: 404 });
-  }
-
-  let evidence = await latestEmbargoScreening(apiCtx.accountId, shipment.id);
-  let rescreened = false;
-  let rescreenDenied = false;
-
-  if (forceRescreen || !evidence) {
-    if (apiKeyHasScope(apiCtx, "embargo.screen")) {
-      const { PipelineOrchestrator } = await getPipelineOrchestrator();
-      await PipelineOrchestrator.processEvent({
-        shipmentId: shipment.id,
-        accountId: apiCtx.accountId,
-        triggerEvent: "RECONCILIATION_REQUESTED",
-      });
-      evidence = await latestEmbargoScreening(apiCtx.accountId, shipment.id);
-      rescreened = true;
-
-      await createAuditLog({
-        accountId: apiCtx.accountId,
-        userId: null,
-        action: AuditAction.EMBARGO_SCREENING_RESCREENED,
-        entity: "Shipment",
-        entityId: shipment.id,
-        source: "API",
-        metadata: { shipmentId: shipment.id },
-        requestId,
-      });
-    } else if (forceRescreen) {
-      rescreenDenied = true;
+  return withAccountIdContext(apiCtx.accountId, async () => {
+    const shipment = await resolveOwnedShipmentId(apiCtx.accountId, rawShipmentId);
+    if (!shipment) {
+      return NextResponse.json({ error: "Shipment not found", requestId }, { status: 404 });
     }
-  }
 
-  const result = buildScreeningResult(shipment, evidence, { rescreened, rescreenDenied });
-  return NextResponse.json({ success: true, ...result, requestId }, { status: 200 });
+    let evidence = await latestEmbargoScreening(apiCtx.accountId, shipment.id);
+    let rescreened = false;
+    let rescreenDenied = false;
+
+    if (forceRescreen || !evidence) {
+      if (apiKeyHasScope(apiCtx, "embargo.screen")) {
+        const { PipelineOrchestrator } = await getPipelineOrchestrator();
+        await PipelineOrchestrator.processEvent({
+          shipmentId: shipment.id,
+          accountId: apiCtx.accountId,
+          triggerEvent: "RECONCILIATION_REQUESTED",
+        });
+        evidence = await latestEmbargoScreening(apiCtx.accountId, shipment.id);
+        rescreened = true;
+
+        await createAuditLog({
+          accountId: apiCtx.accountId,
+          userId: null,
+          action: AuditAction.EMBARGO_SCREENING_RESCREENED,
+          entity: "Shipment",
+          entityId: shipment.id,
+          source: "API",
+          metadata: { shipmentId: shipment.id },
+          requestId,
+        });
+      } else if (forceRescreen) {
+        rescreenDenied = true;
+      }
+    }
+
+    const result = buildScreeningResult(shipment, evidence, { rescreened, rescreenDenied });
+    return NextResponse.json({ success: true, ...result, requestId }, { status: 200 });
+  });
 }

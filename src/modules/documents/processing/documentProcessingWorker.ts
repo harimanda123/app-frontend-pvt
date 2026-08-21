@@ -15,7 +15,7 @@
  */
 
 import { randomUUID } from "crypto";
-import { db } from "@/lib/db";
+import { db, runWithAccountId } from "@/lib/db";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 import {
   DocumentParserError,
@@ -198,14 +198,14 @@ export async function runWorkerTick(): Promise<WorkerTickResult> {
   result.pollTimeouts = await timeOutExhaustedPolls();
 
   for (const run of await findRunsAwaitingSubmission(limits.batchSize)) {
-    const outcome = await submitRun(provider, run);
+    const outcome = await runWithAccountId(run.document.accountId, () => submitRun(provider, run));
     if (outcome === "submitted") result.submitted += 1;
     else if (outcome === "retry") result.retriesScheduled += 1;
     else result.failed += 1;
   }
 
   for (const run of await findRunsAwaitingPoll(limits.batchSize)) {
-    const outcome = await pollRun(provider, run);
+    const outcome = await runWithAccountId(run.document.accountId, () => pollRun(provider, run));
     result.polled += 1;
     if (outcome.completed) result.completed += 1;
     if (outcome.failed) result.failed += 1;

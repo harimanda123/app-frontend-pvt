@@ -12,7 +12,7 @@
  */
 
 import { randomUUID } from "crypto";
-import { db } from "@/lib/db";
+import { db, runWithAccountId } from "@/lib/db";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 import { storeDocumentFile, StorageValidationError } from "@/lib/storage";
 import { screenUploadForMalware } from "./malwarePolicy";
@@ -52,7 +52,7 @@ export async function runInboundEmailWorkerTick(): Promise<InboundEmailTickResul
 
   for (const email of dueEmails) {
     try {
-      const accepted = await processOneEmail(email.id);
+      const accepted = await runWithAccountId(email.accountId ?? undefined, () => processOneEmail(email.id));
       if (accepted === "QUARANTINED") result.quarantined += 1;
       else result.accepted += 1;
     } catch (error) {
@@ -109,9 +109,11 @@ async function processOneEmail(inboundEmailId: string): Promise<"QUARANTINED" | 
   const defaultAssigneeId = route?.defaultAssignedToUserId ?? null;
 
   let storedCount = 0;
+  let duplicateCount = 0;
   for (const attachment of remote.attachments) {
-    const stored = await processOneAttachment({ accountId, email, attachment, defaultAssigneeId });
-    if (stored) storedCount += 1;
+    const outcome = await processOneAttachment({ accountId, email, attachment, defaultAssigneeId });
+    if (outcome.stored) storedCount += 1;
+    duplicateCount += outcome.crossShipmentDuplicateCount;
   }
 
   if (storedCount > 0 && defaultAssigneeId) {
@@ -125,12 +127,14 @@ async function processOneEmail(inboundEmailId: string): Promise<"QUARANTINED" | 
       select: { id: true },
     });
     if (!alreadyNotified) {
+      const duplicateSuffix =
+        duplicateCount > 0 ? ` (${duplicateCount} possible duplicate${duplicateCount === 1 ? "" : "s"} of existing documents)` : "";
       await db.notification.create({
         data: {
           accountId,
           userId: defaultAssigneeId,
           type: "INBOUND_EMAIL_DOCUMENTS",
-          message: `${storedCount} new document${storedCount === 1 ? "" : "s"} from ${email.originalFromAddress}`,
+          message: `${storedCount} new document${storedCount === 1 ? "" : "s"} from ${email.originalFromAddress}${duplicateSuffix}`,
           entityType: "InboundEmail",
           entityId: email.id,
         },
@@ -143,19 +147,28 @@ async function processOneEmail(inboundEmailId: string): Promise<"QUARANTINED" | 
   return "ACCEPTED";
 }
 
+interface AttachmentOutcome {
+  stored: boolean;
+  crossShipmentDuplicateCount: number;
+}
+
+const NOT_STORED: AttachmentOutcome = { stored: false, crossShipmentDuplicateCount: 0 };
+
 async function processOneAttachment(params: {
   accountId: string;
   email: { id: string; providerEmailId: string };
   attachment: ReceivedEmailAttachmentMeta;
   defaultAssigneeId: string | null;
-}): Promise<boolean> {
+}): Promise<AttachmentOutcome> {
   const { accountId, email, attachment, defaultAssigneeId } = params;
 
   const existing = await db.inboundAttachment.findUnique({
     where: { inboundEmailId_providerAttachmentId: { inboundEmailId: email.id, providerAttachmentId: attachment.id } },
   });
   // Already processed (or explicitly skipped) in a prior tick -- do not redo work.
-  if (existing && existing.processingStatus !== "PENDING") return existing.processingStatus === "STORED";
+  if (existing && existing.processingStatus !== "PENDING") {
+    return existing.processingStatus === "STORED" ? { stored: true, crossShipmentDuplicateCount: 0 } : NOT_STORED;
+  }
 
   const isInline = attachment.contentDisposition === "inline";
   if (isInline) {
@@ -172,7 +185,7 @@ async function processOneAttachment(params: {
       },
       update: { processingStatus: "SKIPPED_INLINE" },
     });
-    return false;
+    return NOT_STORED;
   }
 
   const attachmentRow = await db.inboundAttachment.upsert({
@@ -201,7 +214,7 @@ async function processOneAttachment(params: {
     } catch (error) {
       const reason = isDocumentParserError(error) ? error.message : "Unreadable file format.";
       await rejectAttachment(attachmentRow.id, reason);
-      return false;
+      return NOT_STORED;
     }
 
     const scan = await screenUploadForMalware({ fileName: filename, byteSize: bytes.byteLength, bytes });
@@ -217,7 +230,7 @@ async function processOneAttachment(params: {
         correlationId,
         success: false,
       });
-      return false;
+      return NOT_STORED;
     }
 
     // A fresh Uint8Array copy: File/Blob do not accept a Node Buffer's
@@ -231,7 +244,7 @@ async function processOneAttachment(params: {
     } catch (error) {
       const reason = error instanceof StorageValidationError ? error.message : "Storage failed.";
       await rejectAttachment(attachmentRow.id, reason);
-      return false;
+      return NOT_STORED;
     }
 
     const { DocumentTypeCatalog } = await import("@/modules/intake/documentTypeCatalog");
@@ -293,13 +306,13 @@ async function processOneAttachment(params: {
       reason: "INITIAL",
       correlationId,
     });
-    return true;
+    return { stored: true, crossShipmentDuplicateCount: crossShipmentDuplicates.length };
   } catch (error) {
     await rejectAttachment(
       attachmentRow.id,
       error instanceof Error ? error.message : "Unexpected error while processing this attachment."
     );
-    return false;
+    return NOT_STORED;
   }
 }
 

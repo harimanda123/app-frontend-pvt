@@ -93,9 +93,9 @@ async function seedProcedureMapping() {
  */
 async function seedGermanyConfig() {
   const procedureRows = [
-    { entryType: "01", procedureCode: "4000" }, // Consumption -> release for free circulation
-    { entryType: "21", procedureCode: "7100" }, // Warehouse -> customs warehousing
-    { entryType: "23", procedureCode: "5300" }, // Temporary Importation under Bond -> temporary admission
+    { entryType: "01", procedureCode: "IMPORT" }, // Consumption -> release for free circulation
+    { entryType: "21", procedureCode: "CUSTOMS_WAREHOUSE" }, // Warehouse -> customs warehousing
+    { entryType: "23", procedureCode: "TEMP_STORAGE" }, // Temporary Importation under Bond -> temporary admission
   ];
   for (const row of procedureRows) {
     await db.filingProcedureMapping.upsert({

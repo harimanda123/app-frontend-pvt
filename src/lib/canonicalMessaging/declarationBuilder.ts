@@ -32,8 +32,11 @@ export function wrapDeclarationData(data: any, transactionType: string): Declara
     return data;
   }
 
-  // Determine wrapper based on transaction type
-  const isImport = transactionType.toUpperCase().includes("IMPORT") || transactionType === "H1";
+  // Determine wrapper based on transaction type (IMPORT, EXPORT, NCTS, etc. -- see
+  // FilingTransactionType). Only two wrapper shapes exist today, so anything that
+  // isn't IMPORT falls back to ExportDeclaration; NCTS/TEMP_STORAGE/BONDED_WAREHOUSE
+  // don't have their own wrapper yet.
+  const isImport = transactionType.toUpperCase().includes("IMPORT");
   const wrapperKey = isImport ? "ImportDeclaration" : "ExportDeclaration";
 
   // If data has GoodsDeclaration at top level, wrap it

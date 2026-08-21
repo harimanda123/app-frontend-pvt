@@ -53,6 +53,44 @@ function getNestedValue(row: Row, path: string): unknown {
   return value;
 }
 
+/**
+ * Format cell value for display - handles special cases like joined data
+ */
+function formatCellValue(row: Row, field: FieldMeta, tableKey: string): string {
+  // Special handling for customer-customs-version table
+  if (tableKey === "customer-customs-version") {
+    if (field.key === "filingCountryCustomsId") {
+      const countryVersion = getNestedValue(row, "countryCustomsVersion");
+      if (countryVersion && typeof countryVersion === "object") {
+        const cv = countryVersion as any;
+        return `${cv.country || ""} ${cv.procedureCode || ""} ${cv.release || ""}`.trim();
+      }
+      return String(getNestedValue(row, field.key) ?? "");
+    }
+    
+    if (field.key === "customerId") {
+      const value = getNestedValue(row, field.key);
+      // If customerId is null/empty, check if applyToAllCustomers is true
+      if (!value) {
+        const applyToAll = getNestedValue(row, "applyToAllCustomers");
+        if (applyToAll) {
+          return "(All Customers)";
+        }
+        return "";
+      }
+      // If we have optionLabels, use them to display the formatted name
+      if (field.optionLabels && value) {
+        return field.optionLabels[String(value)] || String(value);
+      }
+      return String(value);
+    }
+  }
+
+  // Default formatting
+  const value = getNestedValue(row, field.key);
+  return String(value ?? "");
+}
+
 export interface SubFieldMeta {
   key: string;
   label: string;
@@ -73,10 +111,16 @@ export interface SubFieldMeta {
 export interface FieldMeta {
   key: string;
   label: string;
-  type: "text" | "boolean" | "fieldArray";
+  type: "text" | "boolean" | "fieldArray" | "select" | "date";
   help?: string;
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldMeta[];
+  /** Only present when type === "select": static dropdown options. */
+  options?: string[];
+  /** Only present when type === "select": map of value -> display label. */
+  optionLabels?: Record<string, string>;
+  /** Only present when type === "select" and options is omitted: API path to fetch `{ codes: string[] }` from. */
+  optionsSource?: string;
 }
 
 export interface TableMeta {
@@ -292,7 +336,7 @@ function TablePanel({ table, onShowUIConfigEditor }: { table: TableMeta; onShowU
                           ? interpolate(t.filingConfig?.fieldsConfiguredCount ?? "{count} field(s) configured", {
                               count: Array.isArray(getNestedValue(row, f.key)) ? (getNestedValue(row, f.key) as unknown[]).length : 0,
                             })
-                          : String(getNestedValue(row, f.key) ?? "")}
+                          : formatCellValue(row, f, table.key)}
                     </td>
                   ))}
                   <td className="py-2.5 px-3 text-right">
@@ -428,27 +472,18 @@ function RowFormModal({
   const [draft, setDraft] = useState<Row>(() => (initial ? { ...initial } : emptyDraft(table.fields)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [transactionTypeCodes, setTransactionTypeCodes] = useState<string[]>([]);
+  const [selectOptions, setSelectOptions] = useState<Record<string, string[]>>({});
 
-  // Fetch transaction type codes for procedureCode dropdown
+  // Fetch dropdown options for any field that declares an optionsSource (e.g.
+  // procedure-config's transactionType, sourced from the FilingTransactionType catalog).
   useEffect(() => {
-    // Fetch codes for any table that has a procedureCode field
-    const hasProcedureCodeField = table.fields.some(f => f.key === "procedureCode");
-    if (hasProcedureCodeField) {
-      console.log("🔍 Fetching transaction types for", table.key, "table...");
-      fetch("/api/filing-config/transaction-types", {
-        credentials: "include" // Ensure cookies are sent
-      })
-        .then(res => {
-          console.log("📥 Transaction types response status:", res.status);
-          return res.json();
-        })
-        .then(data => {
-          console.log("✅ Transaction types loaded:", data.codes);
-          setTransactionTypeCodes(data.codes || []);
-        })
-        .catch(err => console.error("❌ Failed to load transaction types:", err));
-    }
+    const selectFields = table.fields.filter((f) => f.type === "select" && f.optionsSource);
+    selectFields.forEach((f) => {
+      fetch(f.optionsSource as string, { credentials: "include" })
+        .then((res) => res.json())
+        .then((data) => setSelectOptions((prev) => ({ ...prev, [f.key]: data.codes || [] })))
+        .catch((err) => console.error(`Failed to load options for ${f.key}:`, err));
+    });
   }, [table.key, table.fields]);
 
   async function handleSubmit() {
@@ -489,8 +524,8 @@ function RowFormModal({
       <ModalBody className="space-y-3">
         {table.fields.map((f) => {
           const disabled = isEdit && f.key === table.idField;
-          const isProcedureCodeField = f.key === "procedureCode";
-          
+          const fieldOptions = f.type === "select" ? (f.options?.length ? f.options : selectOptions[f.key] ?? []) : undefined;
+
           return (
             <div key={f.key} className="space-y-1">
               <label className="text-xs font-bold text-ink-muted">{fieldLabel(t, table.key, f)}</label>
@@ -503,7 +538,7 @@ function RowFormModal({
                   <option value="false">{t.filingConfig?.no ?? "No"}</option>
                   <option value="true">{t.filingConfig?.yes ?? "Yes"}</option>
                 </select>
-              ) : isProcedureCodeField && transactionTypeCodes.length > 0 ? (
+              ) : f.type === "select" && fieldOptions && fieldOptions.length > 0 ? (
                 <select
                   value={String(draft[f.key] ?? "")}
                   onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
@@ -511,9 +546,9 @@ function RowFormModal({
                   className={`w-full rounded-xl border border-border px-3 py-2 text-sm ${disabled ? "opacity-60" : ""}`}
                 >
                   <option value="">Select...</option>
-                  {transactionTypeCodes.map((code) => (
+                  {fieldOptions.map((code) => (
                     <option key={code} value={code}>
-                      {code}
+                      {f.optionLabels?.[code] ?? code}
                     </option>
                   ))}
                 </select>

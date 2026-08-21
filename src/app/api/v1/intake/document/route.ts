@@ -9,7 +9,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { db, withAccountIdContext } from "@/lib/db";
 import { authenticateApiKey, apiKeyHasScope } from "@/lib/api/api-key-auth";
 import { generateRequestId } from "@/lib/api/error";
 import { createAuditLog, AuditAction } from "@/lib/audit";
@@ -79,6 +79,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const fileName = suppliedFileName ?? url.split("/").pop()?.split("?")[0] ?? "document";
 
+  return withAccountIdContext(apiCtx.accountId, async () => {
   // Optional: resolve shipmentReference → shipment row.
   let shipmentId: string | null = null;
   if (shipmentReference) {
@@ -155,4 +156,5 @@ export async function POST(req: Request): Promise<Response> {
     },
     { status: 202 }
   );
+  });
 }

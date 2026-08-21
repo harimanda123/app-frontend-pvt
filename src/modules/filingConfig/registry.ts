@@ -25,6 +25,9 @@ export type FilingConfigTableKey =
   | "master-data-source"
   // KEPT TABLES
   | "action-data-requirement"
+  // CUSTOMS VERSION MANAGEMENT
+  | "country-customs-version"
+  | "customer-customs-version"
   // DROPPED TABLES (commented out - kept for reference)
   // | "procedure-mapping" // DROPPED - replaced by procedure-config
   // | "authority-config" // DROPPED - authority names in UI layer
@@ -56,10 +59,16 @@ export interface SubFieldDef {
 export interface FieldDef {
   key: string;
   label: string;
-  type: "text" | "boolean" | "fieldArray";
+  type: "text" | "boolean" | "fieldArray" | "select" | "date";
   help?: string;
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldDef[];
+  /** Only present when type === "select": static dropdown options. */
+  options?: string[];
+  /** Only present when type === "select": map of value -> display label. */
+  optionLabels?: Record<string, string>;
+  /** Only present when type === "select" and options is omitted: API path the editor fetches `{ codes: string[] }` from. */
+  optionsSource?: string;
 }
 
 interface TableDef<TRow> {
@@ -99,6 +108,7 @@ const procedureConfigSchema = z.object({
   country: z.string().trim().min(1).max(50),
   procedureCode: z.string().trim().min(1).max(50),
   messageName: z.string().trim().min(1).max(100),
+  transactionType: z.string().trim().min(1).max(50),
   isActive: z.boolean(),
   createdBy: z.string().trim().max(100).optional(),
   updatedBy: z.string().trim().max(100).optional(),
@@ -282,9 +292,10 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
       { key: "country", label: "Country", type: "text" },
       { key: "procedureCode", label: "Procedure Code", type: "text" },
       { key: "messageName", label: "Message Name", type: "text" },
+      { key: "transactionType", label: "Transaction Type", type: "select", optionsSource: "/api/filing-config/transaction-types" },
       { key: "isActive", label: "Is Active", type: "boolean" },
     ],
-    list: () => db.filingProcedureConfig.findMany({ 
+    list: () => db.filingProcedureConfig.findMany({
       orderBy: [{ country: "asc" }, { procedureCode: "asc" }]
     }),
     create: (data) => wrapPrismaErrors(() => db.filingProcedureConfig.create({ data: procedureConfigSchema.parse(data) })),
@@ -621,6 +632,157 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
       apiEndpoint: z.string().optional(),
       apiMethod: z.string().optional(),
       isActive: z.boolean().optional(),
+    }),
+  },
+
+  // ============================================================================
+  // CUSTOMS VERSION MANAGEMENT
+  // ============================================================================
+  "country-customs-version": {
+    label: "Country Customs Versions",
+    description: "Master table for country-specific customs versions",
+    idField: "id",
+    fields: [
+      { key: "country", label: "Country", type: "text", help: "Two-letter country code (e.g., NL, BE)" },
+      { key: "procedureCode", label: "Procedure Code", type: "text", help: "Procedure code (e.g., IMPORT, EXPORT)" },
+      { key: "release", label: "Release", type: "text", help: "Version number (e.g., 1.0, 2.0)" },
+      { key: "validFrom", label: "Valid From", type: "date", help: "Start date for this version" },
+      { key: "validTo", label: "Valid To", type: "date", help: "End date for this version (optional)" },
+      { key: "description", label: "Description", type: "text" },
+      { key: "isActive", label: "Active", type: "boolean" },
+    ],
+    list: () => db.filingCountryCustomsVersion.findMany({
+      orderBy: [
+        { country: "asc" },
+        { procedureCode: "asc" },
+        { release: "asc" },
+      ],
+    }),
+    create: (data) => wrapPrismaErrors(() => {
+      return db.filingCountryCustomsVersion.create({
+        data: {
+          country: String(data.country || ""),
+          procedureCode: String(data.procedureCode || ""),
+          release: String(data.release || "1.0"),
+          validFrom: data.validFrom ? new Date(String(data.validFrom)) : new Date(),
+          validTo: data.validTo ? new Date(String(data.validTo)) : null,
+          description: data.description ? String(data.description) : null,
+          isActive: data.isActive !== false,
+          createdBy: data.createdBy ? String(data.createdBy) : null,
+        },
+      });
+    }),
+    update: (id, data) => wrapPrismaErrors(() => {
+      return db.filingCountryCustomsVersion.update({
+        where: { id },
+        data: {
+          country: data.country ? String(data.country) : undefined,
+          procedureCode: data.procedureCode ? String(data.procedureCode) : undefined,
+          release: data.release ? String(data.release) : undefined,
+          validFrom: data.validFrom ? new Date(String(data.validFrom)) : undefined,
+          validTo: data.validTo ? new Date(String(data.validTo)) : undefined,
+          description: data.description !== undefined ? (data.description ? String(data.description) : null) : undefined,
+          isActive: data.isActive !== undefined ? Boolean(data.isActive) : undefined,
+          updatedBy: data.updatedBy ? String(data.updatedBy) : undefined,
+        },
+      });
+    }),
+    remove: (id) => wrapPrismaErrors(() => {
+      return db.filingCountryCustomsVersion.delete({ where: { id } });
+    }).then(() => undefined),
+    createSchema: z.object({
+      country: z.string().min(2).max(2),
+      procedureCode: z.string().min(1),
+      release: z.string().default("1.0"),
+      validFrom: z.string().optional(),
+      validTo: z.string().optional(),
+      description: z.string().optional(),
+      isActive: z.boolean().default(true),
+      createdBy: z.string().optional(),
+    }),
+    updateSchema: z.object({
+      country: z.string().min(2).max(2).optional(),
+      procedureCode: z.string().min(1).optional(),
+      release: z.string().optional(),
+      validFrom: z.string().optional(),
+      validTo: z.string().optional(),
+      description: z.string().optional(),
+      isActive: z.boolean().optional(),
+      updatedBy: z.string().optional(),
+    }),
+  },
+
+  "customer-customs-version": {
+    label: "Customer Customs Versions",
+    description: "Map customers to specific customs versions",
+    idField: "id",
+    fields: [
+      { key: "applyToAllCustomers", label: "Apply to All Customers", type: "boolean", help: "When checked, this version applies to all customers" },
+      { key: "customerId", label: "Customer", type: "select", help: "Select specific customer (leave empty if Apply to All is checked)", options: [] },
+      { key: "filingCountryCustomsId", label: "Country Customs Version", type: "select", help: "Select country customs version", options: [] },
+      { key: "notes", label: "Notes", type: "text" },
+      { key: "isActive", label: "Active", type: "boolean" },
+    ],
+    list: async () => {
+      return await db.filingCustomerCustomsVersion.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          countryCustomsVersion: true,
+        },
+      });
+    },
+    create: (data) => wrapPrismaErrors(() => {
+      return db.filingCustomerCustomsVersion.create({
+        data: {
+          applyToAllCustomers: Boolean(data.applyToAllCustomers),
+          customerId: data.applyToAllCustomers ? null : String(data.customerId || ""),
+          filingCountryCustomsId: String(data.filingCountryCustomsId || ""),
+          notes: data.notes ? String(data.notes) : null,
+          isActive: data.isActive !== false,
+          createdBy: data.createdBy ? String(data.createdBy) : null,
+        },
+        include: {
+          countryCustomsVersion: true,
+        },
+      });
+    }),
+    update: (id, data) => wrapPrismaErrors(() => {
+      return db.filingCustomerCustomsVersion.update({
+        where: { id },
+        data: {
+          applyToAllCustomers: data.applyToAllCustomers !== undefined ? Boolean(data.applyToAllCustomers) : undefined,
+          customerId: data.applyToAllCustomers ? null : (data.customerId ? String(data.customerId) : undefined),
+          filingCountryCustomsId: data.filingCountryCustomsId ? String(data.filingCountryCustomsId) : undefined,
+          notes: data.notes !== undefined ? (data.notes ? String(data.notes) : null) : undefined,
+          isActive: data.isActive !== undefined ? Boolean(data.isActive) : undefined,
+          updatedBy: data.updatedBy ? String(data.updatedBy) : undefined,
+        },
+        include: {
+          countryCustomsVersion: true,
+        },
+      });
+    }),
+    remove: (id) => wrapPrismaErrors(() => {
+      return db.filingCustomerCustomsVersion.delete({ where: { id } });
+    }).then(() => undefined),
+    createSchema: z.object({
+      applyToAllCustomers: z.boolean().default(false),
+      customerId: z.string().optional(),
+      filingCountryCustomsId: z.string().min(1),
+      notes: z.string().optional(),
+      isActive: z.boolean().default(true),
+      createdBy: z.string().optional(),
+    }).refine(
+      (data) => data.applyToAllCustomers || data.customerId,
+      { message: "Either applyToAllCustomers must be true or customerId must be provided" }
+    ),
+    updateSchema: z.object({
+      applyToAllCustomers: z.boolean().optional(),
+      customerId: z.string().optional(),
+      filingCountryCustomsId: z.string().min(1).optional(),
+      notes: z.string().optional(),
+      isActive: z.boolean().optional(),
+      updatedBy: z.string().optional(),
     }),
   },
 };

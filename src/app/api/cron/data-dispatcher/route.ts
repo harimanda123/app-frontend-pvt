@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withCronRoute } from "@/lib/api/auth-guards";
-import { db } from "@/lib/db";
+import { db, runWithAccountId } from "@/lib/db";
 import { DATASET_DEFINITIONS } from "@/lib/data/datasetRegistry";
 import { DatasetAlertService } from "@/lib/data/datasetAlertService";
 
@@ -27,13 +27,15 @@ async function notifyPlatformAdmins(message: string, type: string) {
   for (const admin of platformAdmins) {
     const membership = admin.memberships[0];
     if (!membership) continue; // platform admin has no active tenant membership to notify through
-    await db.notification
-      .create({
-        data: { accountId: membership.accountId, userId: admin.id, message, type },
-      })
-      .catch((err) => {
-        console.error(`[data-dispatcher] Failed to notify platform admin ${admin.id}:`, err);
-      });
+    await runWithAccountId(membership.accountId, async () => {
+      await db.notification
+        .create({
+          data: { accountId: membership.accountId, userId: admin.id, message, type },
+        })
+        .catch((err) => {
+          console.error(`[data-dispatcher] Failed to notify platform admin ${admin.id}:`, err);
+        });
+    });
   }
 }
 

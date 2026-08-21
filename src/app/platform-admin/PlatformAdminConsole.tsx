@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDate, cn } from "@/lib/utils";
-import { Building2, UserPlus, Shield, CheckCircle2, AlertCircle, Search, Globe2, Rocket, Bot, Code2, Database, Gavel, Brain } from "lucide-react";
+import { Building2, UserPlus, Shield, CheckCircle2, AlertCircle, Search, Globe2, Rocket, Bot, Code2, Database, Gavel, Brain, ShieldAlert } from "lucide-react";
 import { HtsAdminPanel, HtsAdminData } from "./HtsAdminPanel";
 import { DeploymentsPanel } from "./DeploymentsPanel";
 import { AgentsAnalyticsPanel } from "./AgentsAnalyticsPanel";
@@ -11,6 +11,7 @@ import { ApiExplorerPanel } from "./ApiExplorerPanel";
 import { CronPanel } from "./CronPanel";
 import { DataAdminPanel } from "./DataAdminPanel";
 import { RateReviewPanel } from "./RateReviewPanel";
+import { KeywordRuleReviewPanel } from "./KeywordRuleReviewPanel";
 import { AccountMemoryPanel } from "./AccountMemoryPanel";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, FormField } from "@/components/ui/Input";
@@ -32,12 +33,19 @@ interface PlatformAdminConsoleProps {
   htsAdmin: HtsAdminData;
   aiUsage: AiUsageAnalytics;
   documentProcessing: DocumentProcessingAnalytics;
+  pendingKeywordRuleCount: number;
 }
 
-export function PlatformAdminConsole({ accounts, htsAdmin, aiUsage, documentProcessing }: PlatformAdminConsoleProps) {
+export function PlatformAdminConsole({
+  accounts,
+  htsAdmin,
+  aiUsage,
+  documentProcessing,
+  pendingKeywordRuleCount,
+}: PlatformAdminConsoleProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "accounts" | "hts" | "deployments" | "agents" | "api" | "cron" | "data" | "rate-review" | "memory"
+    "accounts" | "hts" | "deployments" | "agents" | "api" | "cron" | "data" | "rate-review" | "keyword-rules" | "memory"
   >("accounts");
   const [companyName, setCompanyName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -127,6 +135,21 @@ export function PlatformAdminConsole({ accounts, htsAdmin, aiUsage, documentProc
         </div>
       )}
 
+      {pendingKeywordRuleCount > 0 && activeTab !== "keyword-rules" && (
+        <button
+          type="button"
+          onClick={() => setActiveTab("keyword-rules")}
+          className="w-full p-4 rounded-2xl text-sm border border-amber-200 bg-amber-50 text-amber-900 flex items-center space-x-3 text-left hover:bg-amber-100 transition-colors"
+        >
+          <ShieldAlert className="w-5 h-5 shrink-0 text-amber-600" />
+          <span>
+            <b>{pendingKeywordRuleCount}</b> End-Use / Anti-Boycott / Military End-Use / Restricted-Party keyword
+            {pendingKeywordRuleCount === 1 ? " phrase is" : " phrases are"} sitting as DRAFT, invisible to live
+            screening. Review and publish them in Keyword Rules →
+          </span>
+        </button>
+      )}
+
       {/* Tab Switcher */}
       <div className="flex items-center space-x-2">
         <button
@@ -155,6 +178,24 @@ export function PlatformAdminConsole({ accounts, htsAdmin, aiUsage, documentProc
         >
           <Gavel className="w-3.5 h-3.5" />
           <span>Rate Review</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("keyword-rules")}
+          className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center space-x-2 ${
+            activeTab === "keyword-rules" ? "bg-brand text-white" : "bg-white border border-border text-ink-muted hover:text-ink"
+          }`}
+        >
+          <ShieldAlert className="w-3.5 h-3.5" />
+          <span>Keyword Rules</span>
+          {pendingKeywordRuleCount > 0 && (
+            <span
+              className={`inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[10px] font-extrabold ${
+                activeTab === "keyword-rules" ? "bg-white text-brand" : "bg-red-500 text-white"
+              }`}
+            >
+              {pendingKeywordRuleCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab("hts")}
@@ -206,6 +247,8 @@ export function PlatformAdminConsole({ accounts, htsAdmin, aiUsage, documentProc
       {activeTab === "data" && <DataAdminPanel />}
 
       {activeTab === "rate-review" && <RateReviewPanel />}
+
+      {activeTab === "keyword-rules" && <KeywordRuleReviewPanel />}
 
       {activeTab === "hts" && <HtsAdminPanel data={htsAdmin} />}
 

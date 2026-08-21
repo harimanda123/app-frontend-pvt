@@ -29,6 +29,8 @@ const { dbMock } = vi.hoisted(() => {
 
 vi.mock("../src/lib/db", () => ({
   db: dbMock,
+  runWithAccountId: (_accountId: string | null | undefined, fn: () => unknown) => fn(),
+  withAccountIdContext: (_accountId: string | null | undefined, fn: () => Promise<unknown>) => fn(),
 }));
 
 // Mock the Gemini API meter/call to avoid network/api issues
