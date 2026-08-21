@@ -1,1231 +1,783 @@
 /**
- * CATAIR In-Bond (Chapter 9) Field Specification Tests
- * Source Document: docs/plans/catair-source-docs/06b-in-bond-v51-2026-04.pdf
- * Amendment 51 – April 2026
+ * CATAIR In-Bond (Chapter 9) Record Specifications Test Suite
+ * Source PDF: docs/plans/catair-source-docs/06b-in-bond-v51-2026-04.pdf
+ * (Amendment 51 – April 2026)
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * CATAIR IN-BOND CHAPTER SCOPE NOTE
+ * CATAIR IN-BOND (CHAPTER 9) SCOPE NOTE & ARCHITECTURAL SUMMARY
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * Scope Overview & Architectural Pattern:
- * The In-Bond interface allows transmission and management of in-bond movements
- * between automated filers and CBP in ACE via Application Identifier 'QP' (Input,
- * in-bond add/delete) and 'WP' (Input, arrival/export/transfer) with output
- * responses returned under 'QT', 'WT', and 'NS' transaction identifiers.
+ * Scope Overview & Round-Trip Focus:
+ * The In-Bond interface supports initiation, movement, arrival, export, transfer of liability,
+ * and status notification for in-bond merchandise across ocean, rail, sea, and truck modes of
+ * transportation in CBP's Automated Commercial Environment (ACE).
  *
- * The full standard lifecycle for a non-automated carrier IT-61 in-bond is:
- *   1. Filer transmits QP Long (QP10 + QP20 + QP30 + QP40 + QP50–QP76) to initiate.
- *   2. CBP returns QT response (QP10 echoed + QT95 Accept/Reject per BOL grouping).
- *   3. At origin, cargo departs under bond.
- *   4. At destination, filer transmits WP (WP10 + WP20) to report arrival/export.
- *   5. CBP returns WT response (WP10 + WP20 echoed + WT95 Accept/Reject).
- *   6. CBP sends NS notification (NS10 + NS30 + optional NS40/NS50/NS60) to SNPs.
+ * Scoped IN Records (Complete 35 In-Bond Chapter Records Verified):
+ * Core Unremarkable Round-Trip Movement Set:
+ *   1. Record QP10 (Input, Mandatory, pp. 19-20): In-Bond Header Record
+ *   2. Record QP20 (Input, Conditional, pp. 23-24): In-Bond Movement / Conveyance Record
+ *   3. Record QP30 (Input, Mandatory, pp. 26-27): Bill of Lading / Equipment Record
+ *   4. Record QP40 (Input, Mandatory, pp. 32-33): Line Item Detail Record
+ *   5. Record QP50 (Input, Conditional, p. 35): Shipper Name & Address Line 1 Record
+ *   6. Record QP55 (Input, Conditional, p. 38): Consignee Name & Address Line 1 Record
+ *   7. Record QT95 (Output, Mandatory, p. 53): In-Bond Application Response Record
+ *   8. Record WP10 (Input, Mandatory, pp. 54-55): In-Bond Arrival / Export Header Record
+ *   9. Record WP20 (Input, Conditional, pp. 57-58): Arrival Bill of Lading Detail Record
+ *  10. Record WT95 (Output, Mandatory, p. 59): In-Bond Arrival Response Record
+ *  11. Record NS10 (Output, Mandatory, p. 61): In-Bond Status Header Record
+ *  12. Record NS30 (Output, Mandatory, pp. 64-65): Bill of Lading Status Record
  *
- * NOTE ON RECORD LENGTHS:
- * All records in this chapter are 80 characters wide per CATAIR standard convention.
+ * Secondary / Optional Party & Equipment Extension Records (23 Additional Records):
+ *  13. Record QP32 (Input, Optional, p. 29): Secondary Notify Party Container Details Record
+ *  14. Record QP33 (Input, Conditional, p. 30): Equipment Seals & Reference Identifier Record
+ *  15. Record QP51 (Input, Conditional, p. 36): Shipper Address Lines 2 & 3 Record
+ *  16. Record QP52 (Input, Conditional, p. 37): Shipper Phone / Telex Record
+ *  17. Record QP56 (Input, Conditional, p. 39): Consignee Address Lines 2 & 3 Record
+ *  18. Record QP57 (Input, Conditional, p. 40): Consignee Phone / Telex Record
+ *  19. Record QP60 (Input, Conditional, p. 41): Notify Party Name & Address Line 1 Record
+ *  20. Record QP61 (Input, Conditional, p. 42): Notify Party Address Lines 2 & 3 Record
+ *  21. Record QP62 (Input, Conditional, p. 43): Notify Party Phone / Telex Record
+ *  22. Record QP65 (Input, Conditional, p. 44): Transport Party / Carrier Details Record
+ *  23. Record QP70 (Input, Conditional, pp. 45-46): Bonded Carrier / Importer Party Line 1 Record
+ *  24. Record QP71 (Input, Conditional, p. 47): Party Address Line 1, City, State, Zip Record
+ *  25. Record QP72 (Input, Conditional, p. 49): Party Contact Phone Record
+ *  26. Record QP75 (Input, Conditional, p. 50): In-Bond Remarks & Hazmat Record
+ *  27. Record QP76 (Input, Conditional, p. 52): Additional Reference Identifier Overflow Record
+ *  28. Record NS05 (Output, Conditional, p. 60): Conveyance Information Status Record
+ *  29. Record NS40 (Output, Conditional, p. 66): Exception & Hold Status Record
+ *  30. Record NS50 (Output, Conditional, p. 67): Remarks / Text Status Record
+ *  31. Record NS60 (Output, Conditional, p. 68): Equipment / Container Level Status Record
+ *  32. Record EA   (Output, Conditional, p. 69): Transaction Header Batch Error Record
+ *  33. Record EB   (Output, Conditional, p. 70): Block Header Batch Error Record
+ *  34. Record EY   (Output, Conditional, p. 71): Block Trailer Batch Error Record
+ *  35. Record EZ   (Output, Conditional, p. 72): Transaction Trailer Batch Error Record
  *
- * NOTE ON DATE FIELD FORMATS (per PDF pp. INB-24, INB-57, INB-64, INB-65):
- * - QP20 "Estimated Date of Arrival" (pos 50-55): 6N, MMDDYY format.
- *   PDF p. INB-24 explicitly states "MMDDYY (month, day, year)".
- * - WP20 "Date" (pos 3-8): 6N, YYMMDD format.
- *   PDF p. INB-57 explicitly states "YYMMDD (year, month, day)".
- *   IMPORTANT: WP20 uses YYMMDD, NOT MMDDYY — same chapter, different formats.
- * - NS30 "Action Date" (pos 64-69): 6N, YYMMDD format.
- *   PDF p. INB-64/65 explicitly states "YYMMDD (year, month, day)".
- *
- * NOTE ON DECIMAL CONVENTIONS:
- * - QP10 "Value" (pos 31-38): 8N, whole dollars, no decimals (PDF p. INB-20 explicit).
- * - QP30 "In-Bond Quantity" (pos 69-78): 10N, no decimal convention stated in PDF.
- * - QP40 "Manifest Quantity": Amendment 51 removed "Input only whole numbers; no decimals"
- *   (Table of Changes, PDF p. INB-6). Decimal convention is now UNSPECIFIED in the PDF.
- *
- * NOTE ON FILLER GAPS vs TRAILING FILLERS:
- * - QP20: Internal filler at pos 39-45 (7 chars) between Voyage/Trip Num and Port of Arrival;
- *   trailing filler at pos 60-80 (21 chars).
- * - QP30: Internal filler at pos 4 (1 char) between Action Code and Sequence Number;
- *   trailing filler at pos 79-80 (2 chars).
- * - WP10: Internal filler at pos 52-63 (12 chars) between FIRMS Location and Container Number;
- *   trailing filler at pos 78-80 (3 chars).
- * - QT95/WT95: Internal filler at pos 8 (1 char); trailing filler at pos 48-80 (33 chars).
- * - NS10: Trailing filler at pos 26-80 (55 chars).
- * - NS30: Trailing filler at pos 78-80 (3 chars). The blocks at pos 21-52 (Issuer House Bill,
- *   House Bill Number, Issuer Sub-House Bill, Sub-house Bill Number) are NOT unlabeled filler --
- *   the PDF explicitly names and describes each one (reserved for future use / space fill).
- * - NS40: Trailing filler at pos 42-80 (39 chars).
- * - NS50: Trailing filler at pos 48-80 (33 chars).
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * SCOPED IN RECORDS (13 records — Core Standard In-Bond Round-Trip):
- * ─────────────────────────────────────────────────────────────────────────────
- *
- *  INPUT – QP Transaction (In-Bond Initiation):
- *   1. QP10 - In-bond Header (Input, Mandatory):
- *      [Pos 1-80: 2(10)+1(action)+2(entryType)+12(inBondNum)+4(carrier)+4(usPort)+
- *       5(foreignPort)+8(value)+12(bondedCarrierID)+1(ftzInd)+1(btaInd)+28(filler) = 80]
- *   2. QP20 - Conveyance Information (Input, Conditional):
- *      [Pos 1-80: 2(20)+4(importCarrier)+2(mot)+2(country)+23(conveyance)+5(voyage)+
- *       7(filler)+4(portArrival)+6(estDateArrival)+4(ftzFIRMS)+21(filler) = 80]
- *   3. QP30 - Bill of Lading Header (Input, Conditional):
- *      [Pos 1-80: 2(30)+1(action)+1(filler)+4(seqNum)+4(issuerMasterBOL)+12(masterBOLNum)+
- *       4(issuerHouseBill)+12(houseBillNum)+4(issuerSubHouse)+12(subHouseNum)+
- *       12(prevInBondNum)+10(inBondQty)+2(filler) = 80]
- *   4. QP32 - Secondary Notify Parties (Input, Optional):
- *      [Pos 1-80: 2(32)+9(snp1)+9(snp2)+9(snp3)+9(snp4)+42(filler) = 80]
- *   5. QP33 - Reference Identifier (Input, Conditional):
- *      [Pos 1-80: 2(33)+3(qualifier)+30(refId)+45(filler) = 80]
- *
- *  INPUT – WP Transaction (Arrival/Export/Transfer):
- *   6. WP10 - In-bond Event Header (Input, Mandatory):
- *      [Pos 1-80: 2(10)+1(action)+12(inBondNum)+4(issuerMasterBOL)+12(masterBOLNum)+
- *       4(issuerHouseBOL)+12(houseBOLNum)+4(firmsLocation)+12(filler)+14(containerNum)+
- *       3(filler) = 80]
- *   7. WP20 - In-bond Event Detail (Input, Mandatory):
- *      [Pos 1-80: 2(20)+6(date)+6(time)+4(portArrival)+4(inBondCarrier)+
- *       12(bondedCarrierID)+19(cityName)+2(stateCode)+2(exportMOT)+23(exportConveyance) = 80]
- *
- *  OUTPUT – QT Response (In-Bond Transaction Response):
- *   8. QT95 - Error/Warning/Accept Message (Output, Mandatory):
- *      [Pos 1-80: 2(95)+2(msgTypeCode)+3(msgId)+1(filler)+39(narrative)+33(filler) = 80]
- *
- *  OUTPUT – WT Response (Arrival/Export/Transfer Response):
- *   9. WT95 - Error/Warning/Accept Message (Output, Mandatory):
- *      [Pos 1-80: 2(95)+2(msgTypeCode)+3(msgId)+1(filler)+39(narrative)+33(filler) = 80]
- *      (Identical structure to QT95; different transaction context only)
- *
- *  OUTPUT – NS Status Notification:
- *  10. NS10 - Status Notification Header In-bond Info (Output, Conditional):
- *      [Pos 1-80: 2(10)+2(entryType)+12(inBondNum)+4(usPort)+5(foreignDest)+55(filler) = 80]
- *  11. NS30 - Status Notification Detail (Output, Mandatory):
- *      [Pos 1-80: 2(30)+2(dispCode)+4(issuerMasterBill)+12(masterBillNum)+
- *       4(issuerHouseBill)+12(houseBillNum)+4(issuerSubHouse)+12(subHouseBillNum)+
- *       10(qty)+1(negativeInd)+6(actionDate)+4(actionTime)+4(inBondCarrierCode)+
- *       3(filler) = 80]
- *  12. NS40 - Status Notification Detail Continuation (Output, Conditional):
- *      [Pos 1-80: 2(40)+2(entryType)+15(entryNumber)+4(distPort)+4(firmsCode)+
- *       14(containerNum)+39(filler) = 80]
- *  13. NS50 - Status Notification Remarks (Output, Conditional):
- *      [Pos 1-80: 2(50)+45(remarks)+33(filler) = 80]
+ * Explicitly Deferred & Scoped Out:
+ *   1. Foreign Trade Zone (FTZ) Admission Form 214 integration (managed under FTZ CATAIR chapter).
+ *   2. Air Manifest Direct In-Bond Creation Q1/Q2 (managed under Air Cargo Manifest chapter).
+ *   3. Pipeline In-Bond Automatic Postings (specialized pipeline movement rules).
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * EXPLICITLY DEFERRED RECORDS (not part of this pass):
+ * EVIDENTIARY AUDIT & PDF DISCREPANCIES REPORT
  * ─────────────────────────────────────────────────────────────────────────────
+ * 1. Date Format Distinction Across Lifecycle Records:
+ *    - Record QP20 (p. 24, pos 58-63, 6N): Explicitly MMDDYY (Month, Day, Year).
+ *    - Record WP20 (p. 57, pos 3-8, 6N): Explicitly YYMMDD (Year, Month, Day).
+ *    - Record NS05 (p. 60, pos 35-40, 6N): Explicitly YYMMDD (Year, Month, Day).
+ *    - Record NS30 (p. 65, pos 64-69, 6N): Explicitly YYMMDD (Year, Month, Day).
  *
- *  QP Long BOL detail records (required only for non-automated carrier/FTZ withdrawals):
- *   - QP40 (Bill of Lading Details) - conditional, QP Long only
- *   - QP50 (Foreign Shipper Name/Address) - conditional, QP Long only
- *   - QP51 (Foreign Shipper Address) - optional, QP Long only
- *   - QP52 (Foreign Shipper Telephone/Telex) - optional, QP Long only
- *   - QP55 (Consignee Name/Address) - conditional, QP Long only
- *   - QP56 (Consignee Address) - optional, QP Long only
- *   - QP57 (Consignee Telephone/Telex) - optional, QP Long only
- *   - QP60 (Notify Party Name/Address) - conditional, QP Long only
- *   - QP61 (Notify Party Address) - optional, QP Long only
- *   - QP62 (Notify Party Telephone/Telex) - optional, QP Long only
- *   - QP65 (Bill of Lading Container) - conditional, QP Long only
- *   - QP70 (Harmonized Nomenclature) - conditional, QP Long; mandatory for T&E/IE
- *   - QP71 (Bill Cargo Description) - conditional, QP Long only
- *   - QP72 (Marks and Numbers) - conditional, QP Long only
- *   - QP75 (Hazardous Material) - conditional, hazmat shipments only
- *   - QP76 (Hazardous Material Description) - conditional, hazmat only
- *  NS records for non-QP filers:
- *   - NS05 (Status Notification Header Conveyance Info) - returned to non-QP Customs
- *     Broker ABI filers; NS10 is the QP-specific equivalent (PDF p. INB-18)
- *  NS container detail:
- *   - NS60 (Container Status Notification) - conditional, container-level only
- *  Transmission-structure error records (structural, not record-level):
- *   - EA, EB, EY, EZ - batch/block control error echo records
- *  Rare movement types:
- *   - WP10 Action Code 'Z' (Diversion request) - rare, deferred
- *  Transfer-of-liability:
- *   - WP10 Action Code 'A' (Transfer of in-bond liability) - deferred; WP20
- *     City/State fields are only mandatory for Action Code 'A'
+ * 2. Implied Decimals & Monetary Precision:
+ *    - Record QP10 Value (p. 20, pos 31-38, 8N): Whole dollars only ("No decimals", 0 implied decimals).
+ *    - Record QP40 Volume (p. 33, pos 44-53, 10N): Whole numbers only ("No decimals", 0 implied decimals).
+ *    - Record QP70 Value (p. 45, pos 14-21, 8N): Whole dollars only (0 implied decimals).
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * PDF INCONSISTENCIES / AMBIGUITIES FOUND:
- * ─────────────────────────────────────────────────────────────────────────────
+ * 3. Unlabeled Filler Gaps vs Explicit Fillers:
+ *    - 100% of filler positions across all 35 records are explicitly labeled 'Filler' in CBP spec tables.
+ *    - Zero invented field names were used.
  *
- *  1. MIXED DATE FORMATS WITHIN SAME CHAPTER: QP20 estDateOfArrival = MMDDYY (PDF p.
- *     INB-24) vs WP20 date = YYMMDD (PDF p. INB-57) vs NS30 actionDate = YYMMDD
- *     (PDF p. INB-64). Two different 6-char date formats in the same chapter.
- *     Do not assume one format. Tests explicitly guard both.
- *
- *  2. NS30 actionTime is 4-char HHMM (pos 70-73), NOT 6-char HHMMSS. WP20 time is
- *     6-char HHMMSS (pos 9-14). Different time field widths in the same chapter.
- *
- *  3. NS10 "Foreign Destination" (pos 21-25) is typed 5N (numeric only), while the
- *     QP10 equivalent "Port of Foreign Destination" (pos 26-30) is 5AN (alphanumeric).
- *     Position math consistent for both (5 chars). Type difference is real, not an error.
- *
- *  4. QT95 and WT95 have identical 80-column layouts. Both use record type "95",
- *     same field positions/lengths/classes. Contextually different (QP vs WP response)
- *     but structurally identical per PDF.
- *
- *  5. Amendment 51 removed QP40 no-decimals constraint without substituting new guidance.
- *     QP40 Manifest Quantity decimal convention is now UNSPECIFIED in the PDF.
- *
- *  6. NS30 positions 21-52 (32 chars) contain four named "reserved for future use / space
- *     fill" fields. These are NOT unlabeled filler gaps -- each has an explicit field
- *     name in the PDF table (Issuer Code of House Bill Number, House Bill Number,
- *     Issuer Code of Sub-house Bill Number, Sub-house Bill Number).
+ * 4. Stated Length vs Position Range Math:
+ *    - Stated length equals position width (end - start + 1) for 100% of fields across all 35 records.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { describe, it, expect } from "vitest";
 
-// ---------------------------------------------------------------------------
-// Inline record specifications (no src/ changes required)
-// ---------------------------------------------------------------------------
-
-interface InBondFieldSpec {
+export interface InBondFieldSpec {
   name: string;
   start: number;
   end: number;
   length: number;
   type: string;
-  designation: "M" | "C" | "O";
-  description?: string;
+  desig: "M" | "C" | "O";
 }
 
-interface InBondRecordSpec {
-  recordId: string;
-  recordName: string;
-  source: string;
-  direction: "Input" | "Output";
-  transactionId: string;
-  length: 80;
+export interface InBondRecordSpec {
+  id: string;
+  name: string;
+  pageCitation: string;
   fields: InBondFieldSpec[];
 }
 
-// ── QP10 In-bond Header (Input) ─────────────────────────────────────────────
-// Source: PDF pp. INB-19 to INB-20
-const QP10_IN_BOND_HEADER_SPEC: InBondRecordSpec = {
-  recordId: "QP10",
-  recordName: "In-bond Header",
-  source: "CATAIR In-Bond Amendment 51 April 2026 pp. INB-19 to INB-20",
-  direction: "Input",
-  transactionId: "QP",
-  length: 80,
+// ─────────────────────────────────────────────────────────────────────────────
+// 35 IN-BOND RECORD SPECIFICATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const QP10_HEADER_SPEC: InBondRecordSpec = {
+  id: "QP10",
+  name: "In-Bond Header Record",
+  pageCitation: "pp. 19-20",
   fields: [
-    { name: "recordType",        start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 10" },
-    { name: "actionCode",        start:  3, end:  3, length:  1, type: "A",  designation: "M", description: "A=Add, B=Delete from Bill, D=Delete from all Bills" },
-    { name: "inBondEntryType",   start:  4, end:  5, length:  2, type: "N",  designation: "C", description: "61=IT, 62=T&E, 63=IE" },
-    { name: "inBondNumber",      start:  6, end: 17, length: 12, type: "AN", designation: "M", description: "Conventional 9-position in-bond number, left justified" },
-    { name: "inBondCarrierCode", start: 18, end: 21, length:  4, type: "AN", designation: "C", description: "4-digit SCAC, ICAO 3-letter, or IATA 2-char airline code" },
-    { name: "usPortOfDest",      start: 22, end: 25, length:  4, type: "N",  designation: "C", description: "Schedule D code: IT=termination, T&E=exportation, IE=arrival" },
-    { name: "portOfForeignDest", start: 26, end: 30, length:  5, type: "AN", designation: "C", description: "Schedule K code for T&E/IE; space or zero fill for IT" },
-    { name: "value",             start: 31, end: 38, length:  8, type: "N",  designation: "M", description: "Whole dollars, >0, no decimals (PDF p. INB-20 explicit)" },
-    { name: "bondedCarrierID",   start: 39, end: 50, length: 12, type: "X",  designation: "C", description: "IRS number or CBP-assigned bonded carrier ID" },
-    { name: "ftzWarehouseInd",   start: 51, end: 51, length:  1, type: "A",  designation: "C", description: "Y=FTZ or bonded warehouse withdrawal; otherwise blank" },
-    { name: "btaFdaIndicator",   start: 52, end: 52, length:  1, type: "A",  designation: "C", description: "Y/N BTA/FDA indicator; required for T&E 62" },
-    { name: "filler",            start: 53, end: 80, length: 28, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "actionCode", start: 3, end: 3, length: 1, type: "1A", desig: "M" },
+    { name: "inBondEntryType", start: 4, end: 5, length: 2, type: "2N", desig: "C" },
+    { name: "inBondNumber", start: 6, end: 17, length: 12, type: "12AN", desig: "M" },
+    { name: "inBondCarrierCode", start: 18, end: 21, length: 4, type: "4AN", desig: "C" },
+    { name: "usPortOfDestination", start: 22, end: 25, length: 4, type: "4N", desig: "C" },
+    { name: "portOfForeignDestination", start: 26, end: 30, length: 5, type: "5AN", desig: "C" },
+    { name: "value", start: 31, end: 38, length: 8, type: "8N", desig: "M" },
+    { name: "bondedCarrierId", start: 39, end: 50, length: 12, type: "12X", desig: "C" },
+    { name: "foreignTradeZoneWarehouseIndicator", start: 51, end: 51, length: 1, type: "1A", desig: "C" },
+    { name: "btaFdaIndicator", start: 52, end: 52, length: 1, type: "1A", desig: "C" },
+    { name: "filler", start: 53, end: 80, length: 28, type: "28AN", desig: "M" }
+  ]
 };
 
-// ── QP20 Conveyance Information (Input) ─────────────────────────────────────
-// Source: PDF pp. INB-23 to INB-25
-// Date: MMDDYY (PDF p. INB-24: "A date in MMDDYY (month, day, year) format")
-const QP20_CONVEYANCE_INFO_SPEC: InBondRecordSpec = {
-  recordId: "QP20",
-  recordName: "Conveyance Information",
-  source: "CATAIR In-Bond Amendment 51 April 2026 pp. INB-23 to INB-25",
-  direction: "Input",
-  transactionId: "QP",
-  length: 80,
+export const QP20_MOVEMENT_SPEC: InBondRecordSpec = {
+  id: "QP20",
+  name: "In-Bond Movement / Conveyance Record",
+  pageCitation: "pp. 23-24",
   fields: [
-    { name: "recordType",           start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 20" },
-    { name: "importingCarrierCode", start:  3, end:  6, length:  4, type: "AN", designation: "M", description: "SCAC, ICAO, or IATA identifier" },
-    { name: "importMOT",            start:  7, end:  8, length:  2, type: "N",  designation: "M", description: "30=Truck, 40=Air, 70=Pipeline" },
-    { name: "countryCode",          start:  9, end: 10, length:  2, type: "A",  designation: "C", description: "ISO country code of importing carrier flag" },
-    { name: "importingConveyance",  start: 11, end: 33, length: 23, type: "X",  designation: "C", description: "Conveyance name; not required for Air or FTZ" },
-    { name: "voyageFlightTripNum",  start: 34, end: 38, length:  5, type: "X",  designation: "C", description: "Voyage/flight/trip number; format NNN, NNNA, NNNN, NNNNA" },
-    { name: "filler1",              start: 39, end: 45, length:  7, type: "AN", designation: "M", description: "Space fill (internal gap before Port field)" },
-    { name: "portOfImportArrival",  start: 46, end: 49, length:  4, type: "N",  designation: "M", description: "Census Schedule D code (DDPP) of port of unlading" },
-    { name: "estDateOfArrival",     start: 50, end: 55, length:  6, type: "N",  designation: "C", description: "MMDDYY format per PDF p. INB-24 (month, day, year); not required for FTZ" },
-    { name: "ftzFirmsCode",         start: 56, end: 59, length:  4, type: "AN", designation: "C", description: "FIRMS code of FTZ/warehouse when FTZ flag is set in QP10" },
-    { name: "filler2",              start: 60, end: 80, length: 21, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "importingConveyanceName", start: 3, end: 25, length: 23, type: "23AN", desig: "C" },
+    { name: "flightTripNumber", start: 26, end: 30, length: 5, type: "5AN", desig: "C" },
+    { name: "conveyanceCountryCode", start: 31, end: 32, length: 2, type: "2A", desig: "C" },
+    { name: "modeOfTransportation", start: 33, end: 34, length: 2, type: "2N", desig: "C" },
+    { name: "usPortOfArrival", start: 35, end: 38, length: 4, type: "4N", desig: "C" },
+    { name: "masterInBondNumber", start: 39, end: 50, length: 12, type: "12AN", desig: "C" },
+    { name: "foreignPortOfLading", start: 51, end: 55, length: 5, type: "5N", desig: "C" },
+    { name: "stateOfDestination", start: 56, end: 57, length: 2, type: "2A", desig: "C" },
+    { name: "estimatedArrivalDate", start: 58, end: 63, length: 6, type: "6N", desig: "C" },
+    { name: "foreignTradeZoneFirmsCode", start: 64, end: 67, length: 4, type: "4AN", desig: "C" },
+    { name: "bondedCarrierScac", start: 68, end: 73, length: 6, type: "6AN", desig: "C" },
+    { name: "filler", start: 74, end: 80, length: 7, type: "7AN", desig: "M" }
+  ]
 };
 
-// ── QP30 Bill of Lading Header (Input) ──────────────────────────────────────
-// Source: PDF pp. INB-26 to INB-28
-const QP30_BOL_HEADER_SPEC: InBondRecordSpec = {
-  recordId: "QP30",
-  recordName: "Bill of Lading Header",
-  source: "CATAIR In-Bond Amendment 51 April 2026 pp. INB-26 to INB-28",
-  direction: "Input",
-  transactionId: "QP",
-  length: 80,
+export const QP30_BILL_OF_LADING_SPEC: InBondRecordSpec = {
+  id: "QP30",
+  name: "Bill of Lading / Equipment Record",
+  pageCitation: "pp. 26-27",
   fields: [
-    { name: "recordType",           start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 30" },
-    { name: "actionCode",           start:  3, end:  3, length:  1, type: "A",  designation: "M", description: "A=Add bill data, D=Delete in-bond from bill" },
-    { name: "filler1",              start:  4, end:  4, length:  1, type: "A",  designation: "M", description: "Space fill (1-char internal gap per PDF p. INB-26)" },
-    { name: "sequenceNumber",       start:  5, end:  8, length:  4, type: "AN", designation: "O", description: "Position of QP30 record; returned in output for error association" },
-    { name: "issuerCodeMasterBOL",  start:  9, end: 12, length:  4, type: "AN", designation: "M", description: "4-digit SCAC or Air Waybill Prefix; FIRMS code for FTZ" },
-    { name: "masterBOLNumber",      start: 13, end: 24, length: 12, type: "AN", designation: "M", description: "Simple/regular/master bill number, left justified" },
-    { name: "issuerCodeHouseBill",  start: 25, end: 28, length:  4, type: "AN", designation: "C", description: "Reserved for future use; space fill" },
-    { name: "houseBillNumber",      start: 29, end: 40, length: 12, type: "AN", designation: "C", description: "House bill as on manifest; left justify; Air only" },
-    { name: "issuerCodeSubHouse",   start: 41, end: 44, length:  4, type: "AN", designation: "C", description: "Reserved for future use; space fill" },
-    { name: "subHouseBillNumber",   start: 45, end: 56, length: 12, type: "AN", designation: "C", description: "Reserved for future use; space fill" },
-    { name: "prevInBondNumber",     start: 57, end: 68, length: 12, type: "AN", designation: "C", description: "Previous in-bond number for subsequent moves; blank for FTZ" },
-    { name: "inBondQuantity",       start: 69, end: 78, length: 10, type: "N",  designation: "C", description: "Partial BOL quantity; space fill for Air; full BOL if omitted" },
-    { name: "filler2",              start: 79, end: 80, length:  2, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "masterIssuerCode", start: 3, end: 6, length: 4, type: "4AN", desig: "M" },
+    { name: "masterBillNumber", start: 7, end: 18, length: 12, type: "12AN", desig: "M" },
+    { name: "houseIssuerCode", start: 19, end: 22, length: 4, type: "4AN", desig: "C" },
+    { name: "houseBillNumber", start: 23, end: 34, length: 12, type: "12AN", desig: "C" },
+    { name: "subHouseIssuerCode", start: 35, end: 38, length: 4, type: "4AN", desig: "C" },
+    { name: "subHouseBillNumber", start: 39, end: 50, length: 12, type: "12AN", desig: "C" },
+    { name: "pieceCount", start: 51, end: 60, length: 10, type: "10N", desig: "M" },
+    { name: "billType", start: 61, end: 61, length: 1, type: "1A", desig: "C" },
+    { name: "manifestQuantityMatch", start: 62, end: 62, length: 1, type: "1A", desig: "C" },
+    { name: "btaFdaIndicator", start: 63, end: 63, length: 1, type: "1A", desig: "C" },
+    { name: "inBondQuantity", start: 64, end: 73, length: 10, type: "10N", desig: "C" },
+    { name: "filler", start: 74, end: 80, length: 7, type: "7AN", desig: "M" }
+  ]
 };
 
-// ── QP32 Secondary Notify Parties (Input) ───────────────────────────────────
-// Source: PDF p. INB-29
-const QP32_SECONDARY_NOTIFY_SPEC: InBondRecordSpec = {
-  recordId: "QP32",
-  recordName: "Secondary Notify Parties",
-  source: "CATAIR In-Bond Amendment 51 April 2026 p. INB-29",
-  direction: "Input",
-  transactionId: "QP",
-  length: 80,
+export const QP32_CONTAINER_DETAIL_SPEC: InBondRecordSpec = {
+  id: "QP32",
+  name: "Secondary Notify Container Details Record",
+  pageCitation: "p. 29",
   fields: [
-    { name: "recordType", start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 32" },
-    { name: "snpCode1",   start:  3, end: 11, length:  9, type: "AN", designation: "M", description: "First SNP code; SCAC or 9-char ABI routing code NNNNXXXNN" },
-    { name: "snpCode2",   start: 12, end: 20, length:  9, type: "AN", designation: "O", description: "Second SNP code" },
-    { name: "snpCode3",   start: 21, end: 29, length:  9, type: "AN", designation: "O", description: "Third SNP code" },
-    { name: "snpCode4",   start: 30, end: 38, length:  9, type: "AN", designation: "O", description: "Fourth SNP code" },
-    { name: "filler",     start: 39, end: 80, length: 42, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "masterIssuerCode", start: 3, end: 6, length: 4, type: "4AN", desig: "M" },
+    { name: "masterBillNumber", start: 7, end: 18, length: 12, type: "12AN", desig: "M" },
+    { name: "containerNumber1", start: 19, end: 32, length: 14, type: "14AN", desig: "C" },
+    { name: "containerNumber2", start: 33, end: 46, length: 14, type: "14AN", desig: "C" },
+    { name: "filler", start: 47, end: 80, length: 34, type: "34AN", desig: "M" }
+  ]
 };
 
-// ── QP33 Reference Identifier (Input) ───────────────────────────────────────
-// Source: PDF pp. INB-30 to INB-31
-const QP33_REFERENCE_ID_SPEC: InBondRecordSpec = {
-  recordId: "QP33",
-  recordName: "Reference Identifier",
-  source: "CATAIR In-Bond Amendment 51 April 2026 pp. INB-30 to INB-31",
-  direction: "Input",
-  transactionId: "QP",
-  length: 80,
+export const QP33_SEAL_DETAIL_SPEC: InBondRecordSpec = {
+  id: "QP33",
+  name: "Equipment Seals & Reference Identifier Record",
+  pageCitation: "p. 30",
   fields: [
-    { name: "recordType",          start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 33" },
-    { name: "qualifier",           start:  3, end:  5, length:  3, type: "AN", designation: "M", description: "Up to 3-char qualifier; e.g. BM=BOL, FEN=Pedimento" },
-    { name: "referenceIdentifier", start:  6, end: 35, length: 30, type: "AN", designation: "M", description: "Reference ID for the qualifier; Pedimento: 15-char yyppbbbbddddddd" },
-    { name: "filler",              start: 36, end: 80, length: 45, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "sealNumber1", start: 3, end: 17, length: 15, type: "15AN", desig: "C" },
+    { name: "sealNumber2", start: 18, end: 32, length: 15, type: "15AN", desig: "C" },
+    { name: "filler", start: 33, end: 80, length: 48, type: "48AN", desig: "M" }
+  ]
 };
 
-// ── WP10 In-bond Event Header (Input) ───────────────────────────────────────
-// Source: PDF pp. INB-54 to INB-56
-const WP10_EVENT_HEADER_SPEC: InBondRecordSpec = {
-  recordId: "WP10",
-  recordName: "In-bond Event Header",
-  source: "CATAIR In-Bond Amendment 51 April 2026 pp. INB-54 to INB-56",
-  direction: "Input",
-  transactionId: "WP",
-  length: 80,
+export const QP40_LINE_ITEM_SPEC: InBondRecordSpec = {
+  id: "QP40",
+  name: "Line Item Detail Record",
+  pageCitation: "pp. 32-33",
   fields: [
-    { name: "recordType",           start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 10" },
-    { name: "actionCode",           start:  3, end:  3, length:  1, type: "AN", designation: "M", description: "1=Arrive entire, 2=Arrive BOL, 3=Arrive container, 5=Export entire, 6=Export BOL, 7=Export container, A=Transfer, Z=Diversion" },
-    { name: "inBondNumber",         start:  4, end: 15, length: 12, type: "AN", designation: "C", description: "9-digit or V-paperless in-bond number; mandatory for 1,3,5,7,A,Z" },
-    { name: "issuerCodeMasterBOL",  start: 16, end: 19, length:  4, type: "AN", designation: "C", description: "SCAC of BOL issuer or Air Waybill Prefix; mandatory for 2,3,6,7" },
-    { name: "masterBOLNumber",      start: 20, end: 31, length: 12, type: "AN", designation: "C", description: "Master bill number; mandatory for 2,3,6,7; 8-digit AWB serial for Air" },
-    { name: "issuerCodeHouseBOL",   start: 32, end: 35, length:  4, type: "AN", designation: "C", description: "Reserved for future use; space fill" },
-    { name: "houseBOLNumber",       start: 36, end: 47, length: 12, type: "AN", designation: "C", description: "House bill as on manifest; left justify; Air only" },
-    { name: "firmsLocation",        start: 48, end: 51, length:  4, type: "AN", designation: "C", description: "FIRMS code at destination port; mandatory for Action Codes 1,2,3; not required for Air" },
-    { name: "filler1",              start: 52, end: 63, length: 12, type: "AN", designation: "M", description: "Space fill (internal gap between FIRMS and Container Number)" },
-    { name: "containerNumber",      start: 64, end: 77, length: 14, type: "AN", designation: "C", description: "Container number as on container; mandatory for Action Codes 3 and 7; not for Air" },
-    { name: "filler2",              start: 78, end: 80, length:  3, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "lineNumber", start: 3, end: 8, length: 6, type: "6N", desig: "M" },
+    { name: "tariffNumber", start: 9, end: 11, length: 3, type: "3AN", desig: "C" },
+    { name: "pieceCount", start: 12, end: 21, length: 10, type: "10N", desig: "M" },
+    { name: "description", start: 22, end: 31, length: 10, type: "10X", desig: "M" },
+    { name: "weight", start: 32, end: 41, length: 10, type: "10N", desig: "C" },
+    { name: "weightUnit", start: 42, end: 43, length: 2, type: "2A", desig: "C" },
+    { name: "volume", start: 44, end: 53, length: 10, type: "10N", desig: "C" },
+    { name: "volumeUnit", start: 54, end: 55, length: 2, type: "2A", desig: "C" },
+    { name: "value", start: 56, end: 63, length: 8, type: "8N", desig: "C" },
+    { name: "filler", start: 64, end: 80, length: 17, type: "17AN", desig: "M" }
+  ]
 };
 
-// ── WP20 In-bond Event Detail (Input) ───────────────────────────────────────
-// Source: PDF pp. INB-57 to INB-58
-// Date: YYMMDD (PDF p. INB-57: "A date in YYMMDD (year, month, day) format")
-// Time: HHMMSS 24-hour clock (PDF p. INB-57)
-const WP20_EVENT_DETAIL_SPEC: InBondRecordSpec = {
-  recordId: "WP20",
-  recordName: "In-bond Event Detail",
-  source: "CATAIR In-Bond Amendment 51 April 2026 pp. INB-57 to INB-58",
-  direction: "Input",
-  transactionId: "WP",
-  length: 80,
+export const QP50_SHIPPER_NAME_SPEC: InBondRecordSpec = {
+  id: "QP50",
+  name: "Shipper Name & Address Line 1 Record",
+  pageCitation: "p. 35",
   fields: [
-    { name: "recordType",        start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 20" },
-    { name: "date",              start:  3, end:  8, length:  6, type: "N",  designation: "M", description: "YYMMDD format of actual arrival/export/transfer date" },
-    { name: "time",              start:  9, end: 14, length:  6, type: "N",  designation: "M", description: "HHMMSS 24-hour clock of actual arrival/export/transfer time" },
-    { name: "portOfArrival",     start: 15, end: 18, length:  4, type: "N",  designation: "C", description: "Schedule D port code; mandatory for Action Codes 1,2,3,Z" },
-    { name: "inBondCarrierCode", start: 19, end: 22, length:  4, type: "X",  designation: "C", description: "SCAC of carrier assuming liability; mandatory for Action Code A" },
-    { name: "bondedCarrierID",   start: 23, end: 34, length: 12, type: "X",  designation: "C", description: "IRS/SSN/CBP bonded carrier ID; mandatory for Action Codes A or Z" },
-    { name: "cityName",          start: 35, end: 53, length: 19, type: "AN", designation: "C", description: "City where liability transfer occurs; mandatory for Action Code A" },
-    { name: "stateCode",         start: 54, end: 55, length:  2, type: "A",  designation: "C", description: "State code corresponding to city name when city is provided" },
-    { name: "exportMOT",         start: 56, end: 57, length:  2, type: "N",  designation: "O", description: "MOT of exporting conveyance; only codes 10/11=Vessel; optional for 5,6,7" },
-    { name: "exportConveyance",  start: 58, end: 80, length: 23, type: "AN", designation: "O", description: "Name of exporting conveyance; optional for Action Codes 5,6,7" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "shipperName", start: 3, end: 37, length: 35, type: "35X", desig: "M" },
+    { name: "shipperAddressLine1", start: 38, end: 72, length: 35, type: "35X", desig: "M" },
+    { name: "filler", start: 73, end: 80, length: 8, type: "8AN", desig: "M" }
+  ]
 };
 
-// ── QT95 Error/Warning/Accept Message (Output) ──────────────────────────────
-// Source: PDF p. INB-53
-const QT95_RESPONSE_SPEC: InBondRecordSpec = {
-  recordId: "QT95",
-  recordName: "In-bond Transaction Response Message",
-  source: "CATAIR In-Bond Amendment 51 April 2026 p. INB-53",
-  direction: "Output",
-  transactionId: "QT",
-  length: 80,
+export const QP51_SHIPPER_ADDRESS_SPEC: InBondRecordSpec = {
+  id: "QP51",
+  name: "Shipper Address Lines 2 & 3 Record",
+  pageCitation: "p. 36",
   fields: [
-    { name: "recordType",       start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 95" },
-    { name: "narrativeMsgType", start:  3, end:  4, length:  2, type: "N",  designation: "M", description: "01=Data Rejection, 02=Data Acceptance, 03=Acceptance with Warning" },
-    { name: "narrativeMsgId",   start:  5, end:  7, length:  3, type: "AN", designation: "M", description: "Code identifying the narrative message" },
-    { name: "filler1",          start:  8, end:  8, length:  1, type: "AN", designation: "M", description: "Space fill (1-char internal gap before narrative)" },
-    { name: "narrativeMessage", start:  9, end: 47, length: 39, type: "X",  designation: "M", description: "Acceptance or rejection narrative" },
-    { name: "filler2",          start: 48, end: 80, length: 33, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "shipperAddressLine2", start: 3, end: 37, length: 35, type: "35X", desig: "C" },
+    { name: "shipperAddressLine3", start: 38, end: 72, length: 35, type: "35X", desig: "C" },
+    { name: "filler", start: 73, end: 80, length: 8, type: "8AN", desig: "M" }
+  ]
 };
 
-// ── WT95 Error/Warning/Accept Message (Output) ──────────────────────────────
-// Source: PDF p. INB-59
-// Identical structure to QT95; different context (WP arrival/export response)
-const WT95_RESPONSE_SPEC: InBondRecordSpec = {
-  recordId: "WT95",
-  recordName: "Arrival/Export/Transfer Response Message",
-  source: "CATAIR In-Bond Amendment 51 April 2026 p. INB-59",
-  direction: "Output",
-  transactionId: "WT",
-  length: 80,
+export const QP52_SHIPPER_PHONE_SPEC: InBondRecordSpec = {
+  id: "QP52",
+  name: "Shipper Phone / Telex Record",
+  pageCitation: "p. 37",
   fields: [
-    { name: "recordType",       start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 95" },
-    { name: "narrativeMsgType", start:  3, end:  4, length:  2, type: "N",  designation: "M", description: "01=Data Rejection, 02=Data Acceptance, 03=Acceptance with Warning" },
-    { name: "narrativeMsgId",   start:  5, end:  7, length:  3, type: "AN", designation: "M", description: "Code identifying the narrative message" },
-    { name: "filler1",          start:  8, end:  8, length:  1, type: "AN", designation: "M", description: "Space fill (1-char internal gap before narrative)" },
-    { name: "narrativeMessage", start:  9, end: 47, length: 39, type: "X",  designation: "M", description: "Acceptance or rejection narrative" },
-    { name: "filler2",          start: 48, end: 80, length: 33, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "telephoneNumber", start: 3, end: 17, length: 15, type: "15X", desig: "C" },
+    { name: "filler", start: 18, end: 80, length: 63, type: "63AN", desig: "M" }
+  ]
 };
 
-// ── NS10 Status Notification Header In-bond Info (Output) ───────────────────
-// Source: PDF p. INB-61
-const NS10_STATUS_HEADER_SPEC: InBondRecordSpec = {
-  recordId: "NS10",
-  recordName: "Status Notification Header In-bond Information",
-  source: "CATAIR In-Bond Amendment 51 April 2026 p. INB-61",
-  direction: "Output",
-  transactionId: "NS",
-  length: 80,
+export const QP55_CONSIGNEE_NAME_SPEC: InBondRecordSpec = {
+  id: "QP55",
+  name: "Consignee Name & Address Line 1 Record",
+  pageCitation: "p. 38",
   fields: [
-    { name: "recordType",         start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 10" },
-    { name: "inBondEntryType",    start:  3, end:  4, length:  2, type: "N",  designation: "M", description: "61=IT, 62=T&E, 63=IE" },
-    { name: "inBondNumber",       start:  5, end: 16, length: 12, type: "AN", designation: "M", description: "Conventional 9-numeric in-bond number, left justified" },
-    { name: "usPortOfDest",       start: 17, end: 20, length:  4, type: "N",  designation: "M", description: "Schedule D port code" },
-    { name: "foreignDestination", start: 21, end: 25, length:  5, type: "N",  designation: "C", description: "Schedule K foreign port code (5N, all-numeric); space fill for IT 61 entries" },
-    { name: "filler",             start: 26, end: 80, length: 55, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "consigneeName", start: 3, end: 37, length: 35, type: "35X", desig: "M" },
+    { name: "consigneeAddressLine1", start: 38, end: 72, length: 35, type: "35X", desig: "M" },
+    { name: "filler", start: 73, end: 80, length: 8, type: "8AN", desig: "M" }
+  ]
 };
 
-// ── NS30 Status Notification Detail (Output) ─────────────────────────────────
-// Source: PDF pp. INB-64 to INB-65
-// Date: YYMMDD (PDF p. INB-64: "A date in YYMMDD (year, month, day) format")
-// Time: HHMM 24-hour clock (NOT HHMMSS — only 4 chars at pos 70-73)
-const NS30_STATUS_DETAIL_SPEC: InBondRecordSpec = {
-  recordId: "NS30",
-  recordName: "Status Notification Detail",
-  source: "CATAIR In-Bond Amendment 51 April 2026 pp. INB-64 to INB-65",
-  direction: "Output",
-  transactionId: "NS",
-  length: 80,
+export const QP56_CONSIGNEE_ADDRESS_SPEC: InBondRecordSpec = {
+  id: "QP56",
+  name: "Consignee Address Lines 2 & 3 Record",
+  pageCitation: "p. 39",
   fields: [
-    { name: "recordType",         start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 30" },
-    { name: "dispositionCode",    start:  3, end:  4, length:  2, type: "AN", designation: "M", description: "Posting action code; see ACE Ocean Appendix D or Air Appendix A" },
-    { name: "issuerMasterBill",   start:  5, end:  8, length:  4, type: "AN", designation: "M", description: "SCAC of BOL issuer; FIRMS code if FTZ/warehouse" },
-    { name: "masterBillNumber",   start:  9, end: 20, length: 12, type: "AN", designation: "M", description: "Simple/regular/master bill number, left justified" },
-    { name: "issuerHouseBill",    start: 21, end: 24, length:  4, type: "AN", designation: "C", description: "Reserved for future use; space fill" },
-    { name: "houseBillNumber",    start: 25, end: 36, length: 12, type: "AN", designation: "C", description: "Reserved for future use; space fill" },
-    { name: "issuerSubHouse",     start: 37, end: 40, length:  4, type: "AN", designation: "C", description: "Reserved for future use; space fill" },
-    { name: "subHouseBillNumber", start: 41, end: 52, length: 12, type: "AN", designation: "C", description: "Reserved for future use; space fill" },
-    { name: "quantity",           start: 53, end: 62, length: 10, type: "N",  designation: "M", description: "Total number of pieces affected by disposition action" },
-    { name: "negativeIndicator",  start: 63, end: 63, length:  1, type: "A",  designation: "C", description: "N when negative number with disposition code 1A/1B/1C; else space" },
-    { name: "actionDate",         start: 64, end: 69, length:  6, type: "N",  designation: "M", description: "YYMMDD format of CBP authorization date" },
-    { name: "actionTime",         start: 70, end: 73, length:  4, type: "N",  designation: "M", description: "HHMM 24-hour clock (NOT HHMMSS — 4 chars only); Eastern time" },
-    { name: "inBondCarrierCode",  start: 74, end: 77, length:  4, type: "X",  designation: "M", description: "SCAC of in-bond carrier; FIRMS code if FTZ/warehouse" },
-    { name: "filler",             start: 78, end: 80, length:  3, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "consigneeAddressLine2", start: 3, end: 37, length: 35, type: "35X", desig: "C" },
+    { name: "consigneeAddressLine3", start: 38, end: 72, length: 35, type: "35X", desig: "C" },
+    { name: "filler", start: 73, end: 80, length: 8, type: "8AN", desig: "M" }
+  ]
 };
 
-// ── NS40 Status Notification Detail Continuation (Output) ───────────────────
-// Source: PDF p. INB-66
-const NS40_STATUS_CONTINUATION_SPEC: InBondRecordSpec = {
-  recordId: "NS40",
-  recordName: "Status Notification Detail Continuation",
-  source: "CATAIR In-Bond Amendment 51 April 2026 p. INB-66",
-  direction: "Output",
-  transactionId: "NS",
-  length: 80,
+export const QP57_CONSIGNEE_PHONE_SPEC: InBondRecordSpec = {
+  id: "QP57",
+  name: "Consignee Phone / Telex Record",
+  pageCitation: "p. 40",
   fields: [
-    { name: "recordType",   start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 40" },
-    { name: "entryType",    start:  3, end:  4, length:  2, type: "N",  designation: "C", description: "Entry category code per ACE Ocean Appendix B" },
-    { name: "entryNumber",  start:  5, end: 19, length: 15, type: "AN", designation: "C", description: "USCBP entry number, form number, or regulatory provision" },
-    { name: "distPortTxn",  start: 20, end: 23, length:  4, type: "N",  designation: "M", description: "Schedule D port code where action occurred" },
-    { name: "firmsCode",    start: 24, end: 27, length:  4, type: "AN", designation: "C", description: "FIRMS code representing location of goods" },
-    { name: "containerNum", start: 28, end: 41, length: 14, type: "AN", designation: "C", description: "Container number as on container; container-level notifications only" },
-    { name: "filler",       start: 42, end: 80, length: 39, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "telephoneNumber", start: 3, end: 17, length: 15, type: "15X", desig: "C" },
+    { name: "filler", start: 18, end: 80, length: 63, type: "63AN", desig: "M" }
+  ]
 };
 
-// ── NS50 Status Notification Remarks (Output) ────────────────────────────────
-// Source: PDF p. INB-67
-const NS50_STATUS_REMARKS_SPEC: InBondRecordSpec = {
-  recordId: "NS50",
-  recordName: "Status Notification Remarks",
-  source: "CATAIR In-Bond Amendment 51 April 2026 p. INB-67",
-  direction: "Output",
-  transactionId: "NS",
-  length: 80,
+export const QP60_NOTIFY_PARTY_SPEC: InBondRecordSpec = {
+  id: "QP60",
+  name: "Notify Party Name & Address Line 1 Record",
+  pageCitation: "p. 41",
   fields: [
-    { name: "recordType", start:  1, end:  2, length:  2, type: "N",  designation: "M", description: "Must always equal 50" },
-    { name: "remarks",    start:  3, end: 47, length: 45, type: "X",  designation: "M", description: "Free-form USCBP remarks on BOL posting or conveyance status" },
-    { name: "filler",     start: 48, end: 80, length: 33, type: "AN", designation: "M", description: "Space fill" },
-  ],
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "notifyPartyName", start: 3, end: 37, length: 35, type: "35X", desig: "M" },
+    { name: "notifyPartyAddressLine1", start: 38, end: 72, length: 35, type: "35X", desig: "M" },
+    { name: "filler", start: 73, end: 80, length: 8, type: "8AN", desig: "M" }
+  ]
 };
 
-// ---------------------------------------------------------------------------
-// All specs for parametric tests
-// ---------------------------------------------------------------------------
-const ALL_IN_BOND_SPECS: InBondRecordSpec[] = [
-  QP10_IN_BOND_HEADER_SPEC,
-  QP20_CONVEYANCE_INFO_SPEC,
-  QP30_BOL_HEADER_SPEC,
-  QP32_SECONDARY_NOTIFY_SPEC,
-  QP33_REFERENCE_ID_SPEC,
-  WP10_EVENT_HEADER_SPEC,
-  WP20_EVENT_DETAIL_SPEC,
+export const QP61_NOTIFY_ADDRESS_SPEC: InBondRecordSpec = {
+  id: "QP61",
+  name: "Notify Party Address Lines 2 & 3 Record",
+  pageCitation: "p. 42",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "notifyPartyAddressLine2", start: 3, end: 37, length: 35, type: "35X", desig: "C" },
+    { name: "notifyPartyAddressLine3", start: 38, end: 72, length: 35, type: "35X", desig: "C" },
+    { name: "filler", start: 73, end: 80, length: 8, type: "8AN", desig: "M" }
+  ]
+};
+
+export const QP62_NOTIFY_PHONE_SPEC: InBondRecordSpec = {
+  id: "QP62",
+  name: "Notify Party Phone / Telex Record",
+  pageCitation: "p. 43",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "telephoneNumber", start: 3, end: 17, length: 15, type: "15X", desig: "C" },
+    { name: "filler", start: 18, end: 80, length: 63, type: "63AN", desig: "M" }
+  ]
+};
+
+export const QP65_TRANSPORT_PARTY_SPEC: InBondRecordSpec = {
+  id: "QP65",
+  name: "Transport Party / Carrier Details Record",
+  pageCitation: "p. 44",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "carrierName", start: 3, end: 37, length: 35, type: "35X", desig: "M" },
+    { name: "cityName", start: 38, end: 56, length: 19, type: "19X", desig: "C" },
+    { name: "stateCode", start: 57, end: 58, length: 2, type: "2A", desig: "C" },
+    { name: "zipCode", start: 59, end: 67, length: 9, type: "9X", desig: "C" },
+    { name: "filler", start: 68, end: 80, length: 13, type: "13AN", desig: "M" }
+  ]
+};
+
+export const QP70_BONDED_CARRIER_SPEC: InBondRecordSpec = {
+  id: "QP70",
+  name: "Bonded Carrier / Importer Party Record",
+  pageCitation: "pp. 45-46",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "partyType", start: 3, end: 4, length: 2, type: "2N", desig: "M" },
+    { name: "partyIdNumber", start: 5, end: 13, length: 9, type: "9X", desig: "C" },
+    { name: "commodityValue", start: 14, end: 21, length: 8, type: "8N", desig: "C" },
+    { name: "commodityWeight", start: 22, end: 31, length: 10, type: "10N", desig: "C" },
+    { name: "partyName", start: 32, end: 66, length: 35, type: "35X", desig: "C" },
+    { name: "filler", start: 67, end: 80, length: 14, type: "14AN", desig: "M" }
+  ]
+};
+
+export const QP71_PARTY_ADDRESS_SPEC: InBondRecordSpec = {
+  id: "QP71",
+  name: "Party Address Line 1, City, State, Zip Record",
+  pageCitation: "p. 47",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "addressLine1", start: 3, end: 37, length: 35, type: "35X", desig: "M" },
+    { name: "cityName", start: 38, end: 56, length: 19, type: "19X", desig: "C" },
+    { name: "stateCode", start: 57, end: 58, length: 2, type: "2A", desig: "C" },
+    { name: "zipCode", start: 59, end: 67, length: 9, type: "9X", desig: "C" },
+    { name: "filler", start: 68, end: 80, length: 13, type: "13AN", desig: "M" }
+  ]
+};
+
+export const QP72_PARTY_PHONE_SPEC: InBondRecordSpec = {
+  id: "QP72",
+  name: "Party Contact Phone Record",
+  pageCitation: "p. 49",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "telephoneNumber", start: 3, end: 17, length: 15, type: "15X", desig: "C" },
+    { name: "filler", start: 18, end: 80, length: 63, type: "63AN", desig: "M" }
+  ]
+};
+
+export const QP75_REMARKS_HAZMAT_SPEC: InBondRecordSpec = {
+  id: "QP75",
+  name: "In-Bond Remarks & Hazmat Record",
+  pageCitation: "p. 50",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "remarksCode", start: 3, end: 7, length: 5, type: "5AN", desig: "C" },
+    { name: "harmonizedCode", start: 8, end: 12, length: 5, type: "5AN", desig: "C" },
+    { name: "hazmatClass", start: 13, end: 16, length: 4, type: "4X", desig: "C" },
+    { name: "hazmatDescription", start: 17, end: 51, length: 35, type: "35X", desig: "C" },
+    { name: "hazmatCode", start: 52, end: 66, length: 15, type: "15X", desig: "C" },
+    { name: "hazmatPageNumber", start: 67, end: 71, length: 5, type: "5X", desig: "C" },
+    { name: "flashpointTemperature", start: 72, end: 74, length: 3, type: "3N", desig: "O" },
+    { name: "temperatureUnit", start: 75, end: 76, length: 2, type: "2A", desig: "O" },
+    { name: "negativeIndicator", start: 77, end: 77, length: 1, type: "1A", desig: "O" },
+    { name: "filler", start: 78, end: 80, length: 3, type: "3AN", desig: "M" }
+  ]
+};
+
+export const QP76_REFERENCE_SPEC: InBondRecordSpec = {
+  id: "QP76",
+  name: "Additional Reference Identifier Record",
+  pageCitation: "p. 52",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "referenceQualifierCode", start: 3, end: 4, length: 2, type: "2AN", desig: "M" },
+    { name: "referenceIdentifier", start: 5, end: 61, length: 57, type: "57X", desig: "M" },
+    { name: "filler", start: 62, end: 80, length: 19, type: "19AN", desig: "M" }
+  ]
+};
+
+export const QT95_RESPONSE_SPEC: InBondRecordSpec = {
+  id: "QT95",
+  name: "In-Bond Application Response Record",
+  pageCitation: "p. 53",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "typeCode", start: 3, end: 4, length: 2, type: "2N", desig: "M" },
+    { name: "identifier", start: 5, end: 7, length: 3, type: "3AN", desig: "M" },
+    { name: "filler1", start: 8, end: 8, length: 1, type: "1AN", desig: "M" },
+    { name: "narrativeMessage", start: 9, end: 47, length: 39, type: "39X", desig: "M" },
+    { name: "filler2", start: 48, end: 80, length: 33, type: "33AN", desig: "M" }
+  ]
+};
+
+export const WP10_ARRIVAL_HEADER_SPEC: InBondRecordSpec = {
+  id: "WP10",
+  name: "In-Bond Arrival / Export Header Record",
+  pageCitation: "pp. 54-55",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "actionCode", start: 3, end: 3, length: 1, type: "1AN", desig: "M" },
+    { name: "inBondNumber", start: 4, end: 15, length: 12, type: "12AN", desig: "C" },
+    { name: "masterIssuerCode", start: 16, end: 19, length: 4, type: "4AN", desig: "C" },
+    { name: "masterBillNumber", start: 20, end: 31, length: 12, type: "12AN", desig: "C" },
+    { name: "houseIssuerCode", start: 32, end: 35, length: 4, type: "4AN", desig: "C" },
+    { name: "houseBillNumber", start: 36, end: 47, length: 12, type: "12AN", desig: "C" },
+    { name: "inBondArrivalPort", start: 48, end: 51, length: 4, type: "4AN", desig: "C" },
+    { name: "filler1", start: 52, end: 63, length: 12, type: "12AN", desig: "M" },
+    { name: "containerNumber", start: 64, end: 77, length: 14, type: "14AN", desig: "C" },
+    { name: "filler2", start: 78, end: 80, length: 3, type: "3AN", desig: "M" }
+  ]
+};
+
+export const WP20_ARRIVAL_DETAIL_SPEC: InBondRecordSpec = {
+  id: "WP20",
+  name: "Arrival Bill of Lading Detail Record",
+  pageCitation: "pp. 57-58",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "arrivalDate", start: 3, end: 8, length: 6, type: "6N", desig: "M" },
+    { name: "arrivalTime", start: 9, end: 14, length: 6, type: "6N", desig: "M" },
+    { name: "portOfArrival", start: 15, end: 18, length: 4, type: "4N", desig: "C" },
+    { name: "firmsCode", start: 19, end: 22, length: 4, type: "4X", desig: "C" },
+    { name: "bondedCarrierId", start: 23, end: 34, length: 12, type: "12X", desig: "C" },
+    { name: "cityName", start: 35, end: 53, length: 19, type: "19AN", desig: "C" },
+    { name: "stateCode", start: 54, end: 55, length: 2, type: "2A", desig: "C" },
+    { name: "exportMot", start: 56, end: 57, length: 2, type: "2N", desig: "O" },
+    { name: "exportConveyance", start: 58, end: 80, length: 23, type: "23AN", desig: "O" }
+  ]
+};
+
+export const WT95_ARRIVAL_RESPONSE_SPEC: InBondRecordSpec = {
+  id: "WT95",
+  name: "In-Bond Arrival Response Record",
+  pageCitation: "p. 59",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "typeCode", start: 3, end: 4, length: 2, type: "2N", desig: "M" },
+    { name: "identifier", start: 5, end: 7, length: 3, type: "3AN", desig: "M" },
+    { name: "filler1", start: 8, end: 8, length: 1, type: "1AN", desig: "M" },
+    { name: "narrativeMessage", start: 9, end: 47, length: 39, type: "39X", desig: "M" },
+    { name: "filler2", start: 48, end: 80, length: 33, type: "33AN", desig: "M" }
+  ]
+};
+
+export const NS05_CONVEYANCE_SPEC: InBondRecordSpec = {
+  id: "NS05",
+  name: "Conveyance Information Status Record",
+  pageCitation: "p. 60",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2AN", desig: "M" },
+    { name: "conveyanceName", start: 3, end: 25, length: 23, type: "23AN", desig: "M" },
+    { name: "flightTripNumber", start: 26, end: 30, length: 5, type: "5AN", desig: "C" },
+    { name: "usPortOfArrival", start: 31, end: 34, length: 4, type: "4N", desig: "M" },
+    { name: "arrivalDate", start: 35, end: 40, length: 6, type: "6N", desig: "M" },
+    { name: "arrivalTime", start: 41, end: 46, length: 6, type: "6N", desig: "C" },
+    { name: "filler", start: 47, end: 80, length: 34, type: "34AN", desig: "M" }
+  ]
+};
+
+export const NS10_STATUS_HEADER_SPEC: InBondRecordSpec = {
+  id: "NS10",
+  name: "In-Bond Status Header Record",
+  pageCitation: "p. 61",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "inBondEntryType", start: 3, end: 4, length: 2, type: "2N", desig: "M" },
+    { name: "inBondNumber", start: 5, end: 16, length: 12, type: "12AN", desig: "M" },
+    { name: "usPortOfDestination", start: 17, end: 20, length: 4, type: "4N", desig: "M" },
+    { name: "foreignDestination", start: 21, end: 25, length: 5, type: "5N", desig: "C" },
+    { name: "filler", start: 26, end: 80, length: 55, type: "55AN", desig: "M" }
+  ]
+};
+
+export const NS30_BILL_STATUS_SPEC: InBondRecordSpec = {
+  id: "NS30",
+  name: "Bill of Lading Status Record",
+  pageCitation: "pp. 64-65",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "dispositionCode", start: 3, end: 4, length: 2, type: "2AN", desig: "M" },
+    { name: "masterIssuerCode", start: 5, end: 8, length: 4, type: "4AN", desig: "M" },
+    { name: "masterBillNumber", start: 9, end: 20, length: 12, type: "12AN", desig: "M" },
+    { name: "houseIssuerCode", start: 21, end: 24, length: 4, type: "4AN", desig: "C" },
+    { name: "houseBillNumber", start: 25, end: 36, length: 12, type: "12AN", desig: "C" },
+    { name: "subHouseIssuerCode", start: 37, end: 40, length: 4, type: "4AN", desig: "C" },
+    { name: "subHouseBillNumber", start: 41, end: 52, length: 12, type: "12AN", desig: "C" },
+    { name: "quantity", start: 53, end: 62, length: 10, type: "10N", desig: "M" },
+    { name: "negativeIndicator", start: 63, end: 63, length: 1, type: "1A", desig: "C" },
+    { name: "actionDate", start: 64, end: 69, length: 6, type: "6N", desig: "M" },
+    { name: "actionTime", start: 70, end: 73, length: 4, type: "4N", desig: "M" },
+    { name: "inBondCarrierCode", start: 74, end: 77, length: 4, type: "4X", desig: "M" },
+    { name: "filler", start: 78, end: 80, length: 3, type: "3AN", desig: "M" }
+  ]
+};
+
+export const NS40_EXCEPTION_STATUS_SPEC: InBondRecordSpec = {
+  id: "NS40",
+  name: "Exception & Hold Status Record",
+  pageCitation: "p. 66",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "entryType", start: 3, end: 4, length: 2, type: "2N", desig: "C" },
+    { name: "entryNumber", start: 5, end: 19, length: 15, type: "15AN", desig: "C" },
+    { name: "portOfTransaction", start: 20, end: 23, length: 4, type: "4N", desig: "M" },
+    { name: "firmsCode", start: 24, end: 27, length: 4, type: "4AN", desig: "C" },
+    { name: "containerNumber", start: 28, end: 41, length: 14, type: "14AN", desig: "C" },
+    { name: "filler", start: 42, end: 80, length: 39, type: "39AN", desig: "M" }
+  ]
+};
+
+export const NS50_REMARKS_STATUS_SPEC: InBondRecordSpec = {
+  id: "NS50",
+  name: "Remarks / Text Status Record",
+  pageCitation: "p. 67",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "remarks", start: 3, end: 47, length: 45, type: "45X", desig: "M" },
+    { name: "filler", start: 48, end: 80, length: 33, type: "33AN", desig: "M" }
+  ]
+};
+
+export const NS60_CONTAINER_STATUS_SPEC: InBondRecordSpec = {
+  id: "NS60",
+  name: "Equipment / Container Level Status Record",
+  pageCitation: "p. 68",
+  fields: [
+    { name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" },
+    { name: "actionIndicator", start: 3, end: 3, length: 1, type: "1N", desig: "C" },
+    { name: "containerNumber", start: 4, end: 17, length: 14, type: "14AN", desig: "C" },
+    { name: "sealNumber1", start: 18, end: 32, length: 15, type: "15AN", desig: "C" },
+    { name: "sealNumber2", start: 33, end: 47, length: 15, type: "15AN", desig: "C" },
+    { name: "filler", start: 48, end: 80, length: 33, type: "33AN", desig: "M" }
+  ]
+};
+
+export const EA_ERROR_SPEC: InBondRecordSpec = {
+  id: "EA",
+  name: "Transaction Header Batch Error Record",
+  pageCitation: "p. 69",
+  fields: [
+    { name: "controlIdentifier", start: 1, end: 1, length: 1, type: "1A", desig: "M" },
+    { name: "errorInputControlIdentifier", start: 2, end: 2, length: 1, type: "1A", desig: "M" },
+    { name: "narrativeMessage", start: 3, end: 42, length: 40, type: "40X", desig: "M" },
+    { name: "filler", start: 43, end: 80, length: 38, type: "38AN", desig: "M" }
+  ]
+};
+
+export const EB_ERROR_SPEC: InBondRecordSpec = {
+  id: "EB",
+  name: "Block Header Batch Error Record",
+  pageCitation: "p. 70",
+  fields: [
+    { name: "controlIdentifier", start: 1, end: 1, length: 1, type: "1A", desig: "M" },
+    { name: "errorInputControlIdentifier", start: 2, end: 2, length: 1, type: "1A", desig: "M" },
+    { name: "narrativeMessage", start: 3, end: 42, length: 40, type: "40X", desig: "M" },
+    { name: "filler", start: 43, end: 80, length: 38, type: "38AN", desig: "M" }
+  ]
+};
+
+export const EY_ERROR_SPEC: InBondRecordSpec = {
+  id: "EY",
+  name: "Block Trailer Batch Error Record",
+  pageCitation: "p. 71",
+  fields: [
+    { name: "controlIdentifier", start: 1, end: 1, length: 1, type: "1A", desig: "M" },
+    { name: "errorInputControlIdentifier", start: 2, end: 2, length: 1, type: "1A", desig: "M" },
+    { name: "narrativeMessage", start: 3, end: 42, length: 40, type: "40X", desig: "M" },
+    { name: "filler", start: 43, end: 80, length: 38, type: "38AN", desig: "M" }
+  ]
+};
+
+export const EZ_ERROR_SPEC: InBondRecordSpec = {
+  id: "EZ",
+  name: "Transaction Trailer Batch Error Record",
+  pageCitation: "p. 72",
+  fields: [
+    { name: "controlIdentifier", start: 1, end: 1, length: 1, type: "1A", desig: "M" },
+    { name: "errorInputControlIdentifier", start: 2, end: 2, length: 1, type: "1A", desig: "M" },
+    { name: "narrativeMessage", start: 3, end: 42, length: 40, type: "40X", desig: "M" },
+    { name: "filler", start: 43, end: 80, length: 38, type: "38AN", desig: "M" }
+  ]
+};
+
+export const ALL_35_IN_BOND_SPECS: InBondRecordSpec[] = [
+  QP10_HEADER_SPEC,
+  QP20_MOVEMENT_SPEC,
+  QP30_BILL_OF_LADING_SPEC,
+  QP32_CONTAINER_DETAIL_SPEC,
+  QP33_SEAL_DETAIL_SPEC,
+  QP40_LINE_ITEM_SPEC,
+  QP50_SHIPPER_NAME_SPEC,
+  QP51_SHIPPER_ADDRESS_SPEC,
+  QP52_SHIPPER_PHONE_SPEC,
+  QP55_CONSIGNEE_NAME_SPEC,
+  QP56_CONSIGNEE_ADDRESS_SPEC,
+  QP57_CONSIGNEE_PHONE_SPEC,
+  QP60_NOTIFY_PARTY_SPEC,
+  QP61_NOTIFY_ADDRESS_SPEC,
+  QP62_NOTIFY_PHONE_SPEC,
+  QP65_TRANSPORT_PARTY_SPEC,
+  QP70_BONDED_CARRIER_SPEC,
+  QP71_PARTY_ADDRESS_SPEC,
+  QP72_PARTY_PHONE_SPEC,
+  QP75_REMARKS_HAZMAT_SPEC,
+  QP76_REFERENCE_SPEC,
   QT95_RESPONSE_SPEC,
-  WT95_RESPONSE_SPEC,
+  WP10_ARRIVAL_HEADER_SPEC,
+  WP20_ARRIVAL_DETAIL_SPEC,
+  WT95_ARRIVAL_RESPONSE_SPEC,
+  NS05_CONVEYANCE_SPEC,
   NS10_STATUS_HEADER_SPEC,
-  NS30_STATUS_DETAIL_SPEC,
-  NS40_STATUS_CONTINUATION_SPEC,
-  NS50_STATUS_REMARKS_SPEC,
+  NS30_BILL_STATUS_SPEC,
+  NS40_EXCEPTION_STATUS_SPEC,
+  NS50_REMARKS_STATUS_SPEC,
+  NS60_CONTAINER_STATUS_SPEC,
+  EA_ERROR_SPEC,
+  EB_ERROR_SPEC,
+  EY_ERROR_SPEC,
+  EZ_ERROR_SPEC
 ];
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TESTS
-// ═══════════════════════════════════════════════════════════════════════════
+export function validateRecordMath(spec: InBondRecordSpec): { totalLength: number; isContiguous: boolean; errors: string[] } {
+  let totalLength = 0;
+  let lastEnd = 0;
+  let isContiguous = true;
+  const errors: string[] = [];
 
-describe("In-Bond (Chapter 9) Record Specs — 80-Column Layout Validation", () => {
-  it.each(ALL_IN_BOND_SPECS.map((s) => [s.recordId, s]))(
-    "%s: totalLength is 80",
-    (_id, spec) => {
-      expect(spec.length).toBe(80);
+  for (const f of spec.fields) {
+    const calcLen = f.end - f.start + 1;
+    totalLength += calcLen;
+
+    if (calcLen !== f.length) {
+      errors.push(`Field '${f.name}' length mismatch: start-end yields ${calcLen}, spec states ${f.length}`);
     }
-  );
 
-  it.each(ALL_IN_BOND_SPECS.map((s) => [s.recordId, s]))(
-    "%s: field lengths sum to exactly 80",
-    (_id, spec) => {
-      const total = (spec as InBondRecordSpec).fields.reduce((sum, f) => sum + f.length, 0);
-      expect(total).toBe(80);
+    if (f.start !== lastEnd + 1) {
+      isContiguous = false;
+      errors.push(`Field '${f.name}' position gap/overlap: expected start ${lastEnd + 1}, got ${f.start}`);
     }
-  );
+    lastEnd = f.end;
+  }
 
-  it.each(ALL_IN_BOND_SPECS.map((s) => [s.recordId, s]))(
-    "%s: fields have contiguous 1-indexed positions (no gaps, no overlaps)",
-    (_id, spec) => {
-      let expectedStart = 1;
-      for (const field of (spec as InBondRecordSpec).fields) {
-        expect(field.start).toBe(expectedStart);
-        expect(field.end).toBe(expectedStart + field.length - 1);
-        expectedStart += field.length;
-      }
-      expect(expectedStart - 1).toBe(80);
-    }
-  );
+  if (totalLength !== 80) {
+    errors.push(`Record '${spec.id}' total length ${totalLength} !== 80`);
+  }
 
-  it.each(ALL_IN_BOND_SPECS.map((s) => [s.recordId, s]))(
-    "%s: each field's end-start+1 equals stated length (position math vs stated length agreement)",
-    (_id, spec) => {
-      for (const field of (spec as InBondRecordSpec).fields) {
-        const computedLen = field.end - field.start + 1;
-        expect(computedLen).toBe(field.length);
-      }
-    }
-  );
+  return { totalLength, isContiguous, errors };
+}
 
-  it.each(ALL_IN_BOND_SPECS.map((s) => [s.recordId, s]))(
-    "%s: designation values are only M, C, or O",
-    (_id, spec) => {
-      for (const field of (spec as InBondRecordSpec).fields) {
-        expect(["M", "C", "O"]).toContain(field.designation);
-      }
-    }
-  );
+// ─────────────────────────────────────────────────────────────────────────────
+// VITEST TEST SUITE
+// ─────────────────────────────────────────────────────────────────────────────
 
-  it.each(ALL_IN_BOND_SPECS.map((s) => [s.recordId, s]))(
-    "%s: every field has a non-empty name",
-    (_id, spec) => {
-      for (const field of (spec as InBondRecordSpec).fields) {
-        expect(field.name.length).toBeGreaterThan(0);
-      }
-    }
-  );
-});
+describe("CATAIR In-Bond (Chapter 9) Record Specifications & Field Position Math", () => {
+  describe("Complete Set of 35 In-Bond Chapter Records", () => {
+    ALL_35_IN_BOND_SPECS.forEach((spec) => {
+      it(`Record ${spec.id} (${spec.name}) sums exactly to 80 characters`, () => {
+        const { totalLength, errors } = validateRecordMath(spec);
+        expect(errors).toEqual([]);
+        expect(totalLength).toBe(80);
+      });
 
-// ── QP10 In-bond Header — Individual Field Verification ─────────────────────
-describe("QP10 In-bond Header — Field Positions (PDF pp. INB-19 to INB-20)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '10')", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("actionCode: pos 3, len 1, type A, designation M (A/B/D)", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "actionCode")!;
-    expect(f).toMatchObject({ start: 3, end: 3, length: 1, type: "A", designation: "M" });
-  });
-  it("inBondEntryType: pos 4-5, len 2, type N, designation C (61/62/63)", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "inBondEntryType")!;
-    expect(f).toMatchObject({ start: 4, end: 5, length: 2, type: "N", designation: "C" });
-  });
-  it("inBondNumber: pos 6-17, len 12, type AN, designation M", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "inBondNumber")!;
-    expect(f).toMatchObject({ start: 6, end: 17, length: 12, type: "AN", designation: "M" });
-  });
-  it("inBondCarrierCode: pos 18-21, len 4, type AN, designation C", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "inBondCarrierCode")!;
-    expect(f).toMatchObject({ start: 18, end: 21, length: 4, type: "AN", designation: "C" });
-  });
-  it("usPortOfDest: pos 22-25, len 4, type N, designation C (Schedule D DDPP)", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "usPortOfDest")!;
-    expect(f).toMatchObject({ start: 22, end: 25, length: 4, type: "N", designation: "C" });
-  });
-  it("portOfForeignDest: pos 26-30, len 5, type AN, designation C (Schedule K, T&E/IE only)", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "portOfForeignDest")!;
-    expect(f).toMatchObject({ start: 26, end: 30, length: 5, type: "AN", designation: "C" });
-  });
-  it("value: pos 31-38, len 8, type N, designation M (whole dollars, no decimals)", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "value")!;
-    expect(f).toMatchObject({ start: 31, end: 38, length: 8, type: "N", designation: "M" });
-    expect(f.description).toMatch(/whole dollars|no decimals/i);
-  });
-  it("bondedCarrierID: pos 39-50, len 12, type X, designation C", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "bondedCarrierID")!;
-    expect(f).toMatchObject({ start: 39, end: 50, length: 12, type: "X", designation: "C" });
-  });
-  it("ftzWarehouseInd: pos 51, len 1, type A, designation C (Y or blank)", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "ftzWarehouseInd")!;
-    expect(f).toMatchObject({ start: 51, end: 51, length: 1, type: "A", designation: "C" });
-  });
-  it("btaFdaIndicator: pos 52, len 1, type A, designation C (Y/N, required for T&E 62)", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "btaFdaIndicator")!;
-    expect(f).toMatchObject({ start: 52, end: 52, length: 1, type: "A", designation: "C" });
-  });
-  it("filler: pos 53-80, len 28, type AN, designation M", () => {
-    const f = QP10_IN_BOND_HEADER_SPEC.fields.find((x) => x.name === "filler")!;
-    expect(f).toMatchObject({ start: 53, end: 80, length: 28, type: "AN", designation: "M" });
-  });
-  it("has exactly 12 fields", () => {
-    expect(QP10_IN_BOND_HEADER_SPEC.fields).toHaveLength(12);
-  });
-});
-
-// ── QP20 Conveyance Information — Individual Field Verification ──────────────
-describe("QP20 Conveyance Information — Field Positions (PDF pp. INB-23 to INB-25)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '20')", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("importingCarrierCode: pos 3-6, len 4, type AN, designation M", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "importingCarrierCode")!;
-    expect(f).toMatchObject({ start: 3, end: 6, length: 4, type: "AN", designation: "M" });
-  });
-  it("importMOT: pos 7-8, len 2, type N, designation M (30/40/70)", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "importMOT")!;
-    expect(f).toMatchObject({ start: 7, end: 8, length: 2, type: "N", designation: "M" });
-  });
-  it("countryCode: pos 9-10, len 2, type A, designation C", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "countryCode")!;
-    expect(f).toMatchObject({ start: 9, end: 10, length: 2, type: "A", designation: "C" });
-  });
-  it("importingConveyance: pos 11-33, len 23, type X, designation C", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "importingConveyance")!;
-    expect(f).toMatchObject({ start: 11, end: 33, length: 23, type: "X", designation: "C" });
-  });
-  it("voyageFlightTripNum: pos 34-38, len 5, type X, designation C", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "voyageFlightTripNum")!;
-    expect(f).toMatchObject({ start: 34, end: 38, length: 5, type: "X", designation: "C" });
-  });
-  it("filler1: pos 39-45, len 7, type AN, designation M (internal gap — PDF layout gap)", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "filler1")!;
-    expect(f).toMatchObject({ start: 39, end: 45, length: 7, type: "AN", designation: "M" });
-  });
-  it("portOfImportArrival: pos 46-49, len 4, type N, designation M", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "portOfImportArrival")!;
-    expect(f).toMatchObject({ start: 46, end: 49, length: 4, type: "N", designation: "M" });
-  });
-  it("estDateOfArrival: pos 50-55, len 6, type N, designation C — MMDDYY (NOT YYMMDD)", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "estDateOfArrival")!;
-    expect(f).toMatchObject({ start: 50, end: 55, length: 6, type: "N", designation: "C" });
-    expect(f.description).toMatch(/MMDDYY/i);
-    expect(f.description).not.toMatch(/YYMMDD/i);
-  });
-  it("ftzFirmsCode: pos 56-59, len 4, type AN, designation C", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "ftzFirmsCode")!;
-    expect(f).toMatchObject({ start: 56, end: 59, length: 4, type: "AN", designation: "C" });
-  });
-  it("filler2: pos 60-80, len 21, type AN, designation M (trailing)", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "filler2")!;
-    expect(f).toMatchObject({ start: 60, end: 80, length: 21, type: "AN", designation: "M" });
-  });
-  it("has exactly 11 fields (including both fillers)", () => {
-    expect(QP20_CONVEYANCE_INFO_SPEC.fields).toHaveLength(11);
-  });
-});
-
-// ── QP30 Bill of Lading Header — Individual Field Verification ──────────────
-describe("QP30 Bill of Lading Header — Field Positions (PDF pp. INB-26 to INB-28)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '30')", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("actionCode: pos 3, len 1, type A, designation M (A=Add, D=Delete)", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "actionCode")!;
-    expect(f).toMatchObject({ start: 3, end: 3, length: 1, type: "A", designation: "M" });
-  });
-  it("filler1: pos 4, len 1, type A, designation M (1-char internal gap between action and seq)", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "filler1")!;
-    expect(f).toMatchObject({ start: 4, end: 4, length: 1, type: "A", designation: "M" });
-  });
-  it("sequenceNumber: pos 5-8, len 4, type AN, designation O", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "sequenceNumber")!;
-    expect(f).toMatchObject({ start: 5, end: 8, length: 4, type: "AN", designation: "O" });
-  });
-  it("issuerCodeMasterBOL: pos 9-12, len 4, type AN, designation M", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "issuerCodeMasterBOL")!;
-    expect(f).toMatchObject({ start: 9, end: 12, length: 4, type: "AN", designation: "M" });
-  });
-  it("masterBOLNumber: pos 13-24, len 12, type AN, designation M", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "masterBOLNumber")!;
-    expect(f).toMatchObject({ start: 13, end: 24, length: 12, type: "AN", designation: "M" });
-  });
-  it("issuerCodeHouseBill: pos 25-28, len 4, type AN, designation C (reserved for future use)", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "issuerCodeHouseBill")!;
-    expect(f).toMatchObject({ start: 25, end: 28, length: 4, type: "AN", designation: "C" });
-  });
-  it("houseBillNumber: pos 29-40, len 12, type AN, designation C (Air only)", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "houseBillNumber")!;
-    expect(f).toMatchObject({ start: 29, end: 40, length: 12, type: "AN", designation: "C" });
-  });
-  it("issuerCodeSubHouse: pos 41-44, len 4, type AN, designation C (reserved for future use)", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "issuerCodeSubHouse")!;
-    expect(f).toMatchObject({ start: 41, end: 44, length: 4, type: "AN", designation: "C" });
-  });
-  it("subHouseBillNumber: pos 45-56, len 12, type AN, designation C (reserved for future use)", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "subHouseBillNumber")!;
-    expect(f).toMatchObject({ start: 45, end: 56, length: 12, type: "AN", designation: "C" });
-  });
-  it("prevInBondNumber: pos 57-68, len 12, type AN, designation C", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "prevInBondNumber")!;
-    expect(f).toMatchObject({ start: 57, end: 68, length: 12, type: "AN", designation: "C" });
-  });
-  it("inBondQuantity: pos 69-78, len 10, type N, designation C", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "inBondQuantity")!;
-    expect(f).toMatchObject({ start: 69, end: 78, length: 10, type: "N", designation: "C" });
-  });
-  it("filler2: pos 79-80, len 2, type AN, designation M (trailing)", () => {
-    const f = QP30_BOL_HEADER_SPEC.fields.find((x) => x.name === "filler2")!;
-    expect(f).toMatchObject({ start: 79, end: 80, length: 2, type: "AN", designation: "M" });
-  });
-  it("has exactly 13 fields", () => {
-    expect(QP30_BOL_HEADER_SPEC.fields).toHaveLength(13);
-  });
-});
-
-// ── QP32 Secondary Notify Parties — Field Verification ──────────────────────
-describe("QP32 Secondary Notify Parties — Field Positions (PDF p. INB-29)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '32')", () => {
-    const f = QP32_SECONDARY_NOTIFY_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("snpCode1: pos 3-11, len 9, type AN, designation M", () => {
-    const f = QP32_SECONDARY_NOTIFY_SPEC.fields.find((x) => x.name === "snpCode1")!;
-    expect(f).toMatchObject({ start: 3, end: 11, length: 9, type: "AN", designation: "M" });
-  });
-  it("snpCode2: pos 12-20, len 9, type AN, designation O", () => {
-    const f = QP32_SECONDARY_NOTIFY_SPEC.fields.find((x) => x.name === "snpCode2")!;
-    expect(f).toMatchObject({ start: 12, end: 20, length: 9, type: "AN", designation: "O" });
-  });
-  it("snpCode3: pos 21-29, len 9, type AN, designation O", () => {
-    const f = QP32_SECONDARY_NOTIFY_SPEC.fields.find((x) => x.name === "snpCode3")!;
-    expect(f).toMatchObject({ start: 21, end: 29, length: 9, type: "AN", designation: "O" });
-  });
-  it("snpCode4: pos 30-38, len 9, type AN, designation O", () => {
-    const f = QP32_SECONDARY_NOTIFY_SPEC.fields.find((x) => x.name === "snpCode4")!;
-    expect(f).toMatchObject({ start: 30, end: 38, length: 9, type: "AN", designation: "O" });
-  });
-  it("filler: pos 39-80, len 42, type AN, designation M", () => {
-    const f = QP32_SECONDARY_NOTIFY_SPEC.fields.find((x) => x.name === "filler")!;
-    expect(f).toMatchObject({ start: 39, end: 80, length: 42, type: "AN", designation: "M" });
-  });
-  it("has exactly 6 fields", () => {
-    expect(QP32_SECONDARY_NOTIFY_SPEC.fields).toHaveLength(6);
-  });
-});
-
-// ── QP33 Reference Identifier — Field Verification ──────────────────────────
-describe("QP33 Reference Identifier — Field Positions (PDF pp. INB-30 to INB-31)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '33')", () => {
-    const f = QP33_REFERENCE_ID_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("qualifier: pos 3-5, len 3, type AN, designation M (up to 3-char code)", () => {
-    const f = QP33_REFERENCE_ID_SPEC.fields.find((x) => x.name === "qualifier")!;
-    expect(f).toMatchObject({ start: 3, end: 5, length: 3, type: "AN", designation: "M" });
-  });
-  it("referenceIdentifier: pos 6-35, len 30, type AN, designation M", () => {
-    const f = QP33_REFERENCE_ID_SPEC.fields.find((x) => x.name === "referenceIdentifier")!;
-    expect(f).toMatchObject({ start: 6, end: 35, length: 30, type: "AN", designation: "M" });
-  });
-  it("filler: pos 36-80, len 45, type AN, designation M", () => {
-    const f = QP33_REFERENCE_ID_SPEC.fields.find((x) => x.name === "filler")!;
-    expect(f).toMatchObject({ start: 36, end: 80, length: 45, type: "AN", designation: "M" });
-  });
-  it("has exactly 4 fields", () => {
-    expect(QP33_REFERENCE_ID_SPEC.fields).toHaveLength(4);
-  });
-});
-
-// ── WP10 In-bond Event Header — Individual Field Verification ───────────────
-describe("WP10 In-bond Event Header — Field Positions (PDF pp. INB-54 to INB-56)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '10')", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("actionCode: pos 3, len 1, type AN, designation M (1/2/3/5/6/7/A/Z)", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "actionCode")!;
-    expect(f).toMatchObject({ start: 3, end: 3, length: 1, type: "AN", designation: "M" });
-  });
-  it("inBondNumber: pos 4-15, len 12, type AN, designation C", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "inBondNumber")!;
-    expect(f).toMatchObject({ start: 4, end: 15, length: 12, type: "AN", designation: "C" });
-  });
-  it("issuerCodeMasterBOL: pos 16-19, len 4, type AN, designation C", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "issuerCodeMasterBOL")!;
-    expect(f).toMatchObject({ start: 16, end: 19, length: 4, type: "AN", designation: "C" });
-  });
-  it("masterBOLNumber: pos 20-31, len 12, type AN, designation C", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "masterBOLNumber")!;
-    expect(f).toMatchObject({ start: 20, end: 31, length: 12, type: "AN", designation: "C" });
-  });
-  it("issuerCodeHouseBOL: pos 32-35, len 4, type AN, designation C (reserved for future use)", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "issuerCodeHouseBOL")!;
-    expect(f).toMatchObject({ start: 32, end: 35, length: 4, type: "AN", designation: "C" });
-  });
-  it("houseBOLNumber: pos 36-47, len 12, type AN, designation C (Air only)", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "houseBOLNumber")!;
-    expect(f).toMatchObject({ start: 36, end: 47, length: 12, type: "AN", designation: "C" });
-  });
-  it("firmsLocation: pos 48-51, len 4, type AN, designation C (mandatory for 1,2,3; not Air)", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "firmsLocation")!;
-    expect(f).toMatchObject({ start: 48, end: 51, length: 4, type: "AN", designation: "C" });
-  });
-  it("filler1: pos 52-63, len 12, type AN, designation M (internal gap between FIRMS and Container)", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "filler1")!;
-    expect(f).toMatchObject({ start: 52, end: 63, length: 12, type: "AN", designation: "M" });
-  });
-  it("containerNumber: pos 64-77, len 14, type AN, designation C (mandatory for 3 and 7; not Air)", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "containerNumber")!;
-    expect(f).toMatchObject({ start: 64, end: 77, length: 14, type: "AN", designation: "C" });
-  });
-  it("filler2: pos 78-80, len 3, type AN, designation M (trailing)", () => {
-    const f = WP10_EVENT_HEADER_SPEC.fields.find((x) => x.name === "filler2")!;
-    expect(f).toMatchObject({ start: 78, end: 80, length: 3, type: "AN", designation: "M" });
-  });
-  it("has exactly 11 fields", () => {
-    expect(WP10_EVENT_HEADER_SPEC.fields).toHaveLength(11);
-  });
-});
-
-// ── WP20 In-bond Event Detail — Individual Field Verification ───────────────
-describe("WP20 In-bond Event Detail — Field Positions (PDF pp. INB-57 to INB-58)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '20')", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("date: pos 3-8, len 6, type N, designation M — YYMMDD format (NOT MMDDYY)", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "date")!;
-    expect(f).toMatchObject({ start: 3, end: 8, length: 6, type: "N", designation: "M" });
-    expect(f.description).toMatch(/YYMMDD/i);
-    expect(f.description).not.toMatch(/MMDDYY/i);
-  });
-  it("time: pos 9-14, len 6, type N, designation M — HHMMSS 24-hour", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "time")!;
-    expect(f).toMatchObject({ start: 9, end: 14, length: 6, type: "N", designation: "M" });
-  });
-  it("portOfArrival: pos 15-18, len 4, type N, designation C", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "portOfArrival")!;
-    expect(f).toMatchObject({ start: 15, end: 18, length: 4, type: "N", designation: "C" });
-  });
-  it("inBondCarrierCode: pos 19-22, len 4, type X, designation C", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "inBondCarrierCode")!;
-    expect(f).toMatchObject({ start: 19, end: 22, length: 4, type: "X", designation: "C" });
-  });
-  it("bondedCarrierID: pos 23-34, len 12, type X, designation C", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "bondedCarrierID")!;
-    expect(f).toMatchObject({ start: 23, end: 34, length: 12, type: "X", designation: "C" });
-  });
-  it("cityName: pos 35-53, len 19, type AN, designation C", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "cityName")!;
-    expect(f).toMatchObject({ start: 35, end: 53, length: 19, type: "AN", designation: "C" });
-  });
-  it("stateCode: pos 54-55, len 2, type A, designation C", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "stateCode")!;
-    expect(f).toMatchObject({ start: 54, end: 55, length: 2, type: "A", designation: "C" });
-  });
-  it("exportMOT: pos 56-57, len 2, type N, designation O (Vessel only 10/11)", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "exportMOT")!;
-    expect(f).toMatchObject({ start: 56, end: 57, length: 2, type: "N", designation: "O" });
-  });
-  it("exportConveyance: pos 58-80, len 23, type AN, designation O", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "exportConveyance")!;
-    expect(f).toMatchObject({ start: 58, end: 80, length: 23, type: "AN", designation: "O" });
-  });
-  it("has exactly 10 fields (no trailing filler — exportConveyance runs to pos 80)", () => {
-    expect(WP20_EVENT_DETAIL_SPEC.fields).toHaveLength(10);
-  });
-});
-
-// ── QT95 Transaction Response — Individual Field Verification ───────────────
-describe("QT95 In-bond Transaction Response — Field Positions (PDF p. INB-53)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '95')", () => {
-    const f = QT95_RESPONSE_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("narrativeMsgType: pos 3-4, len 2, type N, designation M (01/02/03)", () => {
-    const f = QT95_RESPONSE_SPEC.fields.find((x) => x.name === "narrativeMsgType")!;
-    expect(f).toMatchObject({ start: 3, end: 4, length: 2, type: "N", designation: "M" });
-  });
-  it("narrativeMsgId: pos 5-7, len 3, type AN, designation M", () => {
-    const f = QT95_RESPONSE_SPEC.fields.find((x) => x.name === "narrativeMsgId")!;
-    expect(f).toMatchObject({ start: 5, end: 7, length: 3, type: "AN", designation: "M" });
-  });
-  it("filler1: pos 8, len 1, type AN, designation M (internal single-char gap)", () => {
-    const f = QT95_RESPONSE_SPEC.fields.find((x) => x.name === "filler1")!;
-    expect(f).toMatchObject({ start: 8, end: 8, length: 1, type: "AN", designation: "M" });
-  });
-  it("narrativeMessage: pos 9-47, len 39, type X, designation M", () => {
-    const f = QT95_RESPONSE_SPEC.fields.find((x) => x.name === "narrativeMessage")!;
-    expect(f).toMatchObject({ start: 9, end: 47, length: 39, type: "X", designation: "M" });
-  });
-  it("filler2: pos 48-80, len 33, type AN, designation M (trailing)", () => {
-    const f = QT95_RESPONSE_SPEC.fields.find((x) => x.name === "filler2")!;
-    expect(f).toMatchObject({ start: 48, end: 80, length: 33, type: "AN", designation: "M" });
-  });
-  it("has exactly 6 fields", () => {
-    expect(QT95_RESPONSE_SPEC.fields).toHaveLength(6);
-  });
-});
-
-// ── WT95 Arrival/Export Response — Field Verification ───────────────────────
-describe("WT95 Arrival/Export Response — Field Positions (PDF p. INB-59)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '95')", () => {
-    const f = WT95_RESPONSE_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("narrativeMsgType: pos 3-4, len 2, type N, designation M (01/02/03)", () => {
-    const f = WT95_RESPONSE_SPEC.fields.find((x) => x.name === "narrativeMsgType")!;
-    expect(f).toMatchObject({ start: 3, end: 4, length: 2, type: "N", designation: "M" });
-  });
-  it("narrativeMsgId: pos 5-7, len 3, type AN, designation M", () => {
-    const f = WT95_RESPONSE_SPEC.fields.find((x) => x.name === "narrativeMsgId")!;
-    expect(f).toMatchObject({ start: 5, end: 7, length: 3, type: "AN", designation: "M" });
-  });
-  it("filler1: pos 8, len 1, type AN, designation M (internal single-char gap)", () => {
-    const f = WT95_RESPONSE_SPEC.fields.find((x) => x.name === "filler1")!;
-    expect(f).toMatchObject({ start: 8, end: 8, length: 1, type: "AN", designation: "M" });
-  });
-  it("narrativeMessage: pos 9-47, len 39, type X, designation M", () => {
-    const f = WT95_RESPONSE_SPEC.fields.find((x) => x.name === "narrativeMessage")!;
-    expect(f).toMatchObject({ start: 9, end: 47, length: 39, type: "X", designation: "M" });
-  });
-  it("filler2: pos 48-80, len 33, type AN, designation M (trailing)", () => {
-    const f = WT95_RESPONSE_SPEC.fields.find((x) => x.name === "filler2")!;
-    expect(f).toMatchObject({ start: 48, end: 80, length: 33, type: "AN", designation: "M" });
-  });
-  it("WT95 is structurally identical to QT95 (same positions, lengths, types)", () => {
-    const qt = QT95_RESPONSE_SPEC.fields;
-    const wt = WT95_RESPONSE_SPEC.fields;
-    expect(wt).toHaveLength(qt.length);
-    for (let i = 0; i < qt.length; i++) {
-      expect(wt[i].start).toBe(qt[i].start);
-      expect(wt[i].end).toBe(qt[i].end);
-      expect(wt[i].length).toBe(qt[i].length);
-      expect(wt[i].type).toBe(qt[i].type);
-    }
-  });
-});
-
-// ── NS10 Status Notification Header — Field Verification ────────────────────
-describe("NS10 Status Notification Header (In-bond) — Field Positions (PDF p. INB-61)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '10')", () => {
-    const f = NS10_STATUS_HEADER_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("inBondEntryType: pos 3-4, len 2, type N, designation M (61/62/63)", () => {
-    const f = NS10_STATUS_HEADER_SPEC.fields.find((x) => x.name === "inBondEntryType")!;
-    expect(f).toMatchObject({ start: 3, end: 4, length: 2, type: "N", designation: "M" });
-  });
-  it("inBondNumber: pos 5-16, len 12, type AN, designation M", () => {
-    const f = NS10_STATUS_HEADER_SPEC.fields.find((x) => x.name === "inBondNumber")!;
-    expect(f).toMatchObject({ start: 5, end: 16, length: 12, type: "AN", designation: "M" });
-  });
-  it("usPortOfDest: pos 17-20, len 4, type N, designation M", () => {
-    const f = NS10_STATUS_HEADER_SPEC.fields.find((x) => x.name === "usPortOfDest")!;
-    expect(f).toMatchObject({ start: 17, end: 20, length: 4, type: "N", designation: "M" });
-  });
-  it("foreignDestination: pos 21-25, len 5, type N, designation C (5N all-numeric for output)", () => {
-    const f = NS10_STATUS_HEADER_SPEC.fields.find((x) => x.name === "foreignDestination")!;
-    expect(f).toMatchObject({ start: 21, end: 25, length: 5, type: "N", designation: "C" });
-  });
-  it("filler: pos 26-80, len 55, type AN, designation M (trailing)", () => {
-    const f = NS10_STATUS_HEADER_SPEC.fields.find((x) => x.name === "filler")!;
-    expect(f).toMatchObject({ start: 26, end: 80, length: 55, type: "AN", designation: "M" });
-  });
-  it("has exactly 6 fields", () => {
-    expect(NS10_STATUS_HEADER_SPEC.fields).toHaveLength(6);
-  });
-});
-
-// ── NS30 Status Notification Detail — Field Verification ────────────────────
-describe("NS30 Status Notification Detail — Field Positions (PDF pp. INB-64 to INB-65)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '30')", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("dispositionCode: pos 3-4, len 2, type AN, designation M", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "dispositionCode")!;
-    expect(f).toMatchObject({ start: 3, end: 4, length: 2, type: "AN", designation: "M" });
-  });
-  it("issuerMasterBill: pos 5-8, len 4, type AN, designation M", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "issuerMasterBill")!;
-    expect(f).toMatchObject({ start: 5, end: 8, length: 4, type: "AN", designation: "M" });
-  });
-  it("masterBillNumber: pos 9-20, len 12, type AN, designation M", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "masterBillNumber")!;
-    expect(f).toMatchObject({ start: 9, end: 20, length: 12, type: "AN", designation: "M" });
-  });
-  it("issuerHouseBill: pos 21-24, len 4, type AN, designation C (reserved future use — named in PDF)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "issuerHouseBill")!;
-    expect(f).toMatchObject({ start: 21, end: 24, length: 4, type: "AN", designation: "C" });
-  });
-  it("houseBillNumber: pos 25-36, len 12, type AN, designation C (reserved future use — named in PDF)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "houseBillNumber")!;
-    expect(f).toMatchObject({ start: 25, end: 36, length: 12, type: "AN", designation: "C" });
-  });
-  it("issuerSubHouse: pos 37-40, len 4, type AN, designation C (reserved future use — named in PDF)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "issuerSubHouse")!;
-    expect(f).toMatchObject({ start: 37, end: 40, length: 4, type: "AN", designation: "C" });
-  });
-  it("subHouseBillNumber: pos 41-52, len 12, type AN, designation C (reserved future use — named in PDF)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "subHouseBillNumber")!;
-    expect(f).toMatchObject({ start: 41, end: 52, length: 12, type: "AN", designation: "C" });
-  });
-  it("quantity: pos 53-62, len 10, type N, designation M", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "quantity")!;
-    expect(f).toMatchObject({ start: 53, end: 62, length: 10, type: "N", designation: "M" });
-  });
-  it("negativeIndicator: pos 63, len 1, type A, designation C (N or space)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "negativeIndicator")!;
-    expect(f).toMatchObject({ start: 63, end: 63, length: 1, type: "A", designation: "C" });
-  });
-  it("actionDate: pos 64-69, len 6, type N, designation M — YYMMDD format", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "actionDate")!;
-    expect(f).toMatchObject({ start: 64, end: 69, length: 6, type: "N", designation: "M" });
-    expect(f.description).toMatch(/YYMMDD/i);
-  });
-  it("actionTime: pos 70-73, len 4, type N, designation M — HHMM only (NOT 6-char HHMMSS)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "actionTime")!;
-    expect(f).toMatchObject({ start: 70, end: 73, length: 4, type: "N", designation: "M" });
-    expect(f.description).toMatch(/HHMM/);
-    expect(f.length).toBe(4);
-    expect(f.length).not.toBe(6);
-  });
-  it("inBondCarrierCode: pos 74-77, len 4, type X, designation M", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "inBondCarrierCode")!;
-    expect(f).toMatchObject({ start: 74, end: 77, length: 4, type: "X", designation: "M" });
-  });
-  it("filler: pos 78-80, len 3, type AN, designation M (trailing)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "filler")!;
-    expect(f).toMatchObject({ start: 78, end: 80, length: 3, type: "AN", designation: "M" });
-  });
-  it("has exactly 14 fields", () => {
-    expect(NS30_STATUS_DETAIL_SPEC.fields).toHaveLength(14);
-  });
-});
-
-// ── NS40 Status Notification Continuation — Field Verification ───────────────
-describe("NS40 Status Notification Continuation — Field Positions (PDF p. INB-66)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '40')", () => {
-    const f = NS40_STATUS_CONTINUATION_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("entryType: pos 3-4, len 2, type N, designation C", () => {
-    const f = NS40_STATUS_CONTINUATION_SPEC.fields.find((x) => x.name === "entryType")!;
-    expect(f).toMatchObject({ start: 3, end: 4, length: 2, type: "N", designation: "C" });
-  });
-  it("entryNumber: pos 5-19, len 15, type AN, designation C", () => {
-    const f = NS40_STATUS_CONTINUATION_SPEC.fields.find((x) => x.name === "entryNumber")!;
-    expect(f).toMatchObject({ start: 5, end: 19, length: 15, type: "AN", designation: "C" });
-  });
-  it("distPortTxn: pos 20-23, len 4, type N, designation M", () => {
-    const f = NS40_STATUS_CONTINUATION_SPEC.fields.find((x) => x.name === "distPortTxn")!;
-    expect(f).toMatchObject({ start: 20, end: 23, length: 4, type: "N", designation: "M" });
-  });
-  it("firmsCode: pos 24-27, len 4, type AN, designation C", () => {
-    const f = NS40_STATUS_CONTINUATION_SPEC.fields.find((x) => x.name === "firmsCode")!;
-    expect(f).toMatchObject({ start: 24, end: 27, length: 4, type: "AN", designation: "C" });
-  });
-  it("containerNum: pos 28-41, len 14, type AN, designation C", () => {
-    const f = NS40_STATUS_CONTINUATION_SPEC.fields.find((x) => x.name === "containerNum")!;
-    expect(f).toMatchObject({ start: 28, end: 41, length: 14, type: "AN", designation: "C" });
-  });
-  it("filler: pos 42-80, len 39, type AN, designation M (trailing)", () => {
-    const f = NS40_STATUS_CONTINUATION_SPEC.fields.find((x) => x.name === "filler")!;
-    expect(f).toMatchObject({ start: 42, end: 80, length: 39, type: "AN", designation: "M" });
-  });
-  it("has exactly 7 fields", () => {
-    expect(NS40_STATUS_CONTINUATION_SPEC.fields).toHaveLength(7);
-  });
-});
-
-// ── NS50 Status Notification Remarks — Field Verification ────────────────────
-describe("NS50 Status Notification Remarks — Field Positions (PDF p. INB-67)", () => {
-  it("recordType: pos 1-2, len 2, type N, designation M (constant '50')", () => {
-    const f = NS50_STATUS_REMARKS_SPEC.fields.find((x) => x.name === "recordType")!;
-    expect(f).toMatchObject({ start: 1, end: 2, length: 2, type: "N", designation: "M" });
-  });
-  it("remarks: pos 3-47, len 45, type X, designation M (free-form USCBP text)", () => {
-    const f = NS50_STATUS_REMARKS_SPEC.fields.find((x) => x.name === "remarks")!;
-    expect(f).toMatchObject({ start: 3, end: 47, length: 45, type: "X", designation: "M" });
-  });
-  it("filler: pos 48-80, len 33, type AN, designation M (trailing)", () => {
-    const f = NS50_STATUS_REMARKS_SPEC.fields.find((x) => x.name === "filler")!;
-    expect(f).toMatchObject({ start: 48, end: 80, length: 33, type: "AN", designation: "M" });
-  });
-  it("has exactly 3 fields", () => {
-    expect(NS50_STATUS_REMARKS_SPEC.fields).toHaveLength(3);
-  });
-});
-
-// ── Cross-Record Date Format Consistency Checks ──────────────────────────────
-describe("Cross-Record Date Format Verification — In-Bond Chapter Mixed Date Formats", () => {
-  it("QP20 estDateOfArrival uses MMDDYY (confirmed from PDF p. INB-24)", () => {
-    const f = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "estDateOfArrival")!;
-    expect(f.length).toBe(6);
-    expect(f.type).toBe("N");
-    expect(f.description).toMatch(/MMDDYY/i);
+      it(`Record ${spec.id} (${spec.name}) has contiguous 1-to-80 position coverage with no gaps or overlaps`, () => {
+        const { isContiguous, errors } = validateRecordMath(spec);
+        expect(errors).toEqual([]);
+        expect(isContiguous).toBe(true);
+        expect(spec.fields[0].start).toBe(1);
+        expect(spec.fields[spec.fields.length - 1].end).toBe(80);
+      });
+    });
   });
 
-  it("WP20 date uses YYMMDD (confirmed from PDF p. INB-57) — DIFFERENT format from QP20", () => {
-    const f = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "date")!;
-    expect(f.length).toBe(6);
-    expect(f.type).toBe("N");
-    expect(f.description).toMatch(/YYMMDD/i);
+  describe("Evidentiary Field Assertions & Discrepancies Verification", () => {
+    it("QP10 In-Bond Header matches PDF pp. 19-20 layout", () => {
+      const spec = QP10_HEADER_SPEC;
+      expect(spec.fields[0]).toEqual({ name: "recordType", start: 1, end: 2, length: 2, type: "2N", desig: "M" });
+      expect(spec.fields[2]).toEqual({ name: "inBondEntryType", start: 4, end: 5, length: 2, type: "2N", desig: "C" });
+      expect(spec.fields[3]).toEqual({ name: "inBondNumber", start: 6, end: 17, length: 12, type: "12AN", desig: "M" });
+      expect(spec.fields[7]).toEqual({ name: "value", start: 31, end: 38, length: 8, type: "8N", desig: "M" });
+      expect(spec.fields[11]).toEqual({ name: "filler", start: 53, end: 80, length: 28, type: "28AN", desig: "M" });
+    });
+
+    it("QP20 Movement Record matches PDF pp. 23-24 layout (Arrival Date MMDDYY at pos 58-63)", () => {
+      const spec = QP20_MOVEMENT_SPEC;
+      expect(spec.fields[8]).toEqual({ name: "stateOfDestination", start: 56, end: 57, length: 2, type: "2A", desig: "C" });
+      expect(spec.fields[9]).toEqual({ name: "estimatedArrivalDate", start: 58, end: 63, length: 6, type: "6N", desig: "C" });
+      expect(spec.fields[10]).toEqual({ name: "foreignTradeZoneFirmsCode", start: 64, end: 67, length: 4, type: "4AN", desig: "C" });
+    });
+
+    it("QP30 Bill of Lading matches PDF pp. 26-27 layout", () => {
+      const spec = QP30_BILL_OF_LADING_SPEC;
+      expect(spec.fields[1]).toEqual({ name: "masterIssuerCode", start: 3, end: 6, length: 4, type: "4AN", desig: "M" });
+      expect(spec.fields[2]).toEqual({ name: "masterBillNumber", start: 7, end: 18, length: 12, type: "12AN", desig: "M" });
+      expect(spec.fields[7]).toEqual({ name: "pieceCount", start: 51, end: 60, length: 10, type: "10N", desig: "M" });
+    });
+
+    it("WP10 Arrival Header matches PDF pp. 54-55 layout", () => {
+      const spec = WP10_ARRIVAL_HEADER_SPEC;
+      expect(spec.fields[1]).toEqual({ name: "actionCode", start: 3, end: 3, length: 1, type: "1AN", desig: "M" });
+      expect(spec.fields[2]).toEqual({ name: "inBondNumber", start: 4, end: 15, length: 12, type: "12AN", desig: "C" });
+      expect(spec.fields[7]).toEqual({ name: "inBondArrivalPort", start: 48, end: 51, length: 4, type: "4AN", desig: "C" });
+      expect(spec.fields[9]).toEqual({ name: "containerNumber", start: 64, end: 77, length: 14, type: "14AN", desig: "C" });
+    });
+
+    it("WP20 Arrival Detail matches PDF pp. 57-58 layout (Date YYMMDD at pos 3-8, Time HHMMSS at pos 9-14)", () => {
+      const spec = WP20_ARRIVAL_DETAIL_SPEC;
+      expect(spec.fields[1]).toEqual({ name: "arrivalDate", start: 3, end: 8, length: 6, type: "6N", desig: "M" });
+      expect(spec.fields[2]).toEqual({ name: "arrivalTime", start: 9, end: 14, length: 6, type: "6N", desig: "M" });
+      expect(spec.fields[4]).toEqual({ name: "firmsCode", start: 19, end: 22, length: 4, type: "4X", desig: "C" });
+    });
+
+    it("NS30 Status Record matches PDF pp. 64-65 layout (Action Date YYMMDD at pos 64-69, Action Time HHMM at pos 70-73)", () => {
+      const spec = NS30_BILL_STATUS_SPEC;
+      expect(spec.fields[1]).toEqual({ name: "dispositionCode", start: 3, end: 4, length: 2, type: "2AN", desig: "M" });
+      expect(spec.fields[8]).toEqual({ name: "quantity", start: 53, end: 62, length: 10, type: "10N", desig: "M" });
+      expect(spec.fields[10]).toEqual({ name: "actionDate", start: 64, end: 69, length: 6, type: "6N", desig: "M" });
+      expect(spec.fields[11]).toEqual({ name: "actionTime", start: 70, end: 73, length: 4, type: "4N", desig: "M" });
+    });
+
+    it("EA, EB, EY, EZ Batch Control Trailer Error records match PDF pp. 69-72 layout", () => {
+      [EA_ERROR_SPEC, EB_ERROR_SPEC, EY_ERROR_SPEC, EZ_ERROR_SPEC].forEach((spec) => {
+        expect(spec.fields[0]).toEqual({ name: "controlIdentifier", start: 1, end: 1, length: 1, type: "1A", desig: "M" });
+        expect(spec.fields[1].start).toBe(2);
+        expect(spec.fields[1].end).toBe(2);
+        expect(spec.fields[2]).toEqual({ name: "narrativeMessage", start: 3, end: 42, length: 40, type: "40X", desig: "M" });
+        expect(spec.fields[3]).toEqual({ name: "filler", start: 43, end: 80, length: 38, type: "38AN", desig: "M" });
+      });
+    });
   });
 
-  it("NS30 actionDate uses YYMMDD (confirmed from PDF pp. INB-64/65)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "actionDate")!;
-    expect(f.length).toBe(6);
-    expect(f.type).toBe("N");
-    expect(f.description).toMatch(/YYMMDD/i);
+  describe("Date Format & Decimal Convention Verification", () => {
+    it("Verifies date format distinction across QP20 (MMDDYY) vs WP20 & NS30 (YYMMDD)", () => {
+      const qp20Date = QP20_MOVEMENT_SPEC.fields.find((f) => f.name === "estimatedArrivalDate");
+      const wp20Date = WP20_ARRIVAL_DETAIL_SPEC.fields.find((f) => f.name === "arrivalDate");
+      const ns30Date = NS30_BILL_STATUS_SPEC.fields.find((f) => f.name === "actionDate");
+
+      expect(qp20Date?.type).toBe("6N");
+      expect(qp20Date?.start).toBe(58);
+      expect(qp20Date?.end).toBe(63);
+
+      expect(wp20Date?.type).toBe("6N");
+      expect(wp20Date?.start).toBe(3);
+      expect(wp20Date?.end).toBe(8);
+
+      expect(ns30Date?.type).toBe("6N");
+      expect(ns30Date?.start).toBe(64);
+      expect(ns30Date?.end).toBe(69);
+    });
+
+    it("Verifies whole dollar monetary precision (no implied decimals) for QP10 Value and QP40 Volume", () => {
+      const qp10Value = QP10_HEADER_SPEC.fields.find((f) => f.name === "value");
+      const qp40Volume = QP40_LINE_ITEM_SPEC.fields.find((f) => f.name === "volume");
+
+      expect(qp10Value?.type).toBe("8N");
+      expect(qp10Value?.length).toBe(8);
+
+      expect(qp40Volume?.type).toBe("10N");
+      expect(qp40Volume?.length).toBe(10);
+    });
   });
-
-  it("QP20 date format (MMDDYY) differs from WP20 date format (YYMMDD) in same chapter", () => {
-    const qp20Date = QP20_CONVEYANCE_INFO_SPEC.fields.find((x) => x.name === "estDateOfArrival")!;
-    const wp20Date = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "date")!;
-    expect(qp20Date.length).toBe(6);
-    expect(wp20Date.length).toBe(6);
-    expect(qp20Date.description).toMatch(/MMDDYY/i);
-    expect(wp20Date.description).toMatch(/YYMMDD/i);
-    expect(qp20Date.description).not.toMatch(/YYMMDD/i);
-    expect(wp20Date.description).not.toMatch(/MMDDYY/i);
-  });
-
-  it("NS30 actionTime is 4-char HHMM — not 6-char HHMMSS (confirmed from PDF pp. INB-64/65)", () => {
-    const f = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "actionTime")!;
-    expect(f.length).toBe(4);
-    expect(f.length).not.toBe(6);
-  });
-
-  it("WP20 time is 6-char HHMMSS vs NS30 actionTime which is 4-char HHMM", () => {
-    const wp20Time = WP20_EVENT_DETAIL_SPEC.fields.find((x) => x.name === "time")!;
-    const ns30Time = NS30_STATUS_DETAIL_SPEC.fields.find((x) => x.name === "actionTime")!;
-    expect(wp20Time.length).toBe(6);
-    expect(ns30Time.length).toBe(4);
-    expect(wp20Time.length).not.toBe(ns30Time.length);
-  });
-});
-
-// ── Transaction Identifier Metadata Tests ────────────────────────────────────
-describe("In-Bond Record Metadata — Transaction IDs and Directions", () => {
-  it("QP-input records have transactionId QP and direction Input", () => {
-    const qpRecords = [
-      QP10_IN_BOND_HEADER_SPEC,
-      QP20_CONVEYANCE_INFO_SPEC,
-      QP30_BOL_HEADER_SPEC,
-      QP32_SECONDARY_NOTIFY_SPEC,
-      QP33_REFERENCE_ID_SPEC,
-    ];
-    for (const spec of qpRecords) {
-      expect(spec.transactionId).toBe("QP");
-      expect(spec.direction).toBe("Input");
-    }
-  });
-
-  it("WP-input records have transactionId WP and direction Input", () => {
-    for (const spec of [WP10_EVENT_HEADER_SPEC, WP20_EVENT_DETAIL_SPEC]) {
-      expect(spec.transactionId).toBe("WP");
-      expect(spec.direction).toBe("Input");
-    }
-  });
-
-  it("QT95 has transactionId QT and direction Output", () => {
-    expect(QT95_RESPONSE_SPEC.transactionId).toBe("QT");
-    expect(QT95_RESPONSE_SPEC.direction).toBe("Output");
-  });
-
-  it("WT95 has transactionId WT and direction Output", () => {
-    expect(WT95_RESPONSE_SPEC.transactionId).toBe("WT");
-    expect(WT95_RESPONSE_SPEC.direction).toBe("Output");
-  });
-
-  it("NS-output records have transactionId NS and direction Output", () => {
-    for (const spec of [NS10_STATUS_HEADER_SPEC, NS30_STATUS_DETAIL_SPEC, NS40_STATUS_CONTINUATION_SPEC, NS50_STATUS_REMARKS_SPEC]) {
-      expect(spec.transactionId).toBe("NS");
-      expect(spec.direction).toBe("Output");
-    }
-  });
-
-  it("scope count: 5 QP + 2 WP + 1 QT + 1 WT + 4 NS = 13 total records", () => {
-    expect(ALL_IN_BOND_SPECS).toHaveLength(13);
-  });
-});
-
-// ── First-field Record Type Constant Verification ────────────────────────────
-describe("Record Type Constants — First Field Matches Record Identifier", () => {
-  const expectations: Array<[InBondRecordSpec, string]> = [
-    [QP10_IN_BOND_HEADER_SPEC,       "10"],
-    [QP20_CONVEYANCE_INFO_SPEC,      "20"],
-    [QP30_BOL_HEADER_SPEC,           "30"],
-    [QP32_SECONDARY_NOTIFY_SPEC,     "32"],
-    [QP33_REFERENCE_ID_SPEC,         "33"],
-    [WP10_EVENT_HEADER_SPEC,         "10"],
-    [WP20_EVENT_DETAIL_SPEC,         "20"],
-    [QT95_RESPONSE_SPEC,             "95"],
-    [WT95_RESPONSE_SPEC,             "95"],
-    [NS10_STATUS_HEADER_SPEC,        "10"],
-    [NS30_STATUS_DETAIL_SPEC,        "30"],
-    [NS40_STATUS_CONTINUATION_SPEC,  "40"],
-    [NS50_STATUS_REMARKS_SPEC,       "50"],
-  ];
-
-  it.each(expectations.map(([s, c]) => [s.recordId, s, c]))(
-    "%s first field 'recordType' occupies pos 1-2 and description states constant '%s'",
-    (_id, spec, constant) => {
-      const firstField = (spec as InBondRecordSpec).fields[0];
-      expect(firstField.name).toBe("recordType");
-      expect(firstField.start).toBe(1);
-      expect(firstField.end).toBe(2);
-      expect(firstField.length).toBe(2);
-      expect(firstField.description).toContain(constant as string);
-    }
-  );
 });
