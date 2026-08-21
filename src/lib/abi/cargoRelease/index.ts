@@ -18,3 +18,4 @@ export {
 } from "./recordSpecs";
 export * from "./build";
 export * from "./parse";
+export * from "./validate";

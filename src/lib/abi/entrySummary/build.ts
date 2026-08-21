@@ -7,6 +7,11 @@ import {
   TARIFF_DETAIL_SPEC,
   FEE_TOTAL_SPEC,
   GRAND_TOTALS_SPEC,
+  BOND_DETAIL_SPEC,
+  FTZ_STATUS_SPEC,
+  FTZ_PRIVILEGED_STATUS_DETAIL_SPEC,
+  ADCVD_CASE_DETAIL_SPEC,
+  ADCVD_DUTY_TOTALS_SPEC,
 } from "./recordSpecs";
 import type {
   HeaderControlInput,
@@ -16,6 +21,11 @@ import type {
   FeeTotalEntry,
   FeeTotalInput,
   GrandTotalsInput,
+  BondDetailInput,
+  FtzStatusInput,
+  FtzPrivilegedStatusDetailInput,
+  AdcvdCaseDetailInput,
+  AdcvdDutyTotalsInput,
 } from "./types";
 
 /**
@@ -63,4 +73,28 @@ export function buildFeeTotal(fees: FeeTotalEntry[]): string {
 
 export function buildGrandTotals(input: GrandTotalsInput): string {
   return encodeRecord(GRAND_TOTALS_SPEC, input);
+}
+
+/** Builds a 31-Record. The Bond Grouping allows up to 2 of these per summary
+ * — callers assemble that occurrence limit themselves; this just encodes one. */
+export function buildBondDetail(input: BondDetailInput): string {
+  return encodeRecord(BOND_DETAIL_SPEC, input);
+}
+
+export function buildFtzStatus(input: FtzStatusInput): string {
+  return encodeRecord(FTZ_STATUS_SPEC, input);
+}
+
+export function buildFtzPrivilegedStatusDetail(input: FtzPrivilegedStatusDetailInput): string {
+  return encodeRecord(FTZ_PRIVILEGED_STATUS_DETAIL_SPEC, input);
+}
+
+/** Builds a 53-Record. Up to 2 of these are allowed per line item — callers
+ * assemble that occurrence limit themselves; this just encodes one. */
+export function buildAdcvdCaseDetail(input: AdcvdCaseDetailInput): string {
+  return encodeRecord(ADCVD_CASE_DETAIL_SPEC, input);
+}
+
+export function buildAdcvdDutyTotals(input: AdcvdDutyTotalsInput): string {
+  return encodeRecord(ADCVD_DUTY_TOTALS_SPEC, input);
 }

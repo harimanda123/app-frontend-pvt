@@ -111,6 +111,103 @@ export interface FeeTotalInput {
   totalFeeAmount5?: Decimal;
 }
 
+// ── 31-Record: Bond Detail ───────────────────────────────────────────────────
+// Header-level, conditional, reported up to 2 times per summary (the Bond
+// Grouping). See docs/plans/catair-source-docs/02-entry-summary-create-update-
+// 2026-07.pdf, pages ESF-49 through ESF-50.
+
+export interface BondDetailInput {
+  /** "8" = continuous (multiple transaction) bond, "9" = single transaction bond (STB). */
+  bondTypeCode: "8" | "9";
+  /** "B" = basic, "A" = additional, "U" = substitution STB, "E" = superseding STB. */
+  bondDesignationTypeCode: "B" | "A" | "U" | "E";
+  /**
+   * "Y" = continuous bond supersedes the bond presented at time of entry, "S" =
+   * substitution continuous bond replaces it. Space-fill if continuous yet not
+   * superseding/substituting, or if STB.
+   */
+  continuousBondIndicator?: "Y" | "S";
+  suretyCompanyCode: string;
+  /** Whole U.S. dollars (no implied decimals). Space-fill if continuous bond. */
+  singleTransactionBondAmount?: Decimal;
+  /**
+   * The Surety Reference Number from CBP Form 301, as assigned by the STB's
+   * Surety company. Left-justified, trailing spaces. Space-fill if continuous bond.
+   */
+  singleTransactionBondProducerAccountNumber?: string;
+}
+
+// ── 41-Record: FTZ Status Information ────────────────────────────────────────
+// Line-item-level, conditional, reported at most once per line item. See PDF
+// page ESF-72.
+
+export interface FtzStatusInput {
+  /** "P" = Privileged Foreign, "N" = Non-Privileged Foreign, "D" = Domestic. */
+  ftzMerchandiseStatusCode: "P" | "N" | "D";
+  /**
+   * The date the merchandise entered the zone. Only meaningful (and only
+   * reported) for Privileged Foreign status — space-filled otherwise.
+   */
+  privilegedFtzMerchandiseFilingDate?: Date;
+  /** Whole units removed from the FTZ and entered into U.S. commerce (no implied decimals). */
+  ftzLineItemQuantity: Decimal;
+}
+
+// ── SE61-Record: FTZ Privileged Foreign Status Additional Detail ────────────
+// Reported only once per Tariff/Value/Quantity Detail (50-Record), only when
+// Privileged Foreign status was declared on the preceding 41-Record AND the
+// 50-Record's declared HTS is no longer an active HTS number. See PDF page
+// ESF-92. (The chapter's other conditional detail records mostly use a 2-char
+// control identifier + separate record-type digit; SE61's own identifier is a
+// single 4-char literal occupying positions 1-4.)
+
+export interface FtzPrivilegedStatusDetailInput {
+  /**
+   * The current, full 10-digit HTS classification for Privileged Foreign
+   * status merchandise whose originally-declared 50-Record HTS is no longer
+   * active. Used only to identify current PGA flagging — not used for duty
+   * calculation or entry summary reporting.
+   */
+  currentHtsNumber: string;
+}
+
+// ── 53-Record: AD/CVD Case Detail ────────────────────────────────────────────
+// Line-item-level, conditional, up to 2 times per line item. See PDF pages
+// ESF-98 through ESF-99. Note the three distinct implied-decimal conventions
+// among this record's own numeric fields: Case Deposit Rate (2), AD/CVD Value
+// of Goods Amount (0 — whole dollars), AD/CVD Quantity (4), AD/CVD Duty
+// Amount (2).
+
+export interface AdcvdCaseDetailInput {
+  /** The AD/CVD case number, without hyphens. */
+  caseNumber: string;
+  /** "B" = surety bond, "C" = cash deposit. */
+  bondCashClaimCode: "B" | "C";
+  /** Implied 2 decimal places on the wire. */
+  caseDepositRate: Decimal;
+  /** "A" = ad valorem rate, "S" = specific rate. */
+  caseRateTypeQualifierCode: "A" | "S";
+  /** Whole U.S. dollars (no implied decimals); used in lieu of the line item value. */
+  valueOfGoodsAmount?: Decimal;
+  /** Primary unit quantity for specific-rate calculations. Implied 4 decimal places on the wire. */
+  quantity?: Decimal;
+  /** Estimated duty amount, in U.S. dollars and cents. Implied 2 decimal places on the wire. */
+  dutyAmount: Decimal;
+  /** Blanket non-reimbursement declaration identifier. */
+  nonReimbursementDeclarationIdentifier?: string;
+}
+
+// ── 88-Record: AD/CVD Duty Totals ────────────────────────────────────────────
+// Totals-level, conditional, reported at most once per summary. See PDF page
+// ESF-128. All four amounts carry 2 implied decimal places.
+
+export interface AdcvdDutyTotalsInput {
+  totalBondedAdDutyAmount?: Decimal;
+  totalCashDepositAdDutyAmount?: Decimal;
+  totalBondedCvDutyAmount?: Decimal;
+  totalCashDepositCvDutyAmount?: Decimal;
+}
+
 export interface GrandTotalsInput {
   grandTotalDutyAmount?: Decimal;
   grandTotalUserFeeAmount?: Decimal;

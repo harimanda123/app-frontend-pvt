@@ -35,7 +35,7 @@ export interface ShipmentAuditEntry {
 const SOURCE_BADGES: Record<ShipmentAuditEntry["source"], { label: string; badge: string }> = {
   UI: { label: "User Action", badge: "bg-purple-50 text-purple-700 border-purple-200" },
   CHAT: { label: "Copilot AI", badge: "bg-blue-50 text-blue-700 border-blue-200" },
-  SYSTEM: { label: "User Action", badge: "bg-purple-50 text-purple-700 border-purple-200" },
+  SYSTEM: { label: "System Auto", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   API: { label: "External API", badge: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
@@ -74,9 +74,11 @@ function formatTimestamp(iso: string) {
 
 export function ShipmentAuditTrail({ entries }: { entries: ShipmentAuditEntry[] }) {
   const [filter, setFilter] = useState<string>("ALL");
+  const [sourceFilter, setSourceFilter] = useState<string>("ALL");
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
 
   const filteredEntries = entries.filter((e) => {
+    if (sourceFilter !== "ALL" && e.source !== sourceFilter) return false;
     if (filter === "ALL") return true;
     if (filter === "FIELD_APPROVAL") return e.category === "FIELD_APPROVAL";
     if (filter === "DOCUMENT_INGESTION") return e.category === "DOCUMENT_INGESTION";
@@ -92,7 +94,7 @@ export function ShipmentAuditTrail({ entries }: { entries: ShipmentAuditEntry[] 
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-ink-muted font-bold flex items-center space-x-1 mr-1">
             <Filter className="w-3.5 h-3.5 text-ink-muted" />
-            <span>Filter:</span>
+            <span>Category:</span>
           </span>
           <button
             type="button"
@@ -101,7 +103,7 @@ export function ShipmentAuditTrail({ entries }: { entries: ShipmentAuditEntry[] 
               filter === "ALL" ? "bg-brand text-white" : "bg-slate-100 text-ink-muted hover:text-ink"
             }`}
           >
-            All Human Actions ({entries.length})
+            All Categories ({entries.length})
           </button>
           <button
             type="button"
@@ -131,21 +133,61 @@ export function ShipmentAuditTrail({ entries }: { entries: ShipmentAuditEntry[] 
             Filing Submissions ({entries.filter((e) => e.category === "FILING_SUBMISSION").length})
           </button>
         </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 text-xs pt-1 sm:pt-0 border-t sm:border-t-0 border-border">
+          <span className="text-ink-muted font-bold mr-1">Origin:</span>
+          <button
+            type="button"
+            onClick={() => setSourceFilter("ALL")}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
+              sourceFilter === "ALL" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setSourceFilter("UI")}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
+              sourceFilter === "UI" ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
+            }`}
+          >
+            User
+          </button>
+          <button
+            type="button"
+            onClick={() => setSourceFilter("CHAT")}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
+              sourceFilter === "CHAT" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+            }`}
+          >
+            Copilot
+          </button>
+          <button
+            type="button"
+            onClick={() => setSourceFilter("API")}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
+              sourceFilter === "API" ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+            }`}
+          >
+            API
+          </button>
+        </div>
       </div>
 
       {/* Audit Log Table */}
       {filteredEntries.length === 0 ? (
         <div className="py-12 text-center text-xs text-ink-muted bg-slate-50 rounded-2xl border border-border">
-          No human audit events match the selected filter.
+          No audit events match the selected filter criteria.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border bg-white shadow-2xs">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 border-b border-border text-[11px] font-extrabold text-ink-muted uppercase tracking-wider">
-                <th className="py-3 px-4 w-[220px]">Action</th>
+                <th className="py-3 px-4 w-[240px]">Action & Source</th>
                 <th className="py-3 px-4">Details</th>
-                <th className="py-3 px-4 w-[180px]">User</th>
+                <th className="py-3 px-4 w-[180px]">User / System</th>
                 <th className="py-3 px-4 w-[190px]">Timestamp</th>
               </tr>
             </thead>
@@ -158,9 +200,16 @@ export function ShipmentAuditTrail({ entries }: { entries: ShipmentAuditEntry[] 
                   <tr key={entry.id} className="hover:bg-slate-50/80 transition-colors">
                     {/* Column 1: Action */}
                     <td className="py-3.5 px-4 align-top">
-                      <div className="flex items-center space-x-2">
-                        {getCategoryIcon(entry.category)}
-                        <span className="font-bold text-ink text-xs">{entry.title}</span>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          {getCategoryIcon(entry.category)}
+                          <span className="font-bold text-ink text-xs">{entry.title}</span>
+                        </div>
+                        <div>
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${sourceInfo.badge}`}>
+                            {sourceInfo.label}
+                          </span>
+                        </div>
                       </div>
                     </td>
 

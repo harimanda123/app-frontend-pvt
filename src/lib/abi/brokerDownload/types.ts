@@ -6,11 +6,14 @@
 // Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf (August
 // 2024 DRAFT)
 //
-// Deferred (not modeled this slice): 17 conditional/optional/mode-specific/
-// overflow records — 2M, 1A, 2B, 4B, 2N, 3N, 4N, 1I, 2I, 2C, 0D, 1V, 2V, 3V
-// (BD Application Grouping) and NS40, NS50, NS60 (NS Application Grouping).
-// See tests/abi-broker-download-specs.test.ts's DEFERRED_RECORDS registry for
-// page citations and per-record deferral rationale.
+// Deferred (not modeled this slice): 11 conditional/optional/mode-specific/
+// overflow records — 2M, 1A, 2B, 4B, 2N, 3N, 4N, 1I, 2I, 2C, 0D (BD
+// Application Grouping). See tests/abi-broker-download-specs.test.ts's
+// DEFERRED_RECORDS registry for page citations and per-record deferral
+// rationale (that registry still lists all 17 originally-deferred records —
+// it's a standalone audit fixture, not re-synced here — but 1V, 2V, 3V,
+// NS40, NS50, NS60 are now modeled below per
+// tests/abi-broker-download-extended.test.ts, pages 43-45 and 49-51).
 //
 // No `Decimal`-bound fields exist in this slice: every quantity/weight field
 // the source PDF documents (1B's Manifest Quantity & Weight, 1D's Piece
@@ -204,4 +207,94 @@ export interface StatusNotificationDetailRecord {
   actionTime: string;
   /** SCAC or IATA code. */
   inBondCarrierCode: string;
+}
+
+/** 1V-Record: Hazardous Material Detail. Conditional; may repeat up to ten
+ * times. Rail/Ocean/Truck (per-field usage varies — see individual notes). */
+export interface HazardousMaterialDetailRecord {
+  /** UN/identification number assigned to the hazardous material. Rail,
+   * Ocean and Truck. Class X per the source PDF (not AN) — kept as a plain
+   * string. */
+  hazardousMaterialCode: string;
+  /** IMDG hazardous class/division code. Ocean only. */
+  hazardousMaterialClass?: string;
+  /** Code describing the hazardous material class. Rail and Ocean only. */
+  hazardousMaterialCodeQualifier?: string;
+  /** Proper shipping name of the hazardous material. Rail and Ocean only. */
+  hazardousMaterialDescription?: string;
+  /** Name and/or phone number of the emergency contact. Rail, Ocean and
+   * Truck. */
+  hazardousMaterialContact?: string;
+  /** IMDG code page number where the hazardous material identification
+   * appears. Ocean only. */
+  unHazardousMaterialPage?: string;
+}
+
+/** 2V-Record: Additional Hazardous Material Detail (Flashpoint). Conditional;
+ * Rail and Ocean only. */
+export interface AdditionalHazardousMaterialDetailRecord {
+  /** Lowest temperature at which the hazardous combustible liquid's vapor
+   * ignites in air. A genuine measured quantity (paired with
+   * `negativeIndicator` for sign), not an identifier — plain `number`, not
+   * zero-pad-preserving. */
+  flashpointTemperature?: number;
+  /** Unit of measure for the flashpoint temperature — "CE" (Centigrade/
+   * Celsius) is the only documented value. */
+  unitOfMeasureCode?: string;
+  /** "N" when the flashpoint temperature is negative (below 0 C), else
+   * space. */
+  negativeIndicator?: string;
+}
+
+/** 3V-Record: Hazardous Material Classification Detail. Conditional; may
+ * repeat up to 99 times. Rail and Ocean only. */
+export interface HazardousMaterialClassificationDetailRecord {
+  /** Material name, special instructions and/or phone number. */
+  hazardousMaterialDescription?: string;
+  /** Free-form hazardous material classification/division/label
+   * requirements. Ocean only. */
+  hazardousMaterialClassification?: string;
+}
+
+/** NS40-Record: Status Notification Continuation. Wire control identifier is
+ * the bare 2-char "40" (see `StatusNotificationHeaderRecord`'s note on the
+ * "NS" Application Identifier grouping). Conditional; follows the associated
+ * NS30 record when present. */
+export interface StatusNotificationContinuationRecord {
+  /** Entry category code (ACE Ocean Appendix B). Identifier with
+   * leading-zero significance, not a quantity. */
+  entryType?: string;
+  /** CBP entry number, form number, or regulatory provision. */
+  entryNumber?: string;
+  /** Schedule D port code where the action occurred; always "9900" for
+   * disposition code 1W status notifications. */
+  portOfTransaction: string;
+  /** FIRMS code for the location of the goods. */
+  firmsCode?: string;
+  /** Container/equipment number associated with the bill of lading. */
+  containerNumber?: string;
+}
+
+/** NS50-Record: Status Notification Remarks. Wire control identifier is the
+ * bare 2-char "50". Conditional; at most two per NS30 record. */
+export interface StatusNotificationRemarksRecord {
+  /** Free-text reason a hold is placed; may contain hold quantities or other
+   * information. */
+  remarks: string;
+}
+
+/** NS60-Record: Status Notification Container Detail. Wire control
+ * identifier is the bare 2-char "60". Conditional; up to 999 per NS30
+ * record. */
+export interface StatusNotificationContainerDetailRecord {
+  /** "1" indicates the NS30 disposition action was taken specifically
+   * against this container; blank indicates it was not a container-level
+   * action. Identifier-style flag, not a quantity. */
+  actionIndicator?: string;
+  /** Container/equipment number. */
+  containerNumber?: string;
+  /** Exporter/carrier seal number. */
+  sealNumber1?: string;
+  /** Exporter/carrier seal number. */
+  sealNumber2?: string;
 }

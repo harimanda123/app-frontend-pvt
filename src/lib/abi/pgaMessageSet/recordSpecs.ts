@@ -37,6 +37,13 @@ import type {
   Pg55AdditionalEntityRolesInput,
   Pg60AdditionalReferenceInput,
   Pg00SubstitutionInput,
+  Pg05ScientificSpeciesInput,
+  Pg17CommonNameVenomousInput,
+  Pg23AffirmationOfComplianceInput,
+  Pg28CanDimensionsTrackingInput,
+  Pg31HarvestingVesselInput,
+  Pg33GeographicAreaInput,
+  Pg35ConformanceBondInput,
 } from "./types";
 
 // RecordSpecs for the CATAIR PGA Message Set chapter (Chapter 8) — the 28
@@ -463,5 +470,101 @@ export const PG00_SUBSTITUTION_SPEC: RecordSpec<Pg00SubstitutionInput> = {
     { key: "substitutionIndicator", start: 5, length: 1, class: "X", designation: "M" },
     { key: "substitutionNumber", start: 6, length: 4, class: "AN", designation: "M" },
     filler(10, 71),
+  ],
+};
+
+// ── Agency-specific record variants (source PDF pp. 25, 33, 39, 44, 50, 52,
+// 54) ─────────────────────────────────────────────────────────────────────
+// Each record's "Control Identifier" (2A, always "PG") + "Record Type" (2N,
+// e.g. "05") pair collapses into a single 4-char `constantField` (e.g.
+// "PG05"), same as every generic backbone record above — a class mismatch
+// against the PDF's own per-field table (which lists them as two separate
+// fields), not a codec bug.
+
+export const PG05_SCIENTIFIC_SPECIES_SPEC: RecordSpec<Pg05ScientificSpeciesInput> = {
+  recordType: "PG05-Record (FWS/APHIS Scientific Genus/Species Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "PG05"),
+    { key: "scientificGenusName", start: 5, length: 22, class: "X", designation: "C" },
+    { key: "scientificSpeciesName", start: 27, length: 22, class: "X", designation: "C" },
+    { key: "scientificSubSpeciesName", start: 49, length: 18, class: "X", designation: "C" },
+    { key: "scientificSpeciesCode", start: 67, length: 7, class: "AN", designation: "C" },
+    { key: "fwsDescriptionCode", start: 74, length: 7, class: "AN", designation: "C" },
+  ],
+};
+
+export const PG17_COMMON_NAME_VENOMOUS_SPEC: RecordSpec<Pg17CommonNameVenomousInput> = {
+  recordType: "PG17-Record (FWS Common Name & Venomous/Cartons Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "PG17"),
+    { key: "commonNameSpecific", start: 5, length: 30, class: "X", designation: "C" },
+    { key: "commonNameGeneral", start: 35, length: 30, class: "X", designation: "C" },
+    { key: "liveVenomousWildlifeCode", start: 65, length: 1, class: "A", designation: "C" },
+    { key: "cartonsContainingWildlife", start: 66, length: 5, class: "N", designation: "C" },
+    filler(71, 10),
+  ],
+};
+
+export const PG23_AFFIRMATION_OF_COMPLIANCE_SPEC: RecordSpec<Pg23AffirmationOfComplianceInput> = {
+  recordType: "PG23-Record (FDA Affirmation of Compliance)",
+  length: 80,
+  fields: [
+    constantField(1, "PG23"),
+    { key: "affirmationOfComplianceCode", start: 5, length: 5, class: "X", designation: "M" },
+    { key: "affirmationOfComplianceDescription", start: 10, length: 70, class: "X", designation: "C" },
+    filler(80, 1),
+  ],
+};
+
+export const PG28_CAN_DIMENSIONS_TRACKING_SPEC: RecordSpec<Pg28CanDimensionsTrackingInput> = {
+  recordType: "PG28-Record (FDA Can Dimensions & Tracking Number)",
+  length: 80,
+  fields: [
+    constantField(1, "PG28"),
+    numericCodeField("canDimensions1", 5, 4, "C"),
+    numericCodeField("canDimensions2", 9, 4, "C"),
+    numericCodeField("canDimensions3", 13, 4, "C"),
+    { key: "packageTrackingNumberCode", start: 17, length: 4, class: "AN", designation: "C" },
+    { key: "packageTrackingNumber", start: 21, length: 50, class: "AN", designation: "C" },
+    filler(71, 10),
+  ],
+};
+
+export const PG31_HARVESTING_VESSEL_SPEC: RecordSpec<Pg31HarvestingVesselInput> = {
+  recordType: "PG31-Record (NOAA/NMFS Harvesting Vessel Characteristic)",
+  length: 80,
+  fields: [
+    constantField(1, "PG31"),
+    { key: "commodityHarvestingVesselCharacteristicTypeCode", start: 5, length: 3, class: "AN", designation: "M" },
+    { key: "commodityHarvestingVesselCharacteristic", start: 8, length: 35, class: "X", designation: "M" },
+    { key: "unitOfMeasureConveyance", start: 43, length: 3, class: "AN", designation: "C" },
+    impliedDecimalField("harvestedCommodityNetWeight", 46, 10, 2, "C"),
+    filler(56, 25),
+  ],
+};
+
+export const PG33_GEOGRAPHIC_AREA_SPEC: RecordSpec<Pg33GeographicAreaInput> = {
+  recordType: "PG33-Record (NOAA/NMFS Commodity Geographic Area)",
+  length: 80,
+  fields: [
+    constantField(1, "PG33"),
+    { key: "commodityGeographicAreaCode", start: 5, length: 9, class: "X", designation: "C" },
+    { key: "commodityGeographicAreaName", start: 14, length: 65, class: "X", designation: "C" },
+    filler(79, 2),
+  ],
+};
+
+export const PG35_CONFORMANCE_BOND_SPEC: RecordSpec<Pg35ConformanceBondInput> = {
+  recordType: "PG35-Record (DOT/NHTSA Conformance Bond Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "PG35"),
+    { key: "dotSuretyCode", start: 5, length: 3, class: "AN", designation: "C" },
+    { key: "dotBondSerialNumber", start: 8, length: 30, class: "X", designation: "C" },
+    { key: "dotBondQualifier", start: 38, length: 1, class: "N", designation: "C" },
+    impliedDecimalField("dotBondAmount", 39, 8, 0, "C"),
+    filler(47, 34),
   ],
 };

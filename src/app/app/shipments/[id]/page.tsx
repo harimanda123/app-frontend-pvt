@@ -1213,22 +1213,33 @@ export default async function ShipmentWorkspacePage(props: {
   );
 
   const combinedAuditEntries: ShipmentAuditEntry[] = [
-    // 1. Explicit Human User Audit Logs (filtering out automated worker noise like PRODUCT_INTELLIGENCE_*)
+    // 1. Audit Logs (UI, Copilot CHAT, External API — excluding SYSTEM background noise)
     ...dbAuditLogs
       .filter((log) => {
-        const isProductIntel = log.action.toUpperCase().includes("PRODUCT_INTELLIGENCE");
-        const isAgentAction = log.action.toUpperCase().startsWith("AGENT_");
-        const isSystemWorker =
+        const isSystemSource = log.source === "SYSTEM";
+        const isSystemWorkerAction =
           log.action.toUpperCase().startsWith("SYSTEM_") ||
           log.action.toUpperCase().startsWith("AUTOMATED_") ||
           log.action.toUpperCase().startsWith("NORMALIZE_") ||
-          log.action.toUpperCase().startsWith("RECONCILE_");
-        return !isProductIntel && !isAgentAction && !isSystemWorker && (log.source === "UI" || log.source === "CHAT" || Boolean(log.userId));
+          log.action.toUpperCase().startsWith("RECONCILE_") ||
+          log.action.toUpperCase().startsWith("AGENT_") ||
+          log.action.toUpperCase().includes("PRODUCT_INTELLIGENCE");
+        return !isSystemSource && !isSystemWorkerAction;
       })
       .map((log) => {
         const userName = log.user
           ? [log.user.firstName, log.user.lastName].filter(Boolean).join(" ") || log.user.email
-          : "System Admin";
+          : log.source === "CHAT"
+          ? "Copilot AI"
+          : log.source === "API"
+          ? "API Integration"
+          : "User";
+        const validSource: "UI" | "CHAT" | "SYSTEM" | "API" =
+          log.source === "CHAT"
+            ? "CHAT"
+            : log.source === "API"
+            ? "API"
+            : "UI";
         return {
           id: `audit-${log.id}`,
           action: log.action,
@@ -1239,7 +1250,7 @@ export default async function ShipmentWorkspacePage(props: {
             typeof (log.metadata as Record<string, unknown>).description === "string"
               ? ((log.metadata as Record<string, unknown>).description as string)
               : `Executed action ${log.action.replace(/_/g, " ")}`,
-          source: (["UI", "CHAT"].includes(log.source) ? log.source : "UI") as "UI" | "CHAT",
+          source: validSource,
           user: { name: userName, email: log.user?.email },
           timestamp: log.createdAt.toISOString(),
           beforeValue: (log.metadata as Record<string, unknown> | null)?.beforeJson

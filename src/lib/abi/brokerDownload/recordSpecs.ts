@@ -17,6 +17,12 @@ import type {
   MarksAndNumbersRecord,
   StatusNotificationHeaderRecord,
   StatusNotificationDetailRecord,
+  HazardousMaterialDetailRecord,
+  AdditionalHazardousMaterialDetailRecord,
+  HazardousMaterialClassificationDetailRecord,
+  StatusNotificationContinuationRecord,
+  StatusNotificationRemarksRecord,
+  StatusNotificationContainerDetailRecord,
 } from "./types";
 
 // RecordSpecs for the CATAIR ACE Broker Download chapter (Chapter 9 / BD & NS
@@ -214,5 +220,107 @@ export const STATUS_NOTIFICATION_DETAIL_SPEC: RecordSpec<StatusNotificationDetai
     numericCodeField("actionTime", 70, 4, "M"),
     { key: "inBondCarrierCode", start: 74, length: 4, class: "X", designation: "M" },
     filler(78, 3),
+  ],
+};
+
+// ── 1V-Record: Hazardous Material Detail ─────────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.43.
+
+export const HAZARDOUS_MATERIAL_DETAIL_SPEC: RecordSpec<HazardousMaterialDetailRecord> = {
+  recordType: "1V-Record (Hazardous Material Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "1V"),
+    { key: "hazardousMaterialCode", start: 3, length: 10, class: "X", designation: "M" },
+    { key: "hazardousMaterialClass", start: 13, length: 4, class: "X", designation: "O" },
+    { key: "hazardousMaterialCodeQualifier", start: 17, length: 1, class: "X", designation: "O" },
+    { key: "hazardousMaterialDescription", start: 18, length: 30, class: "AN", designation: "O" },
+    { key: "hazardousMaterialContact", start: 48, length: 24, class: "AN", designation: "O" },
+    { key: "unHazardousMaterialPage", start: 72, length: 6, class: "AN", designation: "O" },
+    filler(78, 3),
+  ],
+};
+
+// ── 2V-Record: Additional Hazardous Material Detail (Flashpoint) ────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.44.
+// Flashpoint Temperature is a measured quantity (paired with a Negative
+// Indicator sign flag), not an identifier — plain class N, not
+// `numericCodeField`, same rationale as 1B's `manifestQuantity`/`weight`.
+
+export const ADDITIONAL_HAZARDOUS_MATERIAL_DETAIL_SPEC: RecordSpec<AdditionalHazardousMaterialDetailRecord> = {
+  recordType: "2V-Record (Additional Hazardous Material Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "2V"),
+    { key: "flashpointTemperature", start: 3, length: 3, class: "N", designation: "C" },
+    { key: "unitOfMeasureCode", start: 6, length: 2, class: "X", designation: "C" },
+    { key: "negativeIndicator", start: 8, length: 1, class: "A", designation: "C" },
+    filler(9, 72),
+  ],
+};
+
+// ── 3V-Record: Hazardous Material Classification Detail ─────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.45.
+
+export const HAZARDOUS_MATERIAL_CLASSIFICATION_DETAIL_SPEC: RecordSpec<HazardousMaterialClassificationDetailRecord> = {
+  recordType: "3V-Record (Hazardous Material Classification Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "3V"),
+    { key: "hazardousMaterialDescription", start: 3, length: 30, class: "AN", designation: "O" },
+    { key: "hazardousMaterialClassification", start: 33, length: 30, class: "AN", designation: "C" },
+    filler(63, 18),
+  ],
+};
+
+// ── NS40-Record: Status Notification Continuation ────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.49.
+// Wire control identifier is the bare 2-char "40" — see
+// `StatusNotificationHeaderRecord`'s note on the "NS" grouping prefix.
+
+export const STATUS_NOTIFICATION_CONTINUATION_SPEC: RecordSpec<StatusNotificationContinuationRecord> = {
+  recordType: "NS40-Record (Status Notification Continuation)",
+  length: 80,
+  fields: [
+    constantField(1, "40"),
+    numericCodeField("entryType", 3, 2, "C"),
+    { key: "entryNumber", start: 5, length: 15, class: "AN", designation: "C" },
+    numericCodeField("portOfTransaction", 20, 4, "M"),
+    { key: "firmsCode", start: 24, length: 4, class: "AN", designation: "C" },
+    { key: "containerNumber", start: 28, length: 14, class: "AN", designation: "C" },
+    filler(42, 39),
+  ],
+};
+
+// ── NS50-Record: Status Notification Remarks ─────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.50.
+// Wire control identifier is the bare 2-char "50".
+
+export const STATUS_NOTIFICATION_REMARKS_SPEC: RecordSpec<StatusNotificationRemarksRecord> = {
+  recordType: "NS50-Record (Status Notification Remarks)",
+  length: 80,
+  fields: [
+    constantField(1, "50"),
+    { key: "remarks", start: 3, length: 45, class: "X", designation: "M" },
+    filler(48, 33),
+  ],
+};
+
+// ── NS60-Record: Status Notification Container Detail ────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.51.
+// Wire control identifier is the bare 2-char "60". Action Indicator is an
+// identifier-style flag ("1" or blank), not a quantity — `numericCodeField`,
+// same rationale as 1B's `inBondEntryType`.
+
+export const STATUS_NOTIFICATION_CONTAINER_DETAIL_SPEC: RecordSpec<StatusNotificationContainerDetailRecord> = {
+  recordType: "NS60-Record (Status Notification Container Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "60"),
+    numericCodeField("actionIndicator", 3, 1, "C"),
+    { key: "containerNumber", start: 4, length: 14, class: "AN", designation: "C" },
+    { key: "sealNumber1", start: 18, length: 15, class: "AN", designation: "C" },
+    { key: "sealNumber2", start: 33, length: 15, class: "AN", designation: "C" },
+    filler(48, 33),
   ],
 };

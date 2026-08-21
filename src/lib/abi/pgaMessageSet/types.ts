@@ -4,14 +4,12 @@ import type { Decimal } from "@/lib/tariff/decimal";
 // chapter (Chapter 8) — the 28 generic, cross-agency backbone input records
 // (OI, PG01, PG02, PG04, PG06, PG07, PG08, PG10, PG13, PG14, PG18, PG19,
 // PG20, PG21, PG22, PG24, PG25, PG26, PG27, PG29, PG30, PG32, PG34, PG50,
-// PG51, PG55, PG60, PG00). Source:
+// PG51, PG55, PG60, PG00) plus the 7 agency-specific record variants (PG05
+// FWS/APHIS Lacey Act scientific species, PG17 FWS live venomous
+// wildlife/carton counts, PG23 FDA Affirmation of Compliance, PG28 FDA can
+// dimensions & package tracking, PG31 NOAA NMFS harvesting vessel, PG33 NOAA
+// NMFS geographic area, PG35 DOT NHTSA conformance bond). Source:
 // docs/plans/catair-source-docs/08-pga-message-set-2026-07.pdf
-//
-// Deferred (not modeled this slice): the 7 agency-specific record variants —
-// PG05 (FWS/APHIS Lacey Act scientific species), PG17 (FWS live venomous
-// wildlife/carton counts), PG23 (FDA Affirmation of Compliance), PG28 (FDA
-// can dimensions), PG31 (NOAA NMFS harvesting vessel), PG33 (NOAA NMFS
-// geographic area), PG35 (DOT NHTSA conformance bond).
 
 /** OI-Record: exactly one per HTS line item, must precede all PG01 records
  * for that line (see `validatePg01Disclaimer`-style business rules). */
@@ -286,4 +284,73 @@ export interface Pg60AdditionalReferenceInput {
 export interface Pg00SubstitutionInput {
   substitutionIndicator: string;
   substitutionNumber: string;
+}
+
+// ── Agency-specific record variants (pp. 25, 33, 39, 44, 50, 52, 54) ───────
+
+/** PG05-Record: FWS/USDA-APHIS Lacey Act scientific genus/species detail. Used
+ * with PG06 to describe the genus/species-to-country-of-origin relationship. */
+export interface Pg05ScientificSpeciesInput {
+  scientificGenusName?: string;
+  scientificSpeciesName?: string;
+  scientificSubSpeciesName?: string;
+  /** FWS Wildlife Category Code — see Appendix PGA. */
+  scientificSpeciesCode?: string;
+  /** FWS Description Code — see Appendix PGA (FWS Description Codes). */
+  fwsDescriptionCode?: string;
+}
+
+/** PG17-Record: common name (specific/general) plus FWS live venomous
+ * wildlife/carton-count detail. May repeat. */
+export interface Pg17CommonNameVenomousInput {
+  commonNameSpecific?: string;
+  commonNameGeneral?: string;
+  /** "Y" or "N". */
+  liveVenomousWildlifeCode?: string;
+  cartonsContainingWildlife?: number;
+}
+
+/** PG23-Record: FDA Affirmation of Compliance criteria. May repeat. */
+export interface Pg23AffirmationOfComplianceInput {
+  affirmationOfComplianceCode: string;
+  affirmationOfComplianceDescription?: string;
+}
+
+/** PG28-Record: FDA can dimensions (acidified/low-acid canned foods) &
+ * package tracking numbers. Can dimension sub-fields (inches + 16ths) carry
+ * semantically significant leading zeros, so they're kept as raw zero-padded
+ * strings rather than `parseInt`-derived numbers — same rationale as
+ * `numericCodeField` elsewhere in this chapter. */
+export interface Pg28CanDimensionsTrackingInput {
+  canDimensions1?: string;
+  canDimensions2?: string;
+  canDimensions3?: string;
+  packageTrackingNumberCode?: string;
+  packageTrackingNumber?: string;
+}
+
+/** PG31-Record: NOAA/NMFS harvesting vessel characteristic. May repeat. */
+export interface Pg31HarvestingVesselInput {
+  commodityHarvestingVesselCharacteristicTypeCode: string;
+  commodityHarvestingVesselCharacteristic: string;
+  unitOfMeasureConveyance?: string;
+  /** Kilograms; implied 2 decimal places on the wire. */
+  harvestedCommodityNetWeight?: Decimal;
+}
+
+/** PG33-Record: NOAA/NMFS commodity geographic area (routing). */
+export interface Pg33GeographicAreaInput {
+  commodityGeographicAreaCode?: string;
+  commodityGeographicAreaName?: string;
+}
+
+/** PG35-Record: DOT/NHTSA conformance bond detail. */
+export interface Pg35ConformanceBondInput {
+  dotSuretyCode?: string;
+  dotBondSerialNumber?: string;
+  /** 1=Single, 2=Continuous. */
+  dotBondQualifier?: number;
+  /** Whole US dollars — 0 implied decimals, same convention as PG25's
+   * `pgaLineValue`. */
+  dotBondAmount?: Decimal;
 }

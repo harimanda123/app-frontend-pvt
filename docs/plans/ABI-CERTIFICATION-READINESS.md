@@ -19,14 +19,21 @@ CBP's "ABI test" is not a written exam — it's a certification process run by a
 
 ## Open Question A: who is the filer of record?
 
-**Resolved 2026-08-20: Qubere transmits to CBP directly.** That confirms the *technical* path — real transport, real credentials, no more handing files to a third-party filer. It does **not** by itself answer the narrower legal sub-question below, which still needs an explicit answer before Phase 0's Letter of Intent goes out, because it changes what CBP asks for:
+**Resolved 2026-08-20: Qubere transmits to CBP directly.** That confirms the *technical* path — real transport, real credentials, no more handing files to a third-party filer.
+
+**Resolved 2026-08-21: software-vendor path, not self-filer.** Qubere's customers are themselves brokers — Qubere transmits to CBP on their behalf, under each broker-customer's own filer code/credentials, not as the filer of record itself. This is the **ABI Software Vendor** path from the table below, not the self-filing path. Practical effect: no continuous bond or in-house licensed customs broker required for Qubere itself (19 CFR 111's broker-license requirement attaches to the filer of record — the customer-broker — not to Qubere as the software vendor); CBP's intake is software-certification paperwork, not bond/broker paperwork; Qubere still needs to certify against each CATAIR chapter it transmits, and each customer-broker's own credentials/liability apply per-transmission. The engineering build (envelope, serializer, transport, response parsing) is unaffected by this — same either way — only the Phase 0 paperwork and the credential model in `RealAceProvider` (per-customer filer credentials, not one Qubere-wide credential) are.
+
+Letter of Intent / initial outreach already sent to CBP as of 2026-08-21 — awaiting response.
+
+<details>
+<summary>Original two-path comparison (for reference — path is now decided)</summary>
 
 | Path (both are "direct transmission" from CBP's perspective) | What it requires | Implication |
 |---|---|---|
-| **Qubere self-files** (Qubere itself is the ABI filer of record) | A continuous bond, a filer code issued to Qubere, and — per 19 CFR 111 — a licensed customs broker on staff if filing on behalf of customers (not just Qubere's own imports) | Qubere takes on legal filing liability for every transmission. Heaviest path, but consistent with "we will build all those" — this is the version where Qubere owns the full chapter set end to end. |
-| **Qubere certifies as an ABI software vendor**, transmitting under each customer's own filer code/credentials | Software-level CBP certification; each customer still holds their own filer code and legal responsibility | Still genuinely "direct transmission" (no third-party filer in the loop) — the difference is whose credentials/liability it runs under. Matches CBP's [ABI Software Vendors list](https://www.cbp.gov/document/guidance/abi-software-vendors-list) model. |
+| Qubere self-files (Qubere itself is the ABI filer of record) | A continuous bond, a filer code issued to Qubere, and — per 19 CFR 111 — a licensed customs broker on staff if filing on behalf of customers (not just Qubere's own imports) | Qubere takes on legal filing liability for every transmission. |
+| **Qubere certifies as an ABI software vendor** (chosen), transmitting under each customer's own filer code/credentials | Software-level CBP certification; each customer still holds their own filer code and legal responsibility | Still genuinely "direct transmission" (no third-party filer in the loop) — the difference is whose credentials/liability it runs under. Matches CBP's [ABI Software Vendors list](https://www.cbp.gov/document/guidance/abi-software-vendors-list) model. |
 
-**Action:** confirm which of these two with whoever issued the directive before the Letter of Intent goes out (Phase 0) — CBP's intake process differs (self-filer bond/broker paperwork vs. vendor certification paperwork), even though the engineering build (envelope, serializer, transport, response parsing) is identical either way.
+</details>
 
 ---
 
@@ -64,7 +71,7 @@ Grounded in the 2026-08-13 audit (`docs/plans/review/OPEN-ITEMS.md`) plus direct
 | Sequence | Chapter | Why this order | Codebase readiness |
 |---|---|---|---|
 | 1 — foundational | Batch & Block Control | Required envelope for every other chapter; build once, first | **Codec built** (`src/lib/abi/batchBlockControl/`) — A/B/Y/Z, X0/X1 diagnostics, ACE-generated rejection fallbacks. Transport not wired. |
-| 2 | Entry Summary Create/Update (AE/AX) | Core existing product capability; fastest path to a first certified transaction | **Codec built, MVP subset** (`src/lib/abi/entrySummary/`) — input 10/11/40/50/89/90, output E0/E1 response parsing, Appendix E check-digit validation. PGA/AD-CVD/FTZ/bond/description-text/cargo-manifest and 20+ other record types deferred (see the module's own doc comments). Transport not wired. |
+| 2 | Entry Summary Create/Update (AE/AX) | Core existing product capability; fastest path to a first certified transaction | **Codec built, expanding** (`src/lib/abi/entrySummary/`) — input 10/11/40/50/89/90, output E0/E1, Appendix E check-digit validation, plus (2026-08-21, slice E1) Bond Detail (31), FTZ Status (41), FTZ Privileged Foreign Status Detail (SE61), AD/CVD Case Detail (53), AD/CVD Duty Totals (88). Records 31/53/88 independently spot-checked against the PDF before implementing; 41/SE61 verified during implementation instead (not pre-verified) — found and fixed a real bug in the process: the chapter's `impliedDecimalField` helper pre-rounded through `roundToCents` (hardcoded 2 decimals) before scaling, which would have silently truncated Record 53's 4-decimal AD/CVD Quantity field on encode (e.g. `12.3456` → `12.35`) — same bug class Drawback hit and fixed earlier, now fixed here too. **Data-quality note**: the task brief (sourced from Antigravity's original report) claimed SE61 repeats "up to 32x," but the source PDF (p. 91) actually says SE61 "may be reported only once per Tariff/Value/Quantity Detail (50-Record)" — flagging since this affects `assembleTransaction.ts`'s eventual nesting logic, which hasn't been touched yet for these 5 records. Slice E1 test count: 15/15; full ABI suite 843/843; full repo suite 3100/3100 (2 pre-existing skips). PGA/description-text/license-permit/entity-GBI/Importer's-Additional-Declaration/header-fees/line-user-fees/PSC/census-override record types still deferred — see `docs/plans/CODEC-COMPLETION-QUEUE.md` slices E2/E3. Transport not wired. |
 | 3 | Entry Summary Query | Needed to check status of what's filed; reuses envelope + routing infra | **Codec built, mandatory backbone complete** (`src/lib/abi/entrySummaryQuery/`) — input J0/J1/J2; output JA/JB and all 7 "M" (always-present) status records JC-JI, with `parseQueryResponse` correctly grouping each JB with its JC-JI per the Output Record Structure Map. Deferred: output JJ-JN (5 conditional records — protest/bill/collection detail, only returned when specifically requested) and the reused Entry Summary Details Grouping (10-90 output + 4A). Transport not wired. |
 | 4 | Cargo Release / Entry | Modern ACE filing bundles cargo release with entry summary; required to get goods released, not just paperwork accepted | **Codec built** (`src/lib/abi/cargoRelease/`) — SE10/11/13/15/16/20/30/35/36/40/50/55/56/60/90, the mandatory-backbone + core-commercial-extensions subset. Deferred: SE17 (Equipment), SE31/SE51 (Entity GBI pilot), SE41/SE61 (FTZ detail), PGA grouping, ISF grouping. Test-authored externally then implemented/corrected in-repo (money fields moved to `Decimal`, line item identifier's leading zero fixed). Transport not wired. |
 | 5 | Statement Processing (Daily/Periodic Monthly Statement) | Required to actually pay duties on filed entries — a production filer cannot operate without this | **Codec built** (`src/lib/abi/statement/`) — full Q1-Q7/QA/QE/QJ record set for both Daily and Periodic Monthly Statement flows (16 RecordSpecs). Deferred: SU (statement update/delete), RM/PN (ACH payment authorization), Outstanding Action ES Query Response grouping, printed-report rendering. All duty/tax/fee amounts confirmed 2-implied-decimal from the source PDF and bound to `Decimal`. Transport not wired. |
@@ -86,10 +93,11 @@ Grounded in the 2026-08-13 audit (`docs/plans/review/OPEN-ITEMS.md`) plus direct
 ## 3. Phased execution plan
 
 ### Phase 0 — Business & legal setup (no code)
-- [ ] Resolve the narrower Open Question A sub-question — self-filer (Qubere is the filer of record) vs. software-vendor (transmits under each customer's credentials) — before the Letter of Intent goes out.
-- [ ] Send CBP the Letter of Intent; get a Client Representative assigned.
+- [x] Resolve the narrower Open Question A sub-question — **software-vendor path chosen**: Qubere's customers are the brokers/filers of record, Qubere transmits under each customer's own credentials.
+- [x] Send CBP initial outreach / Letter of Intent — sent 2026-08-21, awaiting response.
+- [ ] Get a Client Representative assigned (pending CBP's response to the above).
 - [ ] Confirm with the Client Rep: current CATAIR chapter list, current revision numbers, and CBP's approved transport options (VAN/AS2/direct connect) for a new vendor in 2026.
-- [ ] If self-filing: confirm bond and (if filing for others) broker-license requirements with counsel. If software-vendor path: confirm what CBP requires evidence-wise from the vendor vs. from each customer's own filer relationship.
+- [ ] Confirm what CBP requires evidence-wise from Qubere as the software vendor vs. from each customer-broker's own filer relationship — this determines what `RealAceProvider`'s credential model needs to support (per-customer filer credentials, not a single Qubere-wide credential).
 - [ ] Get CBP ABI test-environment credentials once the above is settled.
 
 ### Phase 1 — Foundational transmission infrastructure (engineering)
@@ -172,10 +180,11 @@ Grounded in the 2026-08-13 audit (`docs/plans/review/OPEN-ITEMS.md`) plus direct
 
 ## 5. Immediate next actions (this week)
 
-1. Confirm the self-filer vs. software-vendor sub-question (Open Question A) with whoever issued the ABI-readiness directive — this determines what Phase 0's Letter of Intent actually asks CBP for.
-2. Have the Client Rep, once assigned, confirm the Periodic Monthly Statement (2020) and Duty Calculation appendix (2011) revisions specifically — those are the two oldest documents in the downloaded set and are the most likely to have quietly drifted from what's live today.
-3. Send the Letter of Intent to CBP / request a Client Representative.
-4. Start Phase 1 engineering against the downloaded documents in `docs/plans/catair-source-docs/` — they were pulled live from cbp.gov today, not reconstructed from search.
+1. ~~Confirm the self-filer vs. software-vendor sub-question~~ — done, software-vendor path.
+2. ~~Send the Letter of Intent to CBP~~ — done 2026-08-21, awaiting response.
+3. **Waiting on CBP's response** to get a Client Representative assigned — this is the current blocker; nothing in Phase 1 (real transport) can be built against a confirmed spec until the Client Rep confirms transport options and current chapter revisions.
+4. While waiting: have the Client Rep, once assigned, confirm the Periodic Monthly Statement (2020) and Duty Calculation appendix (2011) revisions specifically — those are the two oldest documents in the downloaded set and are the most likely to have quietly drifted from what's live today.
+5. While waiting: the codec/reference-data track (§2) is essentially done and doesn't need CBP's response to continue if there's more appetite for it — but the highest-leverage next engineering step once CBP responds is Phase 1's `RealAceProvider`, which now specifically needs a **per-customer credential model** (each broker-customer's own filer code/credentials), not a single Qubere-wide one, given the software-vendor path.
 
 ## Open items this plan does not resolve
 

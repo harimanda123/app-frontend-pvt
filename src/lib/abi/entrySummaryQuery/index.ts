@@ -18,3 +18,4 @@ export * from "./conditionCodes";
 export * from "./build";
 export * from "./assembleQuery";
 export * from "./parse";
+export * from "./validate";

@@ -3,12 +3,23 @@ import type { Decimal } from "@/lib/tariff/decimal";
 // Types for the CATAIR Cargo Release (SE) chapter — the mandatory backbone
 // (SE10/SE11/SE13) plus core commercial extensions (bill of lading, conveyance,
 // reference, entity/address/geo at header and line level, HTS line, output
-// disposition). Source:
+// disposition, equipment, GBI pilot entity identifiers, FTZ detail). Source:
 // docs/plans/catair-source-docs/04-cargo-release-implementation-guide-v40.pdf
 //
-// Deferred (not modeled this slice): SE17 (Equipment), SE31/SE51 (Entity GBI
-// pilot), SE41/SE61 (FTZ status/privileged foreign status detail), the PGA
-// grouping (OI, PG01-PG35), and the ISF grouping (SF10-SF36).
+// PGA grouping (OI, PG01-PG35): this chapter's own PDF (record usage map,
+// SE-27) lists the grouping but never defines its field layout — there is no
+// "Record Identifier PG0x" section anywhere in this document. The layout is
+// fully defined only in Chapter 8's PGA Message Set publication
+// (docs/plans/catair-source-docs/08-pga-message-set-2026-07.pdf), already
+// modeled generically at src/lib/abi/pgaMessageSet/ (OI_LINE_ITEM_SPEC,
+// PG01_HEADER_SPEC, ... PG60_ADDITIONAL_REFERENCE_SPEC). Cargo Release reuses
+// those same records by reference rather than redefining them here.
+//
+// Deferred (not modeled this slice): the ISF grouping (SF10-SF36) — unlike
+// the PGA grouping, this *is* fully defined in this chapter's own PDF
+// (pages 73-80+, Unified Entry/ISF Filing) as its own record family, not a
+// reuse of another chapter's generic records — but it isn't covered by this
+// slice's test fixtures.
 
 export interface HeaderInput {
   actionCode: "A" | "R" | "D";
