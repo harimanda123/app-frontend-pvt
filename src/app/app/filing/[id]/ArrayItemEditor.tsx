@@ -123,6 +123,7 @@ export default function ArrayItemEditor({
 
   // Handle local value change (updates both local state and parent)
   const handleValueChange = (fieldKey: string, value: any) => {
+    console.log('🔵 handleValueChange called:', { fieldKey, value });
     // Handle nested paths like "Address.Name" or "Address.Street"
     const keys = fieldKey.split('.');
     
@@ -559,15 +560,13 @@ export default function ArrayItemEditor({
             Cancel
           </Button>
           <Button onClick={() => { 
-            // Check if any data was actually entered
-            if (!hasAnyData(localDataRef.current)) {
-              // Treat as cancel if no data entered
-              onClose(false);
-              return;
-            }
-            
             // Push complete localData back to parent before saving (use ref to get latest value)
             const fullPath = `${parentPath}[${itemIndex}]`;
+            console.log('🟢 ArrayItemEditor Save clicked:', { 
+              fullPath, 
+              localDataRef: localDataRef.current,
+              localData: localData 
+            });
             onChange(fullPath, localDataRef.current);
             onSave(); 
             onClose(true); 
