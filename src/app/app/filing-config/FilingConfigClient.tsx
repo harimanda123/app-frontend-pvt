@@ -545,6 +545,20 @@ function RowFormModal({
                   <option value="false">{t.filingConfig?.no ?? "No"}</option>
                   <option value="true">{t.filingConfig?.yes ?? "Yes"}</option>
                 </select>
+              ) : f.type === "select" && f.options && f.options.length > 0 ? (
+                <select
+                  value={String(draft[f.key] ?? "")}
+                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                  disabled={disabled}
+                  className={`w-full rounded-xl border border-border px-3 py-2 text-sm ${disabled ? "opacity-60" : ""}`}
+                >
+                  <option value="">Select...</option>
+                  {f.options.map((opt) => (
+                    <option key={typeof opt === 'string' ? opt : opt.value} value={typeof opt === 'string' ? opt : opt.value}>
+                      {typeof opt === 'string' ? opt : opt.label}
+                    </option>
+                  ))}
+                </select>
               ) : isProcedureCodeField && transactionTypeCodes.length > 0 ? (
                 <select
                   value={String(draft[f.key] ?? "")}
