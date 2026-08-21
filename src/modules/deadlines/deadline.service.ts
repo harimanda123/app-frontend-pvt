@@ -9,7 +9,7 @@
  *    over blocking deadlines, so the 7501 team's ~60 read sites keep working.
  */
 
-import { db } from "@/lib/db";
+import { db, runWithAccountId } from "@/lib/db";
 import { createExceptionItem } from "@/lib/exceptions/createException";
 import {
   DeadlineStatus,
@@ -266,34 +266,36 @@ export async function sweepDeadlines(): Promise<{ evaluated: number; missed: num
     for (const d of batch) {
       if (!d.dueAt || !d.shipmentId || !d.shipment) continue;
 
-      const msRemaining = d.dueAt.getTime() - now.getTime();
+      await runWithAccountId(d.shipment.accountId, async () => {
+        const msRemaining = d.dueAt!.getTime() - now.getTime();
 
-      // Transition to MISSED.
-      if (msRemaining <= 0) {
-        await db.complianceDeadline.update({
-          where: { id: d.id },
-          data: { status: DeadlineStatus.MISSED, version: { increment: 1 } },
-        });
-        missed++;
-        await _escalateToException(d, d.shipment.accountId, true, now);
-        notified++;
-        continue;
-      }
-
-      // 72h warning.
-      if (msRemaining <= MS_72H) {
-        const alreadyNotified = await db.exceptionItem.count({
-          where: {
-            shipmentId: d.shipmentId,
-            code: deadlineExceptionCode(d.type),
-            status: { not: "Resolved" },
-          },
-        });
-        if (alreadyNotified === 0) {
-          await _escalateToException(d, d.shipment.accountId, false, now);
+        // Transition to MISSED.
+        if (msRemaining <= 0) {
+          await db.complianceDeadline.update({
+            where: { id: d.id },
+            data: { status: DeadlineStatus.MISSED, version: { increment: 1 } },
+          });
+          missed++;
+          await _escalateToException(d, d.shipment!.accountId, true, now);
           notified++;
+          return;
         }
-      }
+
+        // 72h warning.
+        if (msRemaining <= MS_72H) {
+          const alreadyNotified = await db.exceptionItem.count({
+            where: {
+              shipmentId: d.shipmentId!,
+              code: deadlineExceptionCode(d.type),
+              status: { not: "Resolved" },
+            },
+          });
+          if (alreadyNotified === 0) {
+            await _escalateToException(d, d.shipment!.accountId, false, now);
+            notified++;
+          }
+        }
+      });
     }
 
     if (batch.length < batchSize) break;

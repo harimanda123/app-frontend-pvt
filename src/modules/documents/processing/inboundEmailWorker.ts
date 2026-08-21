@@ -12,7 +12,7 @@
  */
 
 import { randomUUID } from "crypto";
-import { db } from "@/lib/db";
+import { db, runWithAccountId } from "@/lib/db";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 import { storeDocumentFile, StorageValidationError } from "@/lib/storage";
 import { screenUploadForMalware } from "./malwarePolicy";
@@ -52,7 +52,7 @@ export async function runInboundEmailWorkerTick(): Promise<InboundEmailTickResul
 
   for (const email of dueEmails) {
     try {
-      const accepted = await processOneEmail(email.id);
+      const accepted = await runWithAccountId(email.accountId ?? undefined, () => processOneEmail(email.id));
       if (accepted === "QUARANTINED") result.quarantined += 1;
       else result.accepted += 1;
     } catch (error) {
