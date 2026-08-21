@@ -67,6 +67,8 @@ export interface FieldDef {
   options?: Array<{ value: string; label: string }>;
   /** Only present when type === "select": map of option values to readable labels */
   optionLabels?: Record<string, string>;
+  /** Only present when type === "select" and options is omitted: API path to fetch `{ codes: string[] }` from. */
+  optionsSource?: string;
 }
 
 interface TableDef<TRow> {
@@ -106,7 +108,6 @@ const procedureConfigSchema = z.object({
   country: z.string().trim().min(1).max(50),
   procedureCode: z.string().trim().min(1).max(50),
   messageName: z.string().trim().min(1).max(100),
-  transactionType: z.string().trim().min(1).max(50),
   isActive: z.boolean(),
   createdBy: z.string().trim().max(100).optional(),
   updatedBy: z.string().trim().max(100).optional(),
@@ -126,6 +127,7 @@ const actionConfigurationSchema = z.object({
   country: z.string().trim().min(1).max(50),
   procedureCode: z.string().trim().min(1).max(50),
   messageName: z.string().trim().min(1).max(100),
+  release: z.string().trim().max(50).optional().nullable().transform(val => val || null),
   status: z.string().trim().min(1).max(50),
   availableActions: z.array(z.string().trim().min(1).max(50)).max(20),
   allowSubmit: z.boolean(),
@@ -210,8 +212,8 @@ const actionDataFieldEntrySchema: z.ZodType<TFieldEntry> = z.lazy(() =>
     required: z.boolean(),
     // "prompt" (operator supplies it when the action is invoked) or
     // "shipment.<dotted.path>" (resolved automatically, never asked of the operator).
-    source: z.string().trim().min(1).max(200),
-    helpText: z.string().trim().max(300).optional(),
+    source: z.string().trim().max(200).optional().transform(val => val || "prompt"),
+    helpText: z.string().trim().max(300).optional().transform(val => val || undefined),
     // Only meaningful when type === "grid": the shape of each row, recursively.
     columns: z.array(actionDataFieldEntrySchema).max(50).optional(),
   })
@@ -222,6 +224,7 @@ const actionDataRequirementSchema = z.object({
   procedureCode: z.string().trim().min(1).max(50),
   messageName: z.string().trim().min(1).max(100),
   action: z.string().trim().min(1).max(50),
+  release: z.string().trim().max(50).optional().nullable().transform(val => val || null),
   fields: z.array(actionDataFieldEntrySchema).max(50),
 });
 
@@ -288,9 +291,8 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
     idField: "id",
     fields: [
       { key: "country", label: "Country", type: "text" },
-      { key: "procedureCode", label: "Procedure Code", type: "text" },
+      { key: "procedureCode", label: "Procedure Code", type: "select", optionsSource: "/api/filing-config/transaction-types" },
       { key: "messageName", label: "Message Name", type: "text" },
-      { key: "transactionType", label: "Transaction Type", type: "select", options: [] },
       { key: "isActive", label: "Is Active", type: "boolean" },
     ],
     list: () => db.filingProcedureConfig.findMany({
@@ -307,10 +309,10 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
     description: "(country, procedureCode, action) → messageName - maps user actions to outbound messages",
     idField: "id",
     fields: [
-      { key: "country", label: "Country", type: "text" },
-      { key: "procedureCode", label: "Procedure Code", type: "text" },
-      { key: "action", label: "Action", type: "text" },
-      { key: "messageName", label: "Message Name", type: "text" },
+      { key: "country", label: "Country", type: "select", optionsSource: "/api/filing-config/countries" },
+      { key: "procedureCode", label: "Procedure Code", type: "select", optionsSource: "/api/filing-config/procedure-codes" },
+      { key: "action", label: "Action", type: "select", optionsSource: "/api/filing-config/actions" },
+      { key: "messageName", label: "Message Name", type: "select", optionsSource: "/api/filing-config/message-names" },
       { key: "isActive", label: "Is Active", type: "boolean" },
     ],
     list: async () => {
@@ -329,9 +331,10 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
     description: "(country, procedureCode, messageName, status) → availableActions, allowSubmit - determines UI actions",
     idField: "id",
     fields: [
-      { key: "country", label: "Country", type: "text" },
-      { key: "procedureCode", label: "Procedure Code", type: "text" },
-      { key: "messageName", label: "Message Name", type: "text" },
+      { key: "country", label: "Country", type: "select", optionsSource: "/api/filing-config/countries" },
+      { key: "procedureCode", label: "Procedure Code", type: "select", optionsSource: "/api/filing-config/procedure-codes" },
+      { key: "messageName", label: "Message Name", type: "select", optionsSource: "/api/filing-config/message-names" },
+      { key: "release", label: "Release", type: "select", optionsSource: "/api/filing-config/releases", help: "Select customs version release" },
       { key: "status", label: "Status", type: "text" },
       { 
         key: "availableActions", 
@@ -364,24 +367,12 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
       }));
     },
     create: async (data) => {
-      // Transform object[] back to string[] for database
-      const transformed = {
-        ...data,
-        availableActions: Array.isArray(data.availableActions) 
-          ? (data.availableActions as Array<{ action: string }>).map((item) => item.action)
-          : [],
-      };
-      return wrapPrismaErrors(() => db.filingActionConfiguration.create({ data: actionConfigurationSchema.parse(transformed) }));
+      // Data already comes as string[] from client, no need to transform
+      return wrapPrismaErrors(() => db.filingActionConfiguration.create({ data: actionConfigurationSchema.parse(data) }));
     },
     update: async (id, data) => {
-      // Transform object[] back to string[] for database
-      const transformed = {
-        ...data,
-        availableActions: Array.isArray(data.availableActions) 
-          ? (data.availableActions as Array<{ action: string }>).map((item) => item.action)
-          : [],
-      };
-      return wrapPrismaErrors(() => db.filingActionConfiguration.update({ where: { id }, data: actionConfigurationSchema.parse(transformed) }));
+      // Data already comes as string[] from client, no need to transform
+      return wrapPrismaErrors(() => db.filingActionConfiguration.update({ where: { id }, data: actionConfigurationSchema.parse(data) }));
     },
     remove: (id) => wrapPrismaErrors(() => db.filingActionConfiguration.delete({ where: { id } })).then(() => undefined),
     createSchema: actionConfigurationSchema,
@@ -396,10 +387,11 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
       "(country, procedure, messageName, action) → extra fields a child action needs beyond the declaration itself (e.g. a guarantee reference a German NCTS cancellation needs that a US consumption cancellation doesn't). No match = no extra fields required -- cancelFiling()/amendFiling() stay single, country-agnostic implementations that just ask this table what a context needs.",
     idField: "id",
     fields: [
-      { key: "country", label: "Country", type: "text", help: wildcardHelp },
-      { key: "procedureCode", label: "Procedure Code", type: "text", help: wildcardHelp },
-      { key: "messageName", label: "Message Name", type: "text", help: wildcardHelp },
-      { key: "action", label: "Action", type: "text", help: "e.g. CANCELLATION, AMENDMENT -- a FilingMessageActionCatalog code." },
+      { key: "country", label: "Country", type: "select", optionsSource: "/api/filing-config/countries" },
+      { key: "procedureCode", label: "Procedure Code", type: "select", optionsSource: "/api/filing-config/procedure-codes" },
+      { key: "messageName", label: "Message Name", type: "select", optionsSource: "/api/filing-config/message-names" },
+      { key: "action", label: "Action", type: "select", optionsSource: "/api/filing-config/actions", help: "e.g. CANCELLATION, AMENDMENT -- a FilingMessageActionCatalog code." },
+      { key: "release", label: "Release", type: "select", optionsSource: "/api/filing-config/releases", help: "Select customs version release" },
       {
         key: "fields",
         label: "Required Fields",

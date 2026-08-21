@@ -4,8 +4,10 @@ import { buildErrorResponse } from "./error";
 export async function parseAndValidateBody<T>(req: Request, schema: ZodSchema<T>, requestId: string): Promise<{ data: T } | { response: ReturnType<typeof buildErrorResponse> }> {
   try {
     const raw = await req.json();
+    console.log('[Validation] Request body:', JSON.stringify(raw, null, 2));
     const result = schema.safeParse(raw);
     if (!result.success) {
+      console.error('[Validation] Failed:', JSON.stringify(result.error.issues, null, 2));
       return {
         response: buildErrorResponse(
           400,
@@ -19,8 +21,10 @@ export async function parseAndValidateBody<T>(req: Request, schema: ZodSchema<T>
         ),
       };
     }
+    console.log('[Validation] Success');
     return { data: result.data };
-  } catch {
+  } catch (err) {
+    console.error('[Validation] JSON parse error:', err);
     return {
       response: buildErrorResponse(400, "MALFORMED_JSON", "Failed to parse JSON body", undefined, requestId),
     };

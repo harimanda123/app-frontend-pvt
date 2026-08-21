@@ -473,6 +473,7 @@ function RowFormModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectOptions, setSelectOptions] = useState<Record<string, string[]>>({});
+  const [selectOptionLabels, setSelectOptionLabels] = useState<Record<string, Record<string, string>>>({});
 
   // Fetch dropdown options for any field that declares an optionsSource (e.g.
   // procedure-config's transactionType, sourced from the FilingTransactionType catalog).
@@ -481,7 +482,12 @@ function RowFormModal({
     selectFields.forEach((f) => {
       fetch(f.optionsSource as string, { credentials: "include" })
         .then((res) => res.json())
-        .then((data) => setSelectOptions((prev) => ({ ...prev, [f.key]: data.codes || [] })))
+        .then((data) => {
+          setSelectOptions((prev) => ({ ...prev, [f.key]: data.codes || [] }));
+          if (data.optionLabels) {
+            setSelectOptionLabels((prev) => ({ ...prev, [f.key]: data.optionLabels }));
+          }
+        })
         .catch((err) => console.error(`Failed to load options for ${f.key}:`, err));
     });
   }, [table.key, table.fields]);
@@ -494,7 +500,19 @@ function RowFormModal({
       for (const f of table.fields) {
         if (isEdit && f.key === table.idField) continue; // PK never editable
         if (f.type === "boolean") payload[f.key] = Boolean(draft[f.key]);
-        else if (f.type === "fieldArray") payload[f.key] = draft[f.key] ?? [];
+        else if (f.type === "fieldArray") {
+          // Transform fieldArray objects to string array
+          // e.g., [{ action: "AMENDMENT" }] -> ["AMENDMENT"]
+          const arr = (Array.isArray(draft[f.key]) ? draft[f.key] : []) as Array<Record<string, unknown>>;
+          if (f.itemFields && f.itemFields.length === 1) {
+            // Single field in each item - extract the value
+            const fieldKey = f.itemFields[0].key;
+            payload[f.key] = arr.map((item) => String(item[fieldKey] || "")).filter(Boolean);
+          } else {
+            // Multiple fields - keep as object array
+            payload[f.key] = arr;
+          }
+        }
         else payload[f.key] = String(draft[f.key] ?? "").trim();
       }
       const url = isEdit
@@ -548,7 +566,7 @@ function RowFormModal({
                   <option value="">Select...</option>
                   {fieldOptions.map((code) => (
                     <option key={code} value={code}>
-                      {f.optionLabels?.[code] ?? code}
+                      {selectOptionLabels[f.key]?.[code] ?? f.optionLabels?.[code] ?? code}
                     </option>
                   ))}
                 </select>
