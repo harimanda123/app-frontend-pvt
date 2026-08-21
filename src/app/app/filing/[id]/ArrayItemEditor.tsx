@@ -7,7 +7,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { X, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -45,6 +45,12 @@ export default function ArrayItemEditor({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["root"]));
   const [localData, setLocalData] = useState(itemData);
   const [pendingUpdate, setPendingUpdate] = useState(false);
+  const localDataRef = useRef(localData);
+
+  // Keep ref in sync with state
+  React.useEffect(() => {
+    localDataRef.current = localData;
+  }, [localData]);
 
   // Sync local data when itemData changes (important for nested array updates)
   React.useEffect(() => {
@@ -123,7 +129,10 @@ export default function ArrayItemEditor({
 
   // Handle nested array change
   const handleNestedArrayChange = (fieldKey: string, newArray: any[]) => {
-    setLocalData((prev: any) => ({ ...prev, [fieldKey]: newArray }));
+    setLocalData((prev: any) => {
+      const updated = { ...prev, [fieldKey]: newArray };
+      return updated;
+    });
     // Trigger deferred parent update
     setPendingUpdate(true);
   };
@@ -521,9 +530,9 @@ export default function ArrayItemEditor({
             Cancel
           </Button>
           <Button onClick={() => { 
-            // Push complete localData back to parent before saving
+            // Push complete localData back to parent before saving (use ref to get latest value)
             const fullPath = `${parentPath}[${itemIndex}]`;
-            onChange(fullPath, localData);
+            onChange(fullPath, localDataRef.current);
             onSave(); 
             onClose(true); 
           }}>
