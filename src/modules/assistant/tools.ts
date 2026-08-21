@@ -24,6 +24,7 @@ import { ImpactAnalysisService } from "@/modules/regulatory/impactAnalysisServic
 import { canUseTool } from "@/modules/copilot/copilotAccess";
 import type { CopilotToolAccess } from "@/modules/copilot/copilotToolTypes";
 import { holdsPermission } from "@/modules/product/productActor";
+import { resolveOriginPosition, type CountryFactInput } from "@/modules/copilot/copilotOrigin";
 import {
   resolveOwnedShipmentId as resolveOwnedShipmentIdByAccount,
   latestEmbargoScreening as latestEmbargoScreeningByAccount,
@@ -818,6 +819,45 @@ const getProduct: AssistantTool = {
   },
 };
 
+// ---- tool: get_product_origin_position ----
+
+const getProductOriginPositionSchema = z.object({
+  productId: z.string().describe("Product UUID."),
+});
+
+const getProductOriginPosition: AssistantTool = {
+  schema: getProductOriginPositionSchema,
+  declaration: {
+    name: "get_product_origin_position",
+    description:
+      "Resolve a product's legal country-of-origin position from its recorded country facts. " +
+      "This is the only source of truth for country of origin -- never infer it from manufacturing, " +
+      "production, supplier, or ship-from country. Returns a finished statement to quote verbatim.",
+    parameters: zodToGeminiSchema(getProductOriginPositionSchema),
+  },
+  access: { navHref: "/app/products", permission: "products.read" },
+  execute: async (ctx, rawArgs) => {
+    const parsed = getProductOriginPositionSchema.safeParse(rawArgs);
+    if (!parsed.success) return { error: parsed.error.message };
+    const { productId } = parsed.data;
+
+    const facts = await db.productCountryFact.findMany({
+      where: { accountId: ctx.accountId, productId },
+      select: {
+        factType: true,
+        rawCountry: true,
+        countryCode: true,
+        status: true,
+        effectiveTo: true,
+        reviewedAt: true,
+      },
+    });
+    if (facts.length === 0) return { error: "No country facts recorded for this product." };
+
+    return resolveOriginPosition(facts as CountryFactInput[]);
+  },
+};
+
 // ---- tool: search_hts ----
 
 const searchHtsSchema = z.object({
@@ -1317,6 +1357,7 @@ export const ASSISTANT_TOOLS: AssistantTool[] = [
   getDocument,
   listDecisions,
   getProduct,
+  getProductOriginPosition,
   searchHts,
   searchRulings,
   getDutyStack,

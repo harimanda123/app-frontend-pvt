@@ -7,6 +7,9 @@ export interface AgentDecisionRow {
   triageState: string | null;
   proposedDescription: string | null;
   createdAt: Date | string;
+  autoApproved?: boolean;
+  currentHtsCode?: string | null;
+  proposedHtsCode?: string | null;
 }
 
 export interface AgentOperationsRow {
@@ -16,6 +19,14 @@ export interface AgentOperationsRow {
   needsReview: number;
   blocked: number;
   verified: number;
+  /**
+   * Share of human-approved proposals this agent's reviewers changed rather
+   * than accepted as-is, or null when this agent doesn't propose a value
+   * (currentHtsCode/proposedHtsCode) that a human could override. Computed
+   * over every human approval this agent ever received, not just the latest
+   * decision per shipment, since a superseded row is still a real override event.
+   */
+  overrideRate: number | null;
 }
 
 /**
@@ -37,9 +48,24 @@ export function computeAgentOperations(decisions: AgentDecisionRow[]): AgentOper
   }
 
   const byAgent = new Map<string, AgentOperationsRow>();
+  // Override rate is a historical rate over every human approval this agent
+  // ever received, so it's tallied across the full decisions list -- not the
+  // latest-per-shipment map above, which would silently drop a superseded
+  // decision's override even though a human genuinely overrode it at the time.
+  const overrideEligible = new Map<string, number>();
+  const overridden = new Map<string, number>();
+  for (const d of decisions) {
+    if (d.autoApproved || d.status !== "Approved") continue;
+    if (!d.currentHtsCode || !d.proposedHtsCode) continue;
+    overrideEligible.set(d.agentName, (overrideEligible.get(d.agentName) ?? 0) + 1);
+    if (d.currentHtsCode !== d.proposedHtsCode) {
+      overridden.set(d.agentName, (overridden.get(d.agentName) ?? 0) + 1);
+    }
+  }
+
   for (const d of latestByShipmentAgent.values()) {
     if (!byAgent.has(d.agentName)) {
-      byAgent.set(d.agentName, { agentName: d.agentName, processed: 0, needsReview: 0, blocked: 0, verified: 0 });
+      byAgent.set(d.agentName, { agentName: d.agentName, processed: 0, needsReview: 0, blocked: 0, verified: 0, overrideRate: null });
     }
     const row = byAgent.get(d.agentName)!;
     row.processed++;
@@ -47,6 +73,11 @@ export function computeAgentOperations(decisions: AgentDecisionRow[]): AgentOper
     if (triage === "blocked") row.blocked++;
     else if (triage === "review") row.needsReview++;
     else row.verified++;
+  }
+
+  for (const row of byAgent.values()) {
+    const eligible = overrideEligible.get(row.agentName) ?? 0;
+    row.overrideRate = eligible > 0 ? (overridden.get(row.agentName) ?? 0) / eligible : null;
   }
 
   return Array.from(byAgent.values()).sort((a, b) => b.processed - a.processed);

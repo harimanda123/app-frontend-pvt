@@ -84,6 +84,9 @@ export default async function CommandCenterPage() {
       agentName: true,
       shipmentId: true,
       createdAt: true,
+      autoApproved: true,
+      currentHtsCode: true,
+      proposedHtsCode: true,
       shipment: {
         select: {
           assignedBrokerId: true,
