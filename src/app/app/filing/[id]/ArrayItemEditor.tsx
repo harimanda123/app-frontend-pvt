@@ -7,7 +7,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { X, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -45,6 +45,12 @@ export default function ArrayItemEditor({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["root"]));
   const [localData, setLocalData] = useState(itemData);
   const [pendingUpdate, setPendingUpdate] = useState(false);
+  const localDataRef = useRef(localData);
+
+  // Keep ref in sync with state
+  React.useEffect(() => {
+    localDataRef.current = localData;
+  }, [localData]);
 
   // Sync local data when itemData changes (important for nested array updates)
   React.useEffect(() => {
@@ -65,6 +71,35 @@ export default function ArrayItemEditor({
       return resolveRef(schema.$ref);
     }
     return schema;
+  };
+
+  // Check if object has any meaningful data (non-empty values)
+  const hasAnyData = (obj: any): boolean => {
+    if (!obj || typeof obj !== 'object') return false;
+    
+    for (const key in obj) {
+      const value = obj[key];
+      
+      // Skip undefined, null, empty strings
+      if (value === undefined || value === null || value === '') continue;
+      
+      // Check arrays
+      if (Array.isArray(value)) {
+        if (value.length > 0) return true;
+        continue;
+      }
+      
+      // Check nested objects
+      if (typeof value === 'object') {
+        if (hasAnyData(value)) return true;
+        continue;
+      }
+      
+      // Any other truthy value (numbers, booleans, non-empty strings)
+      return true;
+    }
+    
+    return false;
   };
 
   // Toggle section expansion
@@ -88,6 +123,7 @@ export default function ArrayItemEditor({
 
   // Handle local value change (updates both local state and parent)
   const handleValueChange = (fieldKey: string, value: any) => {
+    console.log('🔵 handleValueChange called:', { fieldKey, value });
     // Handle nested paths like "Address.Name" or "Address.Street"
     const keys = fieldKey.split('.');
     
@@ -123,7 +159,10 @@ export default function ArrayItemEditor({
 
   // Handle nested array change
   const handleNestedArrayChange = (fieldKey: string, newArray: any[]) => {
-    setLocalData((prev: any) => ({ ...prev, [fieldKey]: newArray }));
+    setLocalData((prev: any) => {
+      const updated = { ...prev, [fieldKey]: newArray };
+      return updated;
+    });
     // Trigger deferred parent update
     setPendingUpdate(true);
   };
@@ -521,9 +560,14 @@ export default function ArrayItemEditor({
             Cancel
           </Button>
           <Button onClick={() => { 
-            // Push complete localData back to parent before saving
+            // Push complete localData back to parent before saving (use ref to get latest value)
             const fullPath = `${parentPath}[${itemIndex}]`;
-            onChange(fullPath, localData);
+            console.log('🟢 ArrayItemEditor Save clicked:', { 
+              fullPath, 
+              localDataRef: localDataRef.current,
+              localData: localData 
+            });
+            onChange(fullPath, localDataRef.current);
             onSave(); 
             onClose(true); 
           }}>
