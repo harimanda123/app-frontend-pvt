@@ -1,7 +1,7 @@
 import { authorizeWrite } from "@/lib/api/auth-guards";
 import { buildErrorResponse, generateRequestId, handleApiError } from "@/lib/api/error";
 import { createAuditLog } from "@/lib/audit";
-import { db } from "@/lib/db";
+import { db, withAccountIdContext } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 /**
@@ -28,71 +28,73 @@ export async function POST(
 
     const { id } = await context.params;
 
-    const shipment = await db.shipment.findFirst({
-      where: { accountId: ctx.accountId, id, deletedAt: null },
-      select: { id: true },
+    return await withAccountIdContext(ctx.accountId, async () => {
+      const shipment = await db.shipment.findFirst({
+        where: { accountId: ctx.accountId, id, deletedAt: null },
+        select: { id: true },
+      });
+      if (!shipment) {
+        return buildErrorResponse(404, "SHIPMENT_NOT_FOUND", "Shipment not found", requestId);
+      }
+
+      const job = await db.pipelineJob.findFirst({
+        where: { shipmentId: shipment.id, accountId: ctx.accountId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, status: true },
+      });
+      if (!job) {
+        return buildErrorResponse(
+          404,
+          "NO_PIPELINE_JOB",
+          "No pipeline run has been recorded for this shipment",
+          requestId
+        );
+      }
+
+      if (job.status !== "FAILED") {
+        // Re-queueing a running job would let two workers hold the same state.
+        return buildErrorResponse(
+          409,
+          "JOB_NOT_FAILED",
+          `The latest pipeline run is ${job.status}. Only a failed run can be retried.`,
+          requestId
+        );
+      }
+
+      // Claim on the status we read, so two reviewers pressing retry produce one re-queue.
+      const applied = await db.pipelineJob.updateMany({
+        where: { id: job.id, accountId: ctx.accountId, status: "FAILED" },
+        data: {
+          status: "PENDING",
+          errorMessage: null,
+          lockedAt: null,
+          startedAt: null,
+          completedAt: null,
+        },
+      });
+
+      if (applied.count === 0) {
+        return buildErrorResponse(
+          409,
+          "JOB_NOT_FAILED",
+          "The pipeline run changed before the retry was applied.",
+          requestId
+        );
+      }
+
+      await createAuditLog({
+        accountId: ctx.accountId,
+        userId: ctx.userId,
+        action: "PIPELINE_RETRY",
+        entity: "PipelineJob",
+        entityId: job.id,
+        source: "UI",
+        metadata: { shipmentId: shipment.id },
+        requestId,
+      });
+
+      return NextResponse.json({ jobId: job.id, status: "PENDING", requestId });
     });
-    if (!shipment) {
-      return buildErrorResponse(404, "SHIPMENT_NOT_FOUND", "Shipment not found", requestId);
-    }
-
-    const job = await db.pipelineJob.findFirst({
-      where: { shipmentId: shipment.id, accountId: ctx.accountId },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, status: true },
-    });
-    if (!job) {
-      return buildErrorResponse(
-        404,
-        "NO_PIPELINE_JOB",
-        "No pipeline run has been recorded for this shipment",
-        requestId
-      );
-    }
-
-    if (job.status !== "FAILED") {
-      // Re-queueing a running job would let two workers hold the same state.
-      return buildErrorResponse(
-        409,
-        "JOB_NOT_FAILED",
-        `The latest pipeline run is ${job.status}. Only a failed run can be retried.`,
-        requestId
-      );
-    }
-
-    // Claim on the status we read, so two reviewers pressing retry produce one re-queue.
-    const applied = await db.pipelineJob.updateMany({
-      where: { id: job.id, accountId: ctx.accountId, status: "FAILED" },
-      data: {
-        status: "PENDING",
-        errorMessage: null,
-        lockedAt: null,
-        startedAt: null,
-        completedAt: null,
-      },
-    });
-
-    if (applied.count === 0) {
-      return buildErrorResponse(
-        409,
-        "JOB_NOT_FAILED",
-        "The pipeline run changed before the retry was applied.",
-        requestId
-      );
-    }
-
-    await createAuditLog({
-      accountId: ctx.accountId,
-      userId: ctx.userId,
-      action: "PIPELINE_RETRY",
-      entity: "PipelineJob",
-      entityId: job.id,
-      source: "UI",
-      metadata: { shipmentId: shipment.id },
-      requestId,
-    });
-
-    return NextResponse.json({ jobId: job.id, status: "PENDING", requestId });
   } catch (error) {
     return handleApiError(error, requestId);
   }

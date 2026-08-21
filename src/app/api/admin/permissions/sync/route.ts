@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeWrite } from "@/lib/api/auth-guards";
 import { buildErrorResponse, generateRequestId, errorMessage } from "@/lib/api/error";
 import { createAuditLog } from "@/lib/audit";
+import { withAccountIdContext } from "@/lib/db";
 import {
   databasePermissionSyncStore,
   syncPermissionCatalogue,
@@ -23,24 +24,26 @@ export async function POST() {
   if (errorResponse) return errorResponse;
 
   try {
-    const result = await syncPermissionCatalogue(databasePermissionSyncStore);
+    return await withAccountIdContext(ctx!.accountId, async () => {
+      const result = await syncPermissionCatalogue(databasePermissionSyncStore);
 
-    await createAuditLog({
-      accountId: ctx!.accountId,
-      userId: ctx!.userId,
-      action: "permissions.sync",
-      entity: "Permission",
-      entityId: "catalogue",
-      source: "UI",
-      metadata: {
-        permissionsCreated: result.permissionsCreated,
-        grantsAdded: result.grantsAdded.map((g) => `${g.roleName}:${g.permission}`),
-        rolesMissing: result.rolesMissing,
-      },
-      failClosed: true,
+      await createAuditLog({
+        accountId: ctx!.accountId,
+        userId: ctx!.userId,
+        action: "permissions.sync",
+        entity: "Permission",
+        entityId: "catalogue",
+        source: "UI",
+        metadata: {
+          permissionsCreated: result.permissionsCreated,
+          grantsAdded: result.grantsAdded.map((g) => `${g.roleName}:${g.permission}`),
+          rolesMissing: result.rolesMissing,
+        },
+        failClosed: true,
+      });
+
+      return NextResponse.json({ result, requestId });
     });
-
-    return NextResponse.json({ result, requestId });
   } catch (error: unknown) {
     return buildErrorResponse(
       500,
