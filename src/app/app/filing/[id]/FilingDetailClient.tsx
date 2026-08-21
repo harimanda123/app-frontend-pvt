@@ -795,18 +795,64 @@ export function FilingDetailClient({
 
   // Helper to update nested declaration data
   function updateDeclarationField(path: string, value: any) {
+    console.log('📝 updateDeclarationField:', { path, value });
     setDeclarationData((prev) => {
-      const keys = path.split('.');
-      const newData = { ...prev };
-      let current: any = newData;
+      const newData = JSON.parse(JSON.stringify(prev)); // Deep clone
       
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!current[keys[i]]) current[keys[i]] = {};
-        current[keys[i]] = { ...current[keys[i]] };
-        current = current[keys[i]];
+      // Parse path with array indices: "GoodsShipments[0].Consignment.Name"
+      const pathParts: Array<{ key: string; index?: number }> = [];
+      const regex = /([^\[\].]+)|\[(\d+)\]/g;
+      let match;
+      
+      while ((match = regex.exec(path)) !== null) {
+        if (match[1]) {
+          // Property name
+          pathParts.push({ key: match[1] });
+        } else if (match[2] !== undefined) {
+          // Array index
+          const lastPart = pathParts[pathParts.length - 1];
+          if (lastPart) {
+            lastPart.index = parseInt(match[2], 10);
+          }
+        }
       }
       
-      current[keys[keys.length - 1]] = value;
+      // Navigate to the target location
+      let current: any = newData;
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const part = pathParts[i];
+        
+        // Access by key
+        if (!current[part.key]) {
+          current[part.key] = part.index !== undefined ? [] : {};
+        }
+        current = current[part.key];
+        
+        // Access by array index if present
+        if (part.index !== undefined) {
+          if (!current[part.index]) {
+            current[part.index] = {};
+          }
+          current = current[part.index];
+        }
+      }
+      
+      // Set the final value
+      const finalPart = pathParts[pathParts.length - 1];
+      if (finalPart) {
+        if (finalPart.index !== undefined) {
+          // Setting an array element
+          if (!Array.isArray(current[finalPart.key])) {
+            current[finalPart.key] = [];
+          }
+          current[finalPart.key][finalPart.index] = value;
+        } else {
+          // Setting a property
+          current[finalPart.key] = value;
+        }
+      }
+      
+      console.log('✅ Updated declarationData:', newData);
       return newData;
     });
   }
