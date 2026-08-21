@@ -312,6 +312,44 @@ export function dateTimeField<K extends string>(
   };
 }
 
+// CATAIR PGA Message Set's (Chapter 8) 8-char "MMDDCCYY" date format (month,
+// day, 4-digit century+year) — distinct from every prior chapter's 6-char
+// MMDDYY class-D date. Per the source PDF (e.g. PG06 Processing Start/End
+// Date, PG14 LPCO Date, PG22 Date of Signature, PG25 Production Start/End
+// Date, PG30 Requested/Scheduled Date), every one of these fields is
+// documented as Class "N" — not "D" — so this is a plain numeric field whose
+// value happens to parse as a date, not a class-D field. Shared here (not
+// chapter-local) since it's a generic CATAIR wire convention, same rationale
+// as `dateField`/`dateTimeField` above.
+
+function encodeMMDDCCYY(raw: unknown): string {
+  const date = raw as Date;
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const ccyy = String(date.getFullYear()).padStart(4, "0");
+  return `${mm}${dd}${ccyy}`;
+}
+
+function decodeMMDDCCYY(field: string): Date | undefined {
+  if (field.trim().length === 0) return undefined;
+  const mm = parseInt(field.slice(0, 2), 10);
+  const dd = parseInt(field.slice(2, 4), 10);
+  const ccyy = parseInt(field.slice(4, 8), 10);
+  return new Date(ccyy, mm - 1, dd);
+}
+
+/** An 8-char class-N "MMDDCCYY" (month, day, century+year) date field bound to
+ * a `Date | undefined` value. Unlike `dateField` (6-char, class D, MMDDYY),
+ * this format's 4-digit year and class-N designation are specific to the PGA
+ * Message Set chapter (Chapter 8) — see the module-level comment above. */
+export function dateFieldCCYY<K extends string>(
+  key: K,
+  start: number,
+  designation: Designation
+): FieldSpec<K> {
+  return { key, start, length: 8, class: "N", designation, encodeValue: encodeMMDDCCYY, decodeValue: decodeMMDDCCYY };
+}
+
 /**
  * A right-justified, zero-padded numeric-*looking* identifier (class N) whose
  * leading zeros are semantically significant — e.g. an Entry Type Code ("01"),
