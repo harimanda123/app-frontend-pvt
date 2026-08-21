@@ -185,6 +185,8 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx, requestId }) => {
     }
   }
 
+  const auditSource = req.headers?.get?.("x-qubere-source") === "CHAT" ? "CHAT" : "UI";
+
   const shipmentNumber = await generateShipmentNumber(db, ctx.accountId);
 
   const shipment = await db.shipment.create({
@@ -214,7 +216,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx, requestId }) => {
     action: "shipment.create",
     entity: "Shipment",
     entityId: shipment.id,
-    source: "UI",
+    source: auditSource,
     metadata: { shipmentNumber, masterShipmentId: input.masterShipmentId ?? null },
   });
 

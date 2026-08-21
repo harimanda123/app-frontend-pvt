@@ -52,9 +52,10 @@ COUNTRY OF ORIGIN
 - If a product is manufactured in Germany and has no approved origin determination, say that
   the manufacturing country on record is Germany and that Qubere holds no approved
   country-of-origin determination. Never write "origin: Germany" or "origin is likely Germany."
-- You have no tool that resolves this today. If asked for a product's country of origin, say
-  Qubere has no such determination available through this assistant and point the user at the
-  Product record's origin workflow rather than inferring one from any of the facts above.
+- Use get_product_origin_position to answer any question about a product's country of origin.
+  It returns a finished statement -- quote it verbatim, never rephrase or reason past it. If it
+  reports no determination, say exactly that; never fall back to a manufacturing, production, or
+  supplier country as a stand-in, even when the tool's own physical-fact fields mention one.
 
 CREATING SHIPMENTS
 - importerName is the only required field. Ask for it if missing.
@@ -138,6 +139,39 @@ function toolResultFailed(output: unknown): boolean {
   return Boolean(output && typeof output === "object" && "error" in (output as Record<string, unknown>));
 }
 
+/**
+ * The grounding ledger for the live assistant.
+ *
+ * Unlike copilotLedger.ts, this has no structured answer to validate before
+ * display -- the model's text streams to the user token by token, so there is
+ * nothing to intercept. What this can do is record every shipment number a
+ * tool actually returned during the turn, then check the model's finished
+ * text against that record. A shipment number the model mentioned but no tool
+ * ever produced is a real, code-level signal of an ungrounded claim -- logged
+ * to the audit trail (counts only, per copilotAudit.ts's existing policy of
+ * never persisting tool output bodies) so a rising rate is visible without
+ * needing a full structured-output redesign to catch it before display.
+ */
+const SHIPMENT_NUMBER_RE = /\bSHP-\d{4}-\d{6}\b/g;
+
+function recordShipmentNumbers(ledger: Set<string>, toolOutput: unknown): void {
+  for (const match of JSON.stringify(toolOutput).matchAll(SHIPMENT_NUMBER_RE)) {
+    ledger.add(match[0]);
+  }
+}
+
+function checkGroundedShipmentMentions(
+  text: string,
+  ledger: Set<string>
+): { entitiesCited: number; droppedCitations: number } {
+  const mentioned = new Set(Array.from(text.matchAll(SHIPMENT_NUMBER_RE), (m) => m[0]));
+  let dropped = 0;
+  for (const number of mentioned) {
+    if (!ledger.has(number)) dropped += 1;
+  }
+  return { entitiesCited: mentioned.size - dropped, droppedCitations: dropped };
+}
+
 export async function* runAssistantTurn(
   ctx: AccountContext,
   input: ChatTurnInput
@@ -173,6 +207,8 @@ export async function* runAssistantTurn(
   let modelCalls = 0;
   let inputTokens: number | null = null;
   let outputTokens: number | null = null;
+  const groundingLedger = new Set<string>();
+  let fullText = "";
 
   const providerName = useAnthropic ? "anthropic" : "google-genai";
   const model = useAnthropic
@@ -180,16 +216,17 @@ export async function* runAssistantTurn(
     : aiModel(CHAT_SURFACE);
 
   const finish = async (status: CopilotStatus, round: number) => {
+    const { entitiesCited, droppedCitations } = checkGroundedShipmentMentions(fullText, groundingLedger);
     await auditQuery(subject, {
       question: input.message,
       status,
       durationMs: Date.now() - startedAt,
       toolCallsMade,
       iterations: round + 1,
-      entitiesCited: 0,
+      entitiesCited,
       evidenceCited: 0,
       actionsOffered: 0,
-      droppedCitations: 0,
+      droppedCitations,
       model,
       provider: providerName,
       historyTurnsUsed: input.history.length,
@@ -241,6 +278,7 @@ export async function* runAssistantTurn(
 
       for await (const chunk of stream) {
         if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+          fullText += chunk.delta.text;
           yield { type: "text", delta: chunk.delta.text };
         }
       }
@@ -277,6 +315,7 @@ export async function* runAssistantTurn(
           output = { error: err instanceof Error ? err.message : "Tool execution failed" };
         }
         toolCallsMade += 1;
+        recordShipmentNumbers(groundingLedger, output);
 
         await auditToolExecuted(subject, {
           tool: name,
@@ -336,6 +375,7 @@ export async function* runAssistantTurn(
     for await (const chunk of stream) {
       if (chunk.usageMetadata) lastUsage = chunk.usageMetadata;
       if (chunk.text) {
+        fullText += chunk.text;
         yield { type: "text", delta: chunk.text };
       }
 
@@ -357,6 +397,7 @@ export async function* runAssistantTurn(
             output = { error: err instanceof Error ? err.message : "Tool execution failed" };
           }
           toolCallsMade += 1;
+          recordShipmentNumbers(groundingLedger, output);
           await auditToolExecuted(subject, {
             tool: name,
             ok: !toolResultFailed(output),

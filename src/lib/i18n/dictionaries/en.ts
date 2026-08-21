@@ -34,6 +34,7 @@ export const en = {
     postEntry: "Post-Entry",
     tradeData: "Trade Data",
     tariffsAndRegulations: "Tariffs & Regs",
+    billing: "Billing",
     accountAdmin: "Account Admin",
     platformAdmin: "Platform Admin",
     qubereConsole: "Qubere Console",

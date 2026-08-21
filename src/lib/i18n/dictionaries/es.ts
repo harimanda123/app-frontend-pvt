@@ -35,6 +35,7 @@ export const es: TranslationKeys = {
     postEntry: "Post-Entrada",
     tradeData: "Datos Comerciales",
     tariffsAndRegulations: "Aranceles y Regs",
+    billing: "Facturación",
     mainOperations: "Operaciones Principales",
     accountAdmin: "Administración de Cuenta",
     platformAdmin: "Administración de Plataforma",
