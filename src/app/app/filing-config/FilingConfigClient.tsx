@@ -111,10 +111,14 @@ export interface SubFieldMeta {
 export interface FieldMeta {
   key: string;
   label: string;
-  type: "text" | "boolean" | "fieldArray";
+  type: "text" | "boolean" | "fieldArray" | "select" | "date";
   help?: string;
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldMeta[];
+  /** Only present when type === "select": the dropdown options. */
+  options?: string[];
+  /** Only present when type === "select": map of value -> display label. */
+  optionLabels?: Record<string, string>;
 }
 
 export interface TableMeta {

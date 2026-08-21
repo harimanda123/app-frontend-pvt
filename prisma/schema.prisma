@@ -1208,6 +1208,10 @@ model CustomsFiling {
   /// Used to determine which canonical message schema to use for transmission
   messageName String?
 
+  /// Release/version number for this country customs procedure (e.g., "1.0", "2.0")
+  /// Maps to FilingCountryCustomsVersion for version-specific processing
+  release String? @default("1.0")
+
   // ========================================================================
   // LEGACY FIELDS (kept temporarily for backwards compatibility)
   // TODO: Remove after data migration
@@ -1281,6 +1285,53 @@ model CustomsResponse {
 
   @@index([filingId])
   @@index([accountId])
+}
+
+// =============================================================================
+// CUSTOMS VERSION MANAGEMENT
+// =============================================================================
+
+model FilingCountryCustomsVersion {
+  id            String   @id @default(cuid())
+  country       String // Two-letter country code (e.g., NL, BE, FR)
+  procedureCode String // Procedure code (e.g., IMPORT, EXPORT, NCTS)
+  release       String // Version number (e.g., 1.0, 2.0)
+  validFrom     DateTime
+  validTo       DateTime?
+  description   String?
+  isActive      Boolean  @default(true)
+  createdBy     String?
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customerMappings FilingCustomerCustomsVersion[]
+
+  @@unique([country, procedureCode, release])
+  @@index([country, procedureCode])
+  @@index([isActive])
+  @@map("FilingCountryCustomsVersion")
+}
+
+model FilingCustomerCustomsVersion {
+  id                      String   @id @default(cuid())
+  customerId              String? // Null when applyToAllCustomers is true
+  filingCountryCustomsId  String
+  applyToAllCustomers     Boolean  @default(false)
+  notes                   String?
+  isActive                Boolean  @default(true)
+  createdBy               String?
+  updatedBy               String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  countryCustomsVersion FilingCountryCustomsVersion @relation(fields: [filingCountryCustomsId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([filingCountryCustomsId])
+  @@index([applyToAllCustomers])
+  @@index([isActive])
+  @@map("FilingCustomerCustomsVersion")
 }
 
 model RegulatoryUpdate {
