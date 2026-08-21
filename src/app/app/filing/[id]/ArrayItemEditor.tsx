@@ -73,6 +73,35 @@ export default function ArrayItemEditor({
     return schema;
   };
 
+  // Check if object has any meaningful data (non-empty values)
+  const hasAnyData = (obj: any): boolean => {
+    if (!obj || typeof obj !== 'object') return false;
+    
+    for (const key in obj) {
+      const value = obj[key];
+      
+      // Skip undefined, null, empty strings
+      if (value === undefined || value === null || value === '') continue;
+      
+      // Check arrays
+      if (Array.isArray(value)) {
+        if (value.length > 0) return true;
+        continue;
+      }
+      
+      // Check nested objects
+      if (typeof value === 'object') {
+        if (hasAnyData(value)) return true;
+        continue;
+      }
+      
+      // Any other truthy value (numbers, booleans, non-empty strings)
+      return true;
+    }
+    
+    return false;
+  };
+
   // Toggle section expansion
   const toggleSection = (path: string) => {
     const newExpanded = new Set(expandedSections);
@@ -530,6 +559,13 @@ export default function ArrayItemEditor({
             Cancel
           </Button>
           <Button onClick={() => { 
+            // Check if any data was actually entered
+            if (!hasAnyData(localDataRef.current)) {
+              // Treat as cancel if no data entered
+              onClose(false);
+              return;
+            }
+            
             // Push complete localData back to parent before saving (use ref to get latest value)
             const fullPath = `${parentPath}[${itemIndex}]`;
             onChange(fullPath, localDataRef.current);
