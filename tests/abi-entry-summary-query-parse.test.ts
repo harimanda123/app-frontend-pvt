@@ -70,8 +70,12 @@ describe("classifyOutputLine", () => {
     ["JC" + " ".repeat(78), "JC"],
     ["JI" + " ".repeat(78), "JI"],
     ["JJ" + " ".repeat(78), "UNKNOWN"], // protest detail — not modeled this slice
-    ["10" + " ".repeat(78), "UNKNOWN"], // Entry Summary Details Grouping, not modeled this slice
-    ["4A" + " ".repeat(78), "UNKNOWN"],
+    ["JK" + " ".repeat(78), "JK"],
+    ["JL" + " ".repeat(78), "JL"],
+    ["JM" + " ".repeat(78), "JM"],
+    ["JN" + " ".repeat(78), "JN"],
+    ["10" + " ".repeat(78), "10"], // Entry Summary Details Grouping, reused from entrySummary/
+    ["4A" + " ".repeat(78), "4A"],
   ] as const)("classifies %j as %s", (line, expected) => {
     expect(classifyOutputLine(line)).toBe(expected);
   });
@@ -254,7 +258,7 @@ describe("parseQueryResponse", () => {
     expect(result.conditions[0].conditionCode).toBe("016");
   });
 
-  it("preserves unmodeled lines (JJ-JN, detail grouping, 4A) verbatim without dropping or misgrouping them", () => {
+  it("preserves unmodeled lines (JJ — protest detail) verbatim without dropping or misgrouping them", () => {
     const jj = "JJ" + " ".repeat(78); // protest detail — not modeled
     const result = parseQueryResponse([...fullResultGroup(), jj]);
     expect(result.unrecognizedLines).toEqual([jj]);

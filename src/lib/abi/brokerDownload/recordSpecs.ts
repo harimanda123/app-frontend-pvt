@@ -23,6 +23,17 @@ import type {
   StatusNotificationContinuationRecord,
   StatusNotificationRemarksRecord,
   StatusNotificationContainerDetailRecord,
+  ManifestReferenceIdentifierRecord,
+  BillOfLadingAmendmentRecord,
+  BillOfLadingAdditionalRecord,
+  BillOfLadingReferenceIdentifierRecord,
+  EntityAddressRecord,
+  EntityGeographicAreaRecord,
+  AdminCommunicationContactRecord,
+  SupplementalInBondDetailsRecord,
+  WaterBorneExportInBondRecord,
+  MotorVehicleControlRecord,
+  HarmonizedTariffRecord,
 } from "./types";
 
 // RecordSpecs for the CATAIR ACE Broker Download chapter (Chapter 9 / BD & NS
@@ -322,5 +333,217 @@ export const STATUS_NOTIFICATION_CONTAINER_DETAIL_SPEC: RecordSpec<StatusNotific
     { key: "sealNumber1", start: 18, length: 15, class: "AN", designation: "C" },
     { key: "sealNumber2", start: 33, length: 15, class: "AN", designation: "C" },
     filler(48, 33),
+  ],
+};
+
+// ── Final 11 records (conditional/optional/mode-specific). Field layouts
+// cross-checked against tests/abi-broker-download-remaining.test.ts, itself
+// independently spot-checked against the source PDF (2B and 0D confirmed
+// byte-for-byte) — see recordSpecs.test.ts-style mismatches noted per field
+// below where the PDF's own table class disagrees with its description text.
+
+// ── 2M-Record: Manifest Reference Identifier ─────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.15.
+
+export const MANIFEST_REFERENCE_IDENTIFIER_SPEC: RecordSpec<ManifestReferenceIdentifierRecord> = {
+  recordType: "2M-Record (Manifest Reference Identifier)",
+  length: 80,
+  fields: [
+    constantField(1, "2M"),
+    { key: "carrierAssignedBatchNumber", start: 3, length: 30, class: "AN", designation: "M" },
+    filler(33, 48),
+  ],
+};
+
+// ── 1A-Record: Bill of Lading Amendment ──────────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf pp.18-19.
+// Action Code is class A (not the table's "1N") since its values A/D/M/R are
+// alphabetic — documented mismatch, see types.ts.
+
+export const BILL_OF_LADING_AMENDMENT_SPEC: RecordSpec<BillOfLadingAmendmentRecord> = {
+  recordType: "1A-Record (Bill of Lading Amendment)",
+  length: 80,
+  fields: [
+    constantField(1, "1A"),
+    { key: "carrierCode", start: 3, length: 4, class: "AN", designation: "M" },
+    numericCodeField("cbpPort", 7, 4, "M"),
+    { key: "actionCode", start: 11, length: 1, class: "A", designation: "C" },
+    { key: "billOfLadingNumber", start: 12, length: 12, class: "AN", designation: "M" },
+    { key: "quantity", start: 24, length: 10, class: "X", designation: "C" },
+    { key: "amendmentCode", start: 34, length: 2, class: "X", designation: "C" },
+    { key: "houseBillNumber", start: 36, length: 12, class: "X", designation: "C" },
+    filler(48, 4),
+    { key: "codeQualifier", start: 52, length: 3, class: "AN", designation: "C" },
+    { key: "idCode", start: 55, length: 17, class: "AN", designation: "C" },
+    { key: "issuerCode", start: 72, length: 4, class: "A", designation: "C" },
+    filler(76, 5),
+  ],
+};
+
+// ── 2B-Record: Bill of Lading Additional / Pre-Carrier Receipt ──────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.25.
+// Independently spot-checked byte-for-byte, including the PDF's genuinely
+// duplicated "Carrier Code" field label for the two Secondary Notify Party
+// SCAC fields (positions 44-47 and 48-51) — see types.ts.
+
+export const BILL_OF_LADING_ADDITIONAL_SPEC: RecordSpec<BillOfLadingAdditionalRecord> = {
+  recordType: "2B-Record (Bill of Lading Additional / Pre-Carrier Receipt)",
+  length: 80,
+  fields: [
+    constantField(1, "2B"),
+    // Measured quantity, not an identifier — plain class N, not numericCodeField.
+    { key: "measurement", start: 3, length: 10, class: "N", designation: "O" },
+    { key: "measurementUnit", start: 13, length: 2, class: "A", designation: "C" },
+    { key: "placeOfReceiptByPreCarrier", start: 15, length: 17, class: "AN", designation: "C" },
+    filler(32, 12),
+    { key: "secondaryNotifyParty1Scac", start: 44, length: 4, class: "AN", designation: "O" },
+    { key: "secondaryNotifyParty2Scac", start: 48, length: 4, class: "AN", designation: "O" },
+    filler(52, 29),
+  ],
+};
+
+// ── 4B-Record: Bill of Lading Reference Identifier ──────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.26.
+
+export const BILL_OF_LADING_REFERENCE_IDENTIFIER_SPEC: RecordSpec<BillOfLadingReferenceIdentifierRecord> = {
+  recordType: "4B-Record (Bill of Lading Reference Identifier)",
+  length: 80,
+  fields: [
+    constantField(1, "4B"),
+    { key: "referenceQualifier", start: 3, length: 3, class: "AN", designation: "M" },
+    { key: "referenceNumber", start: 6, length: 30, class: "AN", designation: "M" },
+    filler(36, 45),
+  ],
+};
+
+// ── 2N-Record: Entity Address Lines 1 & 2 ────────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.30.
+
+export const ENTITY_ADDRESS_SPEC: RecordSpec<EntityAddressRecord> = {
+  recordType: "2N-Record (Entity Address Lines 1 & 2)",
+  length: 80,
+  fields: [
+    constantField(1, "2N"),
+    { key: "addressLine1", start: 3, length: 35, class: "X", designation: "M" },
+    { key: "addressLine2", start: 38, length: 35, class: "X", designation: "C" },
+    filler(73, 8),
+  ],
+};
+
+// ── 3N-Record: Entity Geographic Area ────────────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.31.
+
+export const ENTITY_GEOGRAPHIC_AREA_SPEC: RecordSpec<EntityGeographicAreaRecord> = {
+  recordType: "3N-Record (Entity Geographic Area)",
+  length: 80,
+  fields: [
+    constantField(1, "3N"),
+    { key: "cityName", start: 3, length: 19, class: "AN", designation: "C" },
+    { key: "stateProvince", start: 22, length: 2, class: "AN", designation: "O" },
+    { key: "postalCode", start: 24, length: 9, class: "AN", designation: "O" },
+    { key: "countryCode", start: 33, length: 2, class: "AN", designation: "O" },
+    { key: "locationIdentifier", start: 35, length: 5, class: "AN", designation: "C" },
+    filler(40, 41),
+  ],
+};
+
+// ── 4N-Record: Administrative Communication Contact ─────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.33.
+// Positions 53-79 are the PDF's own "reserved for future use" fields, reusing
+// the "Comm Number Qualifier"/"Communications Number" labels — modeled as
+// real optional fields (not raw filler), same convention as 0N-Record's
+// `entityRelationshipCode`/`entityIdCodeReserved`.
+
+export const ADMIN_COMMUNICATION_CONTACT_SPEC: RecordSpec<AdminCommunicationContactRecord> = {
+  recordType: "4N-Record (Administrative Communication Contact)",
+  length: 80,
+  fields: [
+    constantField(1, "4N"),
+    { key: "contactName", start: 3, length: 23, class: "AN", designation: "O" },
+    { key: "commNumberQualifier", start: 26, length: 2, class: "AN", designation: "C" },
+    { key: "communicationsNumber", start: 28, length: 25, class: "AN", designation: "C" },
+    { key: "reservedCommNumberQualifier", start: 53, length: 2, class: "AN", designation: "C" },
+    { key: "reservedCommunicationsNumber", start: 55, length: 25, class: "AN", designation: "C" },
+    filler(80, 1),
+  ],
+};
+
+// ── 1I-Record: Supplemental In-Bond Details ──────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf pp.34-35.
+// Value is whole-dollar, 0 implied decimals — plain `number`, not `Decimal`,
+// same rationale as the module header's no-Decimal-fields note.
+
+export const SUPPLEMENTAL_IN_BOND_DETAILS_SPEC: RecordSpec<SupplementalInBondDetailsRecord> = {
+  recordType: "1I-Record (Supplemental In-Bond Details)",
+  length: 80,
+  fields: [
+    constantField(1, "1I"),
+    numericCodeField("inBondEntryType", 3, 2, "M"),
+    { key: "fdaBtaConfirmationIndicator", start: 5, length: 1, class: "A", designation: "M" },
+    filler(6, 1),
+    numericCodeField("conventionalInBondNumber", 7, 9, "C"),
+    { key: "inBondCarrierCode", start: 16, length: 4, class: "AN", designation: "C" },
+    numericCodeField("usPortOfDestination", 20, 4, "C"),
+    numericCodeField("foreignDestination", 24, 5, "C"),
+    // Whole dollar value, 0 implied decimals — plain number, not Decimal.
+    { key: "value", start: 29, length: 8, class: "N", designation: "M" },
+    { key: "bondedCarrierIdNumber", start: 37, length: 12, class: "X", designation: "M" },
+    { key: "paperlessInBond", start: 49, length: 11, class: "AN", designation: "C" },
+    { key: "shipmentControlNumber", start: 60, length: 16, class: "AN", designation: "C" },
+    filler(76, 5),
+  ],
+};
+
+// ── 2I-Record: Water-Borne Export In-Bond ────────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.36.
+// Transportation Indicator is class A (not the table's "2N") since its only
+// valid value, "S", is alphabetic — documented mismatch, see types.ts.
+
+export const WATER_BORNE_EXPORT_IN_BOND_SPEC: RecordSpec<WaterBorneExportInBondRecord> = {
+  recordType: "2I-Record (Water-Borne Export In-Bond)",
+  length: 80,
+  fields: [
+    constantField(1, "2I"),
+    { key: "transportationIndicator", start: 3, length: 2, class: "A", designation: "O" },
+    { key: "vesselName", start: 5, length: 23, class: "AN", designation: "O" },
+    filler(28, 53),
+  ],
+};
+
+// ── 2C-Record: Motor Vehicle Control (VIN) ───────────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.39.
+
+export const MOTOR_VEHICLE_CONTROL_SPEC: RecordSpec<MotorVehicleControlRecord> = {
+  recordType: "2C-Record (Motor Vehicle Control - VIN)",
+  length: 80,
+  fields: [
+    constantField(1, "2C"),
+    { key: "vin", start: 3, length: 30, class: "AN", designation: "M" },
+    filler(33, 10),
+    { key: "factoryCarOrderNumber", start: 43, length: 10, class: "AN", designation: "O" },
+    filler(53, 28),
+  ],
+};
+
+// ── 0D-Record: Harmonized Tariff Classification ──────────────────────────────
+// Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf p.40.
+// Independently spot-checked byte-for-byte, including the space-padding rule:
+// Harmonized Number is class AN (not the table's "11N") since the PDF's own
+// note says a 6-digit code is space-filled (not zero-filled) to 11 chars —
+// left-justified, not right-justified/zero-padded like `numericCodeField` —
+// documented mismatch, see types.ts. Value is whole-dollar, 0 implied
+// decimals, and Weight is a whole number — both plain `number`, not
+// `Decimal`, same rationale as 1I's Value.
+
+export const HARMONIZED_TARIFF_SPEC: RecordSpec<HarmonizedTariffRecord> = {
+  recordType: "0D-Record (Harmonized Tariff Classification)",
+  length: 80,
+  fields: [
+    constantField(1, "0D"),
+    { key: "harmonizedNumber", start: 3, length: 11, class: "AN", designation: "C" },
+    { key: "value", start: 14, length: 8, class: "N", designation: "C" },
+    { key: "weight", start: 22, length: 10, class: "N", designation: "C" },
+    { key: "weightUnit", start: 32, length: 2, class: "A", designation: "C" },
+    filler(34, 47),
   ],
 };

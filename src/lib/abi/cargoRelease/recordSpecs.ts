@@ -1,5 +1,6 @@
 import {
   dateField,
+  dateFieldNumericMMDDYY,
   filler,
   constantField,
   numericCodeField,
@@ -20,6 +21,10 @@ import type {
   LineItemInput,
   HtsLineInput,
   OutputDispositionInput,
+  EquipmentInput,
+  EntityGbiInput,
+  FtzDetailInput,
+  FtzPfHtsInput,
 } from "./types";
 
 // RecordSpecs for the CATAIR Cargo Release (SE) chapter.
@@ -135,6 +140,16 @@ export const SE16_CONVEYANCE_SPEC: RecordSpec<ConveyanceInput> = {
   ],
 };
 
+export const SE17_EQUIPMENT_SPEC: RecordSpec<EquipmentInput> = {
+  recordType: "SE17-Record (Equipment Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "SE17"),
+    { key: "equipmentNumber", start: 5, length: 20, class: "AN", designation: "M" },
+    filler(25, 56),
+  ],
+};
+
 export const SE20_REFERENCE_SPEC: RecordSpec<ReferenceInput> = {
   recordType: "SE20-Record (Reference Information)",
   length: 80,
@@ -156,6 +171,18 @@ export const SE30_HEADER_ENTITY_SPEC: RecordSpec<EntityInput> = {
     { key: "entityIdentifierQualifier", start: 43, length: 3, class: "X", designation: "C" },
     { key: "entityIdentifier", start: 46, length: 20, class: "X", designation: "C" },
     filler(66, 15),
+  ],
+};
+
+/** Shared by SE31 (header) and SE51 (line) — see `EntityGbiInput`. */
+export const SE31_HEADER_ENTITY_GBI_SPEC: RecordSpec<EntityGbiInput> = {
+  recordType: "SE31-Record (Header Entity GBI Identifier)",
+  length: 80,
+  fields: [
+    constantField(1, "SE31"),
+    { key: "gbiIdentifierQualifier", start: 5, length: 4, class: "A", designation: "M" },
+    { key: "gbiIdentifier", start: 9, length: 20, class: "AN", designation: "M" },
+    filler(29, 52),
   ],
 };
 
@@ -198,6 +225,21 @@ export const SE40_LINE_ITEM_SPEC: RecordSpec<LineItemInput> = {
   ],
 };
 
+export const SE41_FTZ_DETAIL_SPEC: RecordSpec<FtzDetailInput> = {
+  recordType: "SE41-Record (FTZ Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "SE41"),
+    { key: "zoneStatus", start: 5, length: 1, class: "A", designation: "M" },
+    // Privileged FTZ Merchandise Filing Date is documented as class "6N" (not
+    // class D) — same "MMDDYY digit order, class-N wire tag" convention as
+    // ACE Cargo Manifest Query's output dates, hence `dateFieldNumericMMDDYY`.
+    dateFieldNumericMMDDYY("privilegedFtzMerchandiseFilingDate", 6, "C"),
+    { key: "ftzLineItemQuantity", start: 12, length: 8, class: "N", designation: "M" },
+    filler(20, 61),
+  ],
+};
+
 export const SE50_LINE_ENTITY_SPEC: RecordSpec<EntityInput> = {
   recordType: "SE50-Record (Line Entity Name and Type)",
   length: 80,
@@ -208,6 +250,18 @@ export const SE50_LINE_ENTITY_SPEC: RecordSpec<EntityInput> = {
     { key: "entityIdentifierQualifier", start: 43, length: 3, class: "X", designation: "O" },
     { key: "entityIdentifier", start: 46, length: 20, class: "X", designation: "O" },
     filler(66, 15),
+  ],
+};
+
+/** Shared by SE31 (header) and SE51 (line) — see `EntityGbiInput`. */
+export const SE51_LINE_ENTITY_GBI_SPEC: RecordSpec<EntityGbiInput> = {
+  recordType: "SE51-Record (Line Entity GBI Identifier)",
+  length: 80,
+  fields: [
+    constantField(1, "SE51"),
+    { key: "gbiIdentifierQualifier", start: 5, length: 4, class: "A", designation: "M" },
+    { key: "gbiIdentifier", start: 9, length: 20, class: "AN", designation: "M" },
+    filler(29, 52),
   ],
 };
 
@@ -246,6 +300,16 @@ export const SE60_HTS_LINE_SPEC: RecordSpec<HtsLineInput> = {
     { key: "htsNumber", start: 5, length: 10, class: "AN", designation: "M" },
     wholeDollarField("lineItemValue", 15, 10, "C"),
     filler(25, 56),
+  ],
+};
+
+export const SE61_FTZ_PF_HTS_SPEC: RecordSpec<FtzPfHtsInput> = {
+  recordType: "SE61-Record (FTZ Privileged Foreign Status Additional Detail)",
+  length: 80,
+  fields: [
+    constantField(1, "SE61"),
+    { key: "currentHtsNumberForPfStatusMerchandise", start: 5, length: 10, class: "AN", designation: "M" },
+    filler(15, 66),
   ],
 };
 

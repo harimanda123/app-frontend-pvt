@@ -7,6 +7,25 @@ import {
   ENTRY_DISPOSITION_RESULT_SPEC,
   MANIFEST_CONVEYANCE_RESULT_SPEC,
   TRIP_FIRMS_LOCATION_SPEC,
+  IN_BOND_BILL_QUERY_ERROR_SPEC,
+  AIR_WAYBILL_QUERY_ERROR_SPEC,
+  COUNTRY_ORIGIN_TARIFF_RESULT_SPEC,
+  IN_BOND_STATUS_UPDATE_SPEC,
+  IN_BOND_BILL_DETAIL_SPEC,
+  IN_BOND_STATUS_DETAIL_SPEC,
+  AIR_IN_BOND_MANIFEST_STATUS_SPEC,
+  AIR_WAYBILL_DISPOSITION_RESULT_SPEC,
+  IN_BOND_BILL_DISPOSITION_RESULT_SPEC,
+  AMENDED_BILL_QUANTITIES_SPEC,
+  PORT_DATE_DETAIL_SPEC,
+  REFERENCE_DATA_SPEC,
+  COUNTRY_ORIGIN_TARIFF_LINE_SPEC,
+  BILL_DETAIL_SPEC,
+  IN_BOND_DETAIL_SPEC,
+  BILL_MATCH_DISPOSITION_SPEC,
+  PGA_STATUS_ACTION_DETAIL_SPEC,
+  PGA_REFERENCE_IDENTIFICATION_DETAIL_SPEC,
+  PGA_NARRATIVE_COMMENTS_SPEC,
 } from "./recordSpecs";
 import type {
   CargoManifestQueryRequestInput,
@@ -15,6 +34,25 @@ import type {
   EntryDispositionResultOutput,
   ManifestConveyanceResultOutput,
   TripFirmsLocationOutput,
+  InBondBillQueryErrorOutput,
+  AirWaybillQueryErrorOutput,
+  CountryOriginTariffResultOutput,
+  InBondStatusUpdateOutput,
+  InBondBillDetailOutput,
+  InBondStatusDetailOutput,
+  AirInBondManifestStatusOutput,
+  AirWaybillDispositionResultOutput,
+  InBondBillDispositionResultOutput,
+  AmendedBillQuantitiesOutput,
+  PortDateDetailOutput,
+  ReferenceDataOutput,
+  CountryOriginTariffLineOutput,
+  BillDetailOutput,
+  InBondDetailOutput,
+  BillMatchDispositionOutput,
+  PgaStatusActionDetailOutput,
+  PgaReferenceIdentificationDetailOutput,
+  PgaNarrativeCommentsOutput,
 } from "./types";
 
 /**
@@ -87,4 +125,80 @@ export function buildManifestConveyanceResult(input: ManifestConveyanceResultOut
 
 export function buildTripFirmsLocation(input: TripFirmsLocationOutput): string {
   return encodeRecord(TRIP_FIRMS_LOCATION_SPEC, input);
+}
+
+export function buildInBondBillQueryError(input: InBondBillQueryErrorOutput): string {
+  return encodeRecord(IN_BOND_BILL_QUERY_ERROR_SPEC, input);
+}
+
+export function buildAirWaybillQueryError(input: AirWaybillQueryErrorOutput): string {
+  return encodeRecord(AIR_WAYBILL_QUERY_ERROR_SPEC, input);
+}
+
+export function buildCountryOriginTariffResult(input: CountryOriginTariffResultOutput): string {
+  return encodeRecord(COUNTRY_ORIGIN_TARIFF_RESULT_SPEC, input);
+}
+
+export function buildInBondStatusUpdate(input: InBondStatusUpdateOutput): string {
+  return encodeRecord(IN_BOND_STATUS_UPDATE_SPEC, input);
+}
+
+export function buildInBondBillDetail(input: InBondBillDetailOutput): string {
+  return encodeRecord(IN_BOND_BILL_DETAIL_SPEC, input);
+}
+
+export function buildInBondStatusDetail(input: InBondStatusDetailOutput): string {
+  return encodeRecord(IN_BOND_STATUS_DETAIL_SPEC, input);
+}
+
+export function buildAirInBondManifestStatus(input: AirInBondManifestStatusOutput): string {
+  return encodeRecord(AIR_IN_BOND_MANIFEST_STATUS_SPEC, input);
+}
+
+export function buildAirWaybillDispositionResult(input: AirWaybillDispositionResultOutput): string {
+  return encodeRecord(AIR_WAYBILL_DISPOSITION_RESULT_SPEC, input);
+}
+
+export function buildInBondBillDispositionResult(input: InBondBillDispositionResultOutput): string {
+  return encodeRecord(IN_BOND_BILL_DISPOSITION_RESULT_SPEC, input);
+}
+
+export function buildAmendedBillQuantities(input: AmendedBillQuantitiesOutput): string {
+  return encodeRecord(AMENDED_BILL_QUANTITIES_SPEC, input);
+}
+
+export function buildPortDateDetail(input: PortDateDetailOutput): string {
+  return encodeRecord(PORT_DATE_DETAIL_SPEC, input);
+}
+
+export function buildReferenceData(input: ReferenceDataOutput): string {
+  return encodeRecord(REFERENCE_DATA_SPEC, input);
+}
+
+export function buildCountryOriginTariffLine(input: CountryOriginTariffLineOutput): string {
+  return encodeRecord(COUNTRY_ORIGIN_TARIFF_LINE_SPEC, input);
+}
+
+export function buildBillDetail(input: BillDetailOutput): string {
+  return encodeRecord(BILL_DETAIL_SPEC, input);
+}
+
+export function buildInBondDetail(input: InBondDetailOutput): string {
+  return encodeRecord(IN_BOND_DETAIL_SPEC, input);
+}
+
+export function buildBillMatchDisposition(input: BillMatchDispositionOutput): string {
+  return encodeRecord(BILL_MATCH_DISPOSITION_SPEC, input);
+}
+
+export function buildPgaStatusActionDetail(input: PgaStatusActionDetailOutput): string {
+  return encodeRecord(PGA_STATUS_ACTION_DETAIL_SPEC, input);
+}
+
+export function buildPgaReferenceIdentificationDetail(input: PgaReferenceIdentificationDetailOutput): string {
+  return encodeRecord(PGA_REFERENCE_IDENTIFICATION_DETAIL_SPEC, input);
+}
+
+export function buildPgaNarrativeComments(input: PgaNarrativeCommentsOutput): string {
+  return encodeRecord(PGA_NARRATIVE_COMMENTS_SPEC, input);
 }
