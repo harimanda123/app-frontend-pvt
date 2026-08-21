@@ -28,6 +28,13 @@ import {
   PG55_ADDITIONAL_ENTITY_ROLES_SPEC,
   PG60_ADDITIONAL_REFERENCE_SPEC,
   PG00_SUBSTITUTION_SPEC,
+  PG05_SCIENTIFIC_SPECIES_SPEC,
+  PG17_COMMON_NAME_VENOMOUS_SPEC,
+  PG23_AFFIRMATION_OF_COMPLIANCE_SPEC,
+  PG28_CAN_DIMENSIONS_TRACKING_SPEC,
+  PG31_HARVESTING_VESSEL_SPEC,
+  PG33_GEOGRAPHIC_AREA_SPEC,
+  PG35_CONFORMANCE_BOND_SPEC,
 } from "./recordSpecs";
 import type {
   OiLineItemInput,
@@ -58,6 +65,13 @@ import type {
   Pg55AdditionalEntityRolesInput,
   Pg60AdditionalReferenceInput,
   Pg00SubstitutionInput,
+  Pg05ScientificSpeciesInput,
+  Pg17CommonNameVenomousInput,
+  Pg23AffirmationOfComplianceInput,
+  Pg28CanDimensionsTrackingInput,
+  Pg31HarvestingVesselInput,
+  Pg33GeographicAreaInput,
+  Pg35ConformanceBondInput,
 } from "./types";
 
 export function buildOiLineItem(input: OiLineItemInput): string {
@@ -170,4 +184,32 @@ export function buildPg60AdditionalReference(input: Pg60AdditionalReferenceInput
 
 export function buildPg00Substitution(input: Pg00SubstitutionInput): string {
   return encodeRecord(PG00_SUBSTITUTION_SPEC, input);
+}
+
+export function buildPg05ScientificSpecies(input: Pg05ScientificSpeciesInput): string {
+  return encodeRecord(PG05_SCIENTIFIC_SPECIES_SPEC, input);
+}
+
+export function buildPg17CommonNameVenomous(input: Pg17CommonNameVenomousInput): string {
+  return encodeRecord(PG17_COMMON_NAME_VENOMOUS_SPEC, input);
+}
+
+export function buildPg23AffirmationOfCompliance(input: Pg23AffirmationOfComplianceInput): string {
+  return encodeRecord(PG23_AFFIRMATION_OF_COMPLIANCE_SPEC, input);
+}
+
+export function buildPg28CanDimensionsTracking(input: Pg28CanDimensionsTrackingInput): string {
+  return encodeRecord(PG28_CAN_DIMENSIONS_TRACKING_SPEC, input);
+}
+
+export function buildPg31HarvestingVessel(input: Pg31HarvestingVesselInput): string {
+  return encodeRecord(PG31_HARVESTING_VESSEL_SPEC, input);
+}
+
+export function buildPg33GeographicArea(input: Pg33GeographicAreaInput): string {
+  return encodeRecord(PG33_GEOGRAPHIC_AREA_SPEC, input);
+}
+
+export function buildPg35ConformanceBond(input: Pg35ConformanceBondInput): string {
+  return encodeRecord(PG35_CONFORMANCE_BOND_SPEC, input);
 }

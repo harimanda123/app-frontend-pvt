@@ -4,6 +4,32 @@ Tracks implementation of `docs/customs-filing-canonical-messaging-prompt.md` aga
 
 ---
 
+## 2026-08-21 — Auto-resolve filing exchange rate via `ExchangeRateService`
+
+A filing with no manual exchange rate on file previously had no fallback. `ExchangeRateService` now
+resolves a rate automatically when none has been manually set, so filing creation and validation no
+longer stall on missing FX data for currencies that have a resolvable rate.
+
+## 2026-08-21 — Fixed the procedureCode/transactionType regression from `bb8ad90`
+
+`bb8ad90` dropped `FilingProcedureConfig.transactionTypeId` (a required FK to `FilingTransactionType`)
+without leaving a replacement, and `procedureCode` had been narrowed to a canonical-code-style value
+(e.g. `"NCTS"`) rather than the real per-country procedure code (e.g. `"5100"`) `resolveMessageContext`
+actually needs. Restored `transactionType` as a plain, nullable `String?` column on
+`FilingProcedureConfig` (schema change only in this pass — see "pending live migration" note below),
+reverted `procedureCode` in `src/modules/filingConfig/registry.ts`'s admin schema back to free-text, and
+added `transactionType` there as a `select` field sourced from `/api/filing-config/transaction-types`.
+
+**Known gap this pass does not close**: the schema change had not yet been migrated to the live
+database as of 2026-08-21 — every real filing was blocked until `prisma migrate deploy` (or the
+equivalent hand-written `ALTER TABLE`) actually runs against production. A live-database audit that
+day also found `FilingProcedureConfig` and `FilingTransactionType` completely empty in production (not
+just missing the one row originally assumed corrupted) — the multi-country filing-config catalog was
+never seeded live at all. Seeding real country/procedure/message data remains a separate, deliberate
+follow-up; do not guess at the values.
+
+---
+
 ## 2026-08-12 — Table renaming, schema hygiene, and a real second country proving the design
 
 Three requests, done in dependency order: rename every canonical-messaging table to the `Filing*` convention, re-check the JSON Schemas for anything still US-specific, then actually configure and prove a second country end-to-end -- not just assert the architecture supports one.

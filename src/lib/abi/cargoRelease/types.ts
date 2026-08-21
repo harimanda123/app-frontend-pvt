@@ -125,3 +125,32 @@ export interface OutputDispositionInput {
   messageIdentifierCode?: string;
   narrativeMessageText: string;
 }
+
+export interface EquipmentInput {
+  /** SCAC prefix + equipment unit's serial number + check digit, as one string. */
+  equipmentNumber: string;
+}
+
+/** Shared by SE31 (header) and SE51 (line) — both Entity GBI Identifier pilot records have an identical layout. */
+export interface EntityGbiInput {
+  /** LEI (GLEIF), GLN (GS1), or DUNS (Dun & Bradstreet) — Note 1. */
+  gbiIdentifierQualifier: "LEI" | "GLN" | "DUNS";
+  gbiIdentifier: string;
+}
+
+export interface FtzDetailInput {
+  /** P = Privileged Foreign, N = Non-privileged Foreign, D = Domestic, Z = Zone restricted. */
+  zoneStatus: "P" | "N" | "D" | "Z";
+  /**
+   * MMDDYY. Conditional: only used when Privileged Foreign status applies and
+   * the SE60 HTS number is no longer active (Note 2) — space-filled otherwise.
+   */
+  privilegedFtzMerchandiseFilingDate?: Date;
+  /** Quantity of this SE40/SE60 HTS line removed from the FTZ — a count, not money. Whole number > 0. */
+  ftzLineItemQuantity: number;
+}
+
+export interface FtzPfHtsInput {
+  /** Full 10-digit current HTS number for Privileged Foreign status merchandise (the SE60 HTS number is no longer active). */
+  currentHtsNumberForPfStatusMerchandise: string;
+}

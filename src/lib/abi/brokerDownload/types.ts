@@ -1,26 +1,27 @@
 // Types for the CATAIR ACE Broker Download chapter (Chapter 9 / BD & NS
-// Applications) — the 10 core mandatory backbone OUTPUT records. Unlike every
-// other chapter modeled so far, Broker Download is output-only: CBP pushes
-// this data to ABI filers (there is no filer-submitted input side), so
+// Applications) — all 27 records (BD & NS Application Groupings). Unlike
+// every other chapter modeled so far, Broker Download is output-only: CBP
+// pushes this data to ABI filers (there is no filer-submitted input side), so
 // Qubere's real usage is decoding what CBP sends, not encoding it.
 // Source: docs/plans/catair-source-docs/09-broker-download-draft.pdf (August
 // 2024 DRAFT)
 //
-// Deferred (not modeled this slice): 11 conditional/optional/mode-specific/
-// overflow records — 2M, 1A, 2B, 4B, 2N, 3N, 4N, 1I, 2I, 2C, 0D (BD
-// Application Grouping). See tests/abi-broker-download-specs.test.ts's
-// DEFERRED_RECORDS registry for page citations and per-record deferral
-// rationale (that registry still lists all 17 originally-deferred records —
-// it's a standalone audit fixture, not re-synced here — but 1V, 2V, 3V,
-// NS40, NS50, NS60 are now modeled below per
-// tests/abi-broker-download-extended.test.ts, pages 43-45 and 49-51).
+// Chapter coverage: 1M, 1P, 1J, 1B, 0N, 1C, 1D, 2D, NS05, NS30 (core
+// mandatory backbone, first slice); 1V, 2V, 3V, NS40, NS50, NS60 (hazmat &
+// status-notification detail, second slice, pages 43-45/49-51); 2M, 1A, 2B,
+// 4B, 2N, 3N, 4N, 1I, 2I, 2C, 0D (final 11 conditional/optional/mode-specific
+// records, this slice, pages 15/18-19/25/26/30/31/33/34-35/36/39/40) — all
+// 27 records tests/abi-broker-download-specs.test.ts's DEFERRED_RECORDS
+// registry originally catalogued as deferred are now modeled (that registry
+// itself is a standalone audit fixture and is not re-synced here).
 //
-// No `Decimal`-bound fields exist in this slice: every quantity/weight field
-// the source PDF documents (1B's Manifest Quantity & Weight, 1D's Piece
-// Count, NS30's Quantity) is explicitly a whole number with no implied
-// decimal scaling ("Gross weight in whole numbers, no decimals" — 1B Weight
-// note) — plain `number`, not `Decimal`. Don't add implied-decimal scaling
-// here; nothing in the source PDF or test fixtures calls for it.
+// No `Decimal`-bound fields exist anywhere in this chapter: every
+// quantity/weight/value field the source PDF documents (1B's Manifest
+// Quantity & Weight, 1D's Piece Count, NS30's Quantity, 1I's and 0D's Value
+// — both explicitly "whole dollar value ... 0 decimals" — 0D's Weight) is
+// explicitly a whole number with no implied decimal scaling — plain
+// `number`, not `Decimal`. Don't add implied-decimal scaling here; nothing
+// in the source PDF or test fixtures calls for it.
 
 /** 1M-Record: Manifest Header. One per manifest; carrier, mode, conveyance,
  * and trip identification. */
@@ -297,4 +298,193 @@ export interface StatusNotificationContainerDetailRecord {
   sealNumber1?: string;
   /** Exporter/carrier seal number. */
   sealNumber2?: string;
+}
+
+// ── Final 11 records (conditional/optional/mode-specific), pages
+// 15/18-19/25/26/30/31/33/34-35/36/39/40 ─────────────────────────────────────
+
+/** 2M-Record: Manifest Reference Identifier. Conditional; Rail only. */
+export interface ManifestReferenceIdentifierRecord {
+  /** Control number assigned by the carrier (Rail only). */
+  carrierAssignedBatchNumber: string;
+}
+
+/** 1A-Record: Bill of Lading Amendment. Conditional; carries an
+ * Add/Delete/Replace action against a previously transmitted bill of
+ * lading. */
+export interface BillOfLadingAmendmentRecord {
+  /** SCAC of the importing carrier. */
+  carrierCode: string;
+  /** USCBP port of crossing or unlading — Schedule D port code, leading
+   * zero significant. */
+  cbpPort: string;
+  /** A=Add, D=Delete, M=Replace segment, R=Replace manifest quantity. Class
+   * A per the source PDF's own description text, not class N as the
+   * table's "1N" heading claims — the value set A/D/M/R is alphabetic, not
+   * numeric (documented mismatch). */
+  actionCode?: string;
+  /** Master bill of lading number / SCN. */
+  billOfLadingNumber: string;
+  /** Amended quantity, meaningful only when Action Code is R (Rail/Ocean).
+   * Class X per the source PDF, not a plain numeric field — kept as a
+   * string, not `number`. */
+  quantity?: string;
+  /** Reason code for the manifest amendment (ACE Ocean Appendix B). */
+  amendmentCode?: string;
+  /** House bill number (Truck and Ocean HBR). */
+  houseBillNumber?: string;
+  /** "ABI" = ABI Office Routing Code. */
+  codeQualifier?: string;
+  /** ABI office routing code (Port 4 + Filer 3 + Office 2 = 9 chars). */
+  idCode?: string;
+  /** SCAC of the house bill issuer (Truck and Ocean HBR). */
+  issuerCode?: string;
+}
+
+/** 2B-Record: Bill of Lading Additional / Pre-Carrier Receipt. Conditional. */
+export interface BillOfLadingAdditionalRecord {
+  /** Measurement from the manifest; zero-filled if not transmitted. A
+   * measured quantity, not an identifier — plain `number`. */
+  measurement?: number;
+  /** Unit of measure for `measurement`; required if measurement is given. */
+  measurementUnit?: string;
+  /** City/country where the pre-carrier took possession of the cargo. */
+  placeOfReceiptByPreCarrier?: string;
+  /** 1st Secondary Notify Party SCAC. Labeled "Carrier Code" in the source
+   * PDF's own field table — the same label the PDF reuses for
+   * `secondaryNotifyParty2Scac` below, a documented duplicate for two
+   * distinct fields, not a copy-paste bug here. */
+  secondaryNotifyParty1Scac?: string;
+  /** 2nd Secondary Notify Party SCAC — see `secondaryNotifyParty1Scac`. */
+  secondaryNotifyParty2Scac?: string;
+}
+
+/** 4B-Record: Bill of Lading Reference Identifier. Conditional; the source
+ * PDF's own page intro text says it repeats up to ten times, while the
+ * chapter's general repeat-record structure allows up to 999 — a documented
+ * cardinality ambiguity, not resolved here since it doesn't affect the
+ * per-record wire layout. */
+export interface BillOfLadingReferenceIdentifierRecord {
+  /** Reference type code (e.g. 8S, BEN, BL, BM, BN, CG, CN, CO, CR, CUB, CX,
+   * ED, EP, FEN, FN, FP, GB, GR, HS, IN, LT, MA, MB). 2-char codes are
+   * left-justified. */
+  referenceQualifier: string;
+  /** The number identified by `referenceQualifier`. */
+  referenceNumber: string;
+}
+
+/** 2N-Record: Entity Address Lines 1 & 2. Conditional. */
+export interface EntityAddressRecord {
+  /** First line of the entity's address (or country). Labeled "Entity Party
+   * Address" in the source PDF — the same label the PDF reuses for
+   * `addressLine2` below, a documented duplicate, not a copy-paste bug
+   * here. */
+  addressLine1: string;
+  /** Second line of the entity's address, if available — see
+   * `addressLine1`. */
+  addressLine2?: string;
+}
+
+/** 3N-Record: Entity Geographic Area. Conditional. */
+export interface EntityGeographicAreaRecord {
+  /** City name (limited to 19 chars for Rail). */
+  cityName?: string;
+  /** State/Province code (Rail and Ocean only). */
+  stateProvince?: string;
+  /** Postal/Zip code, without punctuation or blanks. */
+  postalCode?: string;
+  /** ISO country code. */
+  countryCode?: string;
+  /** Space-filled in Rail/Ocean; a 1-3 letter state/province code in Truck. */
+  locationIdentifier?: string;
+}
+
+/** 4N-Record: Administrative Communication Contact. Conditional. */
+export interface AdminCommunicationContactRecord {
+  /** Contact person's name. */
+  contactName?: string;
+  /** Qualifier code (AU, CP, ED, EM, EX, FT, FX, HP, IT, PS, TE, TL, TM, TX,
+   * WP). */
+  commNumberQualifier?: string;
+  /** Communications number, including country/area code where applicable
+   * (Rail/Truck); truncated if longer than 25 chars. */
+  communicationsNumber?: string;
+  /** Reserved for future use; space-filled. Labeled "Comm Number Qualifier"
+   * in the source PDF — the same label the PDF uses for
+   * `commNumberQualifier` above, a documented duplicate, not a copy-paste
+   * bug here. */
+  reservedCommNumberQualifier?: string;
+  /** Reserved for future use; space-filled — see
+   * `reservedCommNumberQualifier`. */
+  reservedCommunicationsNumber?: string;
+}
+
+/** 1I-Record: Supplemental In-Bond Details. Conditional. */
+export interface SupplementalInBondDetailsRecord {
+  /** 61=IT, 62=T&E, 63=IE, 69=Transit (US-CA-US), 70=Transit (CA-US-CA) —
+   * identifier code, kept as a zero-padded string via `numericCodeField`. */
+  inBondEntryType: string;
+  /** Y=PN on file with FDA, N=No PN on file. */
+  fdaBtaConfirmationIndicator: string;
+  /** CF-7512 in-bond number; zero-filled if the carrier transmits a V
+   * in-bond instead — identifier, kept as a zero-padded string via
+   * `numericCodeField`. */
+  conventionalInBondNumber?: string;
+  /** SCAC of the in-bond carrier. */
+  inBondCarrierCode?: string;
+  /** Schedule D port of termination (61), export (62), or arrival (63) —
+   * leading zero significant. */
+  usPortOfDestination?: string;
+  /** Schedule K code for the foreign port of destination (62/63); blank for
+   * 61 — leading zero significant. */
+  foreignDestination?: string;
+  /** Whole dollar value (USD, 0 implied decimals); $20/kg if unknown, must
+   * be greater than zero — plain `number`, matching this chapter's
+   * established whole-number-amount precedent (see module header). */
+  value: number;
+  /** IRS (NN-NNNNNNNXX), CBP (YYDDPP-NNNN), or SSN (NNN-NN-NNNN) format,
+   * with hyphens — class X per the source PDF, kept as a string. */
+  bondedCarrierIdNumber: string;
+  /** Carrier-assigned V in-bond number. */
+  paperlessInBond?: string;
+  /** Carrier-assigned shipment control number (Truck only). */
+  shipmentControlNumber?: string;
+}
+
+/** 2I-Record: Water-Borne Export In-Bond. Conditional; Rail only. */
+export interface WaterBorneExportInBondRecord {
+  /** Must be "S" (Sea). Class A per the source PDF's own description text,
+   * not class N as the table's "2N" heading claims — the only valid value
+   * is alphabetic (documented mismatch). */
+  transportationIndicator?: string;
+  /** Name of the exporting vessel. */
+  vesselName?: string;
+}
+
+/** 2C-Record: Motor Vehicle Control (VIN). Conditional. */
+export interface MotorVehicleControlRecord {
+  /** Vehicle Identification Number (Canadian finished vehicles). */
+  vin: string;
+  /** Canadian border car order number (Rail only). */
+  factoryCarOrderNumber?: string;
+}
+
+/** 0D-Record: Harmonized Tariff Classification. Conditional. */
+export interface HarmonizedTariffRecord {
+  /** HTSUS code, left-justified; space-filled (not zero-filled) if only 6
+   * digits are sent. Class AN per the source PDF's own field note, not
+   * class N as the table's "11N" heading claims (documented mismatch) —
+   * kept as a plain string, not `numericCodeField` (which right-justifies
+   * and zero-pads; this field is left-justified and space-padded). */
+  harmonizedNumber?: string;
+  /** Whole dollar value (USD, 0 implied decimals), must be greater than
+   * zero — plain `number`, same rationale as 1I's `value`. */
+  value?: number;
+  /** Net weight in pounds or kilos, must be greater than zero — whole
+   * number, no implied decimals, matching this chapter's weight-field
+   * precedent (1B's `weight`). */
+  weight?: number;
+  /** Unit of measure: LB, KG, LT, ST, ET, MT (Rail/Ocean); G, L, K, O, T
+   * (Truck). */
+  weightUnit?: string;
 }
