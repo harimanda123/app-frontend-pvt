@@ -858,8 +858,8 @@ export async function getFilingConfigTableMeta(tableKey: FilingConfigTableKey): 
 
   // For ui-configuration table, populate Country, ProcedureCode, and MessageName dropdowns
   if (tableKey === "ui-configuration") {
-    // Get distinct values from TransactionType table
-    const transactionTypes = await db.transactionType.findMany({
+    // Get distinct values from FilingTransactionType table
+    const transactionTypes = await db.filingTransactionType.findMany({
       select: { country: true, code: true, messageName: true },
       distinct: ['country', 'code', 'messageName'],
       orderBy: [{ country: 'asc' }, { code: 'asc' }, { messageName: 'asc' }]
