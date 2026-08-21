@@ -198,6 +198,9 @@ model Account {
   assistantChatSessions       AssistantChatSession[]
   filingMessages              FilingMessage[]
   agentPolicyConfigs          AgentPolicyConfig[]
+  inBondRecords               InBondRecord[]
+  manifestRecords             ManifestRecord[]
+  statementRecords            StatementRecord[]
   shipmentTrackingIdentifiers ShipmentTrackingIdentifier[]
   transportLegs               TransportLeg[]
   shipmentStops               ShipmentStop[]
@@ -1071,6 +1074,8 @@ model ShipmentLineItem {
   drawbackMatches                 DrawbackMatch[]
   pgaRequirements                 PgaRequirement[]
   restrictedPartyScreeningResults RestrictedPartyScreeningResult[]
+  ftzDetails                      FtzDetail[]
+  adcvdLineDetails                AdcvdLineDetail[]
 
   @@index([shipmentId])
   @@index([accountId])
@@ -1217,13 +1222,40 @@ model CustomsFiling {
   // TODO: Remove after data migration
   // ========================================================================
 
-  /// @deprecated Use transactionTypeId instead. US-centric field from entryType.ts
+  /// US entry type code (e.g., "01" Consumption, "11" Informational, "06" FTZ). Kept alongside country/procedureCode/messageName.
   entryType String?
 
   /// @deprecated Use country instead. Was storing authority display names like "CBP"
   authority String?
 
   // ========================================================================
+  // CATAIR 7501 HEADER & CARGO RELEASE FIELDS (Gap Closure)
+  // ================================================================= grandTotalOtherRevenueAmount
+  brokerReferenceNumber        String?
+  bondWaiverIndicator          String?
+  bondWaiverReasonCode         String?
+  liveEntryIndicator           String?
+  consolidatedSummaryIndicator String?
+  paymentTypeCode              String?
+  pgaDataIncludedIndicator     String?
+  foreignTradeZoneIdentifier   String?
+  usStateOfDestinationCode     String?
+  estimatedEntryDate           DateTime?
+  dateOfImportation            DateTime?
+  designatedNotifyPartyNumber  String?
+  grandTotalDutyAmount         Decimal?  @db.Decimal(16, 2)
+  grandTotalUserFeeAmount      Decimal?  @db.Decimal(16, 2)
+  grandTotalIrTaxAmount        Decimal?  @db.Decimal(16, 2)
+  grandTotalAdDutyAmount       Decimal?  @db.Decimal(16, 2)
+  grandTotalCvDutyAmount       Decimal?  @db.Decimal(16, 2)
+  grandTotalOtherRevenueAmount Decimal?  @db.Decimal(16, 2)
+
+  // Cargo Release (Chapter 4)
+  actionCode                   String?
+  importerOfRecordType         String?
+  modeOfTransportationCode     String?
+  estimatedEntryValue          Decimal?  @db.Decimal(16, 2)
+  splitShipmentReleaseCode     String?
 
   filingType    String
   filingStatus  String    @default("Draft") // Draft, Preparing, ValidationFailed, ReadyForBrokerReview, BrokerApproved, TransmissionPending, Transmitted, Accepted, Rejected, DocumentsRequested, CustomsHold, Released, Cancelled, Closed, Simulation
@@ -1261,6 +1293,10 @@ model CustomsFiling {
   auditTimelines              AuditTimeline[]
   snapshot                    FilingSnapshot?
   filingMessages              FilingMessage[]
+  censusWarningOverrides      CensusWarningOverride[]
+  filingFeeLines              FilingFeeLine[]
+  ftzDetails                  FtzDetail[]
+  cargoReleaseBills           CargoReleaseBillOfLading[]
 
   @@unique([accountId, entryNumber])
   @@index([shipmentId])
@@ -1409,6 +1445,8 @@ model AdcvdOrder {
   status              String   @default("ACTIVE") // ACTIVE | REVOKED
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  lineDetails AdcvdLineDetail[]
 
   @@index([status])
 }
@@ -1740,8 +1778,25 @@ model DrawbackClaim {
   paidAt             DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+  naftaDrawbackClaimIndicator         Boolean?  @default(false)
+  usmcaDrawbackClaimIndicator         Boolean?  @default(false)
+  oneTimeWaiverIndicator              Boolean?  @default(false)
+  bondWaiverIndicator                 Boolean?  @default(false)
+  bondWaiverReasonCode                String?
+  electronicPetroleumCertification    Boolean?  @default(false)
+  oilSpillTaxCertification            Boolean?  @default(false)
+  superfundTaxCertification           Boolean?  @default(false)
+  billOfMaterialsFormulaCertification Boolean?  @default(false)
+  retailSalesSubstitutionIndicator    Boolean?  @default(false)
+  designatedNotifyPartyNumber        String?
+  brokerReferenceNumber               String?
+  acceleratedPaymentRequestIndicator  Boolean?  @default(false)
 
-  matches DrawbackMatch[]
+  matches         DrawbackMatch[]
+  importLinks     DrawbackImportLink[]
+  exportDestroys  DrawbackExportDestroy[]
+  tfteaLines      DrawbackTfteaLine[]
+  naftaUsmcaLines DrawbackNaftaUsmcaLine[]
 
   @@index([accountId])
 }
@@ -1858,6 +1913,7 @@ model Bond {
 
   importersOfRecord ImporterOfRecord[]
   customsFilings    CustomsFiling[]
+  bondParties       BondParty[]
 
   @@index([accountId])
 }
@@ -1954,6 +2010,7 @@ model ShipmentParty {
   legalEntityId String
   legalEntity   LegalEntity @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
   role          String
+  partyTypeCode String?     // e.g. M (Manufacturer), C (Consignee), S (Seller), E (Sold-To)
   source        String      @default("USER")
   confidence    Float?      @default(1.0)
   isVerified    Boolean     @default(true)
@@ -2321,6 +2378,19 @@ model PgaRequirement {
   requiredFiling     String // e.g. Form FCC 740 / Equipment Authorization
   missingPermits     String[]
   holdRisk           String           @default("Medium") // High | Medium | Low
+
+  // Cross-agency high-frequency PGA fields
+  lpcoNumber         String?
+  lpcoTypeCode       String?
+  issuerCode         String?
+  permitTypeCode     String?          // PG13 / PG14
+  aocCode            String?
+  firmsCode          String?
+  inspectionLocation String?
+
+  /// Agency-specific JSON details (FDA prior notice, EPA vehicle/engine class, FWS species, NOAA vessel details, etc.)
+  agencyData         Json?
+
   createdAt          DateTime         @default(now())
 
   @@index([shipmentLineItemId])
@@ -4872,9 +4942,18 @@ model DrawbackLot {
   dutyPaidPerUnit   Decimal  @db.Decimal(18, 6)
   importDate        DateTime
   exportDeadline    DateTime
-  hasSection301     Boolean  @default(false)
-  section301List    String?
-  createdAt         DateTime @default(now())
+  hasSection301                Boolean   @default(false)
+  section301List               String?
+  manufDateReceived            DateTime?
+  manufDateUsed                DateTime?
+  manufactureRulingNumber      String?
+  basisOfClaim                 String?
+  drawbackEligibleIndicator    Boolean?  @default(true)
+  drawbackAccountingMethodCode String?
+  allowableQuantity            Decimal?  @db.Decimal(18, 6)
+  substitutedValuePerUnit      Decimal?  @db.Decimal(18, 6)
+  cbpEsLineNumber              Int?
+  createdAt                    DateTime  @default(now())
 
   @@index([accountId, htsCode])
   @@index([exportDeadline])
@@ -5837,6 +5916,18 @@ model InvoiceLine {
   quantity    Decimal   @db.Decimal(16, 4)
   unitPrice   Decimal   @db.Decimal(16, 4)
   amount      Decimal   @db.Decimal(16, 4)
+
+  // CATAIR Invoice Line References (Gap Closure)
+  lineRange1Begin Int?
+  lineRange1End   Int?
+  lineRange2Begin Int?
+  lineRange2End   Int?
+  lineRange3Begin Int?
+  lineRange3End   Int?
+  lineRange4Begin Int?
+  lineRange4End   Int?
+  supplierIdCode  String?
+
   createdAt   DateTime  @default(now())
 
   charges ShipmentCharge[]
@@ -6030,5 +6121,283 @@ model IntegrationPayload {
   @@index([accountId, provider])
   @@index([accountId, clientId])
   @@index([integrationConfigId, fetchedAt])
+}
+
+// =============================================================================
+// CATAIR GAP CLOSURE MODELS
+// =============================================================================
+
+model CensusWarningOverride {
+  id            String        @id @default(cuid())
+  filingId      String
+  filing        CustomsFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  sequence      Int           // 1 to 7
+  conditionCode String
+  overrideCode  String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([filingId])
+}
+
+model FilingFeeLine {
+  id                  String        @id @default(cuid())
+  filingId            String
+  filing              CustomsFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  accountingClassCode String        // e.g. 499 (HMF), 501 (MPF), 311 (Cotton)
+  amount              Decimal       @db.Decimal(16, 2)
+  sequence            Int
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([filingId])
+}
+
+model FtzDetail {
+  id                    String            @id @default(cuid())
+  filingId              String?
+  filing                CustomsFiling?    @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  shipmentLineItemId    String?
+  shipmentLineItem      ShipmentLineItem? @relation(fields: [shipmentLineItemId], references: [id], onDelete: Cascade)
+  ftzAdmissionNumber    String?
+  zoneId                String?
+  privilegedStatusDate  DateTime?
+  merchandiseStatusCode String?
+  lineItemQuantity      Decimal?          @db.Decimal(18, 6)
+  currentHtsNumber      String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([filingId])
+  @@index([shipmentLineItemId])
+}
+
+model AdcvdLineDetail {
+  id                                      String            @id @default(cuid())
+  shipmentLineItemId                      String
+  shipmentLineItem                        ShipmentLineItem  @relation(fields: [shipmentLineItemId], references: [id], onDelete: Cascade)
+  adcvdOrderId                            String?
+  adcvdOrder                              AdcvdOrder?       @relation(fields: [adcvdOrderId], references: [id], onDelete: SetNull)
+  caseDepositRate                         Decimal?          @db.Decimal(12, 6)
+  rateTypeQualifierCode                   String?
+  bondCashClaimCode                       String?
+  valueOfGoodsAmount                      Decimal?          @db.Decimal(16, 2)
+  nonReimbursementDeclarationIdentifier String?
+  createdAt                               DateTime          @default(now())
+  updatedAt                               DateTime          @updatedAt
+
+  @@index([shipmentLineItemId])
+  @@index([adcvdOrderId])
+}
+
+model DrawbackImportLink {
+  id                     String        @id @default(cuid())
+  drawbackClaimId        String
+  drawbackClaim          DrawbackClaim @relation(fields: [drawbackClaimId], references: [id], onDelete: Cascade)
+  importTrackingIdNumber String
+  sequence               Int
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  @@index([drawbackClaimId])
+}
+
+model DrawbackExportDestroy {
+  id                                   String        @id @default(cuid())
+  drawbackClaimId                      String
+  drawbackClaim                        DrawbackClaim @relation(fields: [drawbackClaimId], references: [id], onDelete: Cascade)
+  noticeOfIntentIndicator              Boolean?      @default(false)
+  waiverToDrawbackClaimRightsIndicator Boolean?      @default(false)
+  countryOfUltimateDestination         String?
+  billOfLadingIndicator                String?
+  billOfLadingCarrierCode              String?
+  intendedPortOfExport                 String?
+  examinationWitnessIndicator          Boolean?      @default(false)
+  locationOfDestruction                String?
+  resultsOfExamination                 String?
+  examinerName                         String?
+  examinerBadgeNumber                  String?
+  examinerPhone                        String?
+  processingExaminationDate            DateTime?
+  createdAt                            DateTime      @default(now())
+  updatedAt                            DateTime      @updatedAt
+
+  @@index([drawbackClaimId])
+}
+
+model DrawbackTfteaLine {
+  id                           String        @id @default(cuid())
+  drawbackClaimId              String
+  drawbackClaim                DrawbackClaim @relation(fields: [drawbackClaimId], references: [id], onDelete: Cascade)
+  htsNumber                    String?
+  exportOrDestroyIndicator     String?
+  quantity                     Decimal?      @db.Decimal(18, 6)
+  unitOfMeasureCode            String?
+  date                         DateTime?
+  noticeOfIntentIndicator      Boolean?      @default(false)
+  waiverIndicator              Boolean?      @default(false)
+  exporterOrDestroyerName      String?
+  countryOfUltimateDestination String?
+  billOfLadingIndicator        String?
+  billOfLadingCarrierCode      String?
+  scheduleBCode                String?
+  createdAt                    DateTime      @default(now())
+  updatedAt                    DateTime      @updatedAt
+
+  @@index([drawbackClaimId])
+}
+
+model DrawbackNaftaUsmcaLine {
+  id                                 String        @id @default(cuid())
+  drawbackClaimId                    String
+  drawbackClaim                      DrawbackClaim @relation(fields: [drawbackClaimId], references: [id], onDelete: Cascade)
+  entryNumber                        String?
+  entryDate                          DateTime?
+  dutyPaidToForeignGovtLocalCurrency Decimal?      @db.Decimal(16, 2)
+  exchangeRate                       Decimal?      @db.Decimal(18, 8)
+  tariffNumber1                      String?
+  tariffNumber2                      String?
+  tariffNumber3                      String?
+  countryOfExport                    String?
+  createdAt                          DateTime      @default(now())
+  updatedAt                          DateTime      @updatedAt
+
+  @@index([drawbackClaimId])
+}
+
+model CargoReleaseBillOfLading {
+  id                 String        @id @default(cuid())
+  filingId           String
+  filing             CustomsFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  billTypeIndicator  String?
+  issuerCode         String?
+  billOfLadingNumber String
+  quantity           Decimal?      @db.Decimal(16, 4)
+  nonAmsIndicator    Boolean?      @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([filingId])
+}
+
+model BondParty {
+  id              String   @id @default(cuid())
+  bondId          String
+  bond            Bond     @relation(fields: [bondId], references: [id], onDelete: Cascade)
+  role            String   // PRINCIPAL | CO_PRINCIPAL | SURETY | CO_SURETY | REINSURER
+  idNumberType    String?
+  idNumber        String?
+  name            String?
+  liabilityAmount Decimal? @db.Decimal(16, 2)
+  agentIdNumber   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([bondId])
+  @@index([bondId, role])
+}
+
+model InBondRecord {
+  id                     String   @id @default(cuid())
+  accountId              String
+  account                Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  inBondNumber           String   @unique
+  inBondEntryType        String
+  carrierCode            String?
+  bondedCarrierId        String?
+  usPortOfDest           String?
+  portOfForeignDest      String?
+  value                  Decimal? @db.Decimal(16, 2)
+  ftzWarehouseInd        String?
+  masterBOLNumber        String?
+  masterBOLIssuerCode    String?
+  houseBillNumber        String?
+  houseBillIssuerCode    String?
+  subHouseBillNumber     String?
+  subHouseBillIssuerCode String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  events InBondEvent[]
+
+  @@index([accountId])
+}
+
+model InBondEvent {
+  id               String       @id @default(cuid())
+  inBondRecordId   String
+  inBondRecord     InBondRecord @relation(fields: [inBondRecordId], references: [id], onDelete: Cascade)
+  eventDate        DateTime
+  eventTime        String?
+  portOfArrival    String?
+  carrierCode      String?
+  cityName         String?
+  stateCode        String?
+  exportMOT        String?
+  exportConveyance String?
+  createdAt        DateTime     @default(now())
+
+  @@index([inBondRecordId])
+}
+
+model ManifestRecord {
+  id                      String   @id @default(cuid())
+  accountId               String
+  account                 Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transportationIndicator String?
+  countryCode             String?
+  conveyanceName          String?
+  manifestSequenceNumber  String?
+  billOfLading            String?
+  foreignPortOfLading     String?
+  manifestQuantity        Decimal? @db.Decimal(16, 4)
+  manifestUnits           String?
+  weight                  Decimal? @db.Decimal(16, 4)
+  weightUnit              String?
+  houseBillNumber         String?
+  equipmentNumber         String?
+  sealNumbers             String[]
+  dimensions              String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([accountId])
+}
+
+model StatementRecord {
+  id              String   @id @default(cuid())
+  accountId       String
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  statementType   String   // Q1-Q6, periodic, daily
+  statementNumber String
+  districtPort    String?
+  filerCode       String?
+  importerNumber  String?
+  printDate       DateTime?
+  dueDate         DateTime?
+  entryType       String?
+  totalDuty       Decimal? @db.Decimal(16, 2)
+  totalTax        Decimal? @db.Decimal(16, 2)
+  totalFee        Decimal? @db.Decimal(16, 2)
+  totalAmount     Decimal? @db.Decimal(16, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  statementFeeLines StatementFeeLine[]
+
+  @@index([accountId])
+  @@index([statementNumber])
+}
+
+model StatementFeeLine {
+  id                  String          @id @default(cuid())
+  statementId         String
+  statement           StatementRecord @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  accountingClassCode String
+  amount              Decimal         @db.Decimal(16, 2)
+  sequence            Int
+  createdAt           DateTime        @default(now())
+
+  @@index([statementId])
 }
 
