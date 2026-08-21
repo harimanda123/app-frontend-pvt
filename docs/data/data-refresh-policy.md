@@ -7,7 +7,7 @@ The Qubere Platform relies on authoritative trade data, tariff schedules, sancti
 To guarantee maximum fidelity, transparency, and operational readiness:
 
 - **No Synthetic Fallbacks in Production**: Operational calculations derive strictly from verified government and multilateral sources.
-- **Honest Readiness Status**: Each dataset carries a `readinessStatus` of `LIVE` (ingestion fully wired and active: `hts-schedule`, `federal-register`, `bis-csl`, `cbp-cross-rulings`, `ofac-sdn`) or `NOT_YET_IMPLEMENTED` (planned on engineering roadmap). The Platform Admin `<Data>` tab clearly distinguishes these — "Run Now" is only available for `LIVE` datasets. Un-wired datasets return HTTP 422 and never fake a success response.
+- **Honest Readiness Status**: Each dataset carries a `readinessStatus` of `LIVE` (ingestion fully wired and active: `hts-schedule`, `federal-register`, `bis-csl`, `cbp-cross-rulings`, `ofac-sdn`, `uflpa-entity-list`) or `NOT_YET_IMPLEMENTED` (planned on engineering roadmap). The Platform Admin `<Data>` tab clearly distinguishes these — "Run Now" is only available for `LIVE` datasets. Un-wired datasets return HTTP 422 and never fake a success response.
 - **Staging & Approval Workflow**: High-impact rate modifications (HTSUS schedule, Section 301/232 annex revisions, AD/CVD company rates, Section 301 exclusions) stage as `PENDING`/`DRAFT` for platform administrator review before affecting production calculations. Same pattern applied to LLM-extracted data.
 - **Point-in-Time Versioning for Screening**: `ScreeningEntity` (OFAC SDN, BIS CSL) uses `DRAFT → PUBLISHED → SUPERSEDED` versioning — enabling "what was this party's sanction status on date X?" queries for audit defensibility.
 - **Zero-Downtime Delta Processing**: Differential updates compute SHA-256 node hashes and audit changes (`HtsChange`) without blocking live calculation engines.
@@ -19,9 +19,9 @@ To guarantee maximum fidelity, transparency, and operational readiness:
 
 ---
 
-## 2. Dataset Master Registry (18 Datasets)
+## 2. Dataset Master Registry (19 Datasets)
 
-Below is the comprehensive operational policy for all 18 datasets required across the platform.
+Below is the comprehensive operational policy for all 19 datasets required across the platform.
 
 ### Group A: Free — Public Government Sources (Machine-Readable APIs)
 
@@ -31,6 +31,7 @@ Below is the comprehensive operational policy for all 18 datasets required acros
 | **CBP CROSS Rulings** | Legal precedent retrieval, classification evidence matching, AI citation reasoning | `rulings.cbp.gov/api/search` (CBP REST API, 1k req/day) | Free | Incremental date-window query fetching new ruling numbers, HQ/NY locations, text body, and HTS classifications. Indexed into `pgvector`. | Daily (06:00 UTC) | API quota throttling protection (max 10 req/sec); rate-limit awareness fallback. |
 | **BIS Consolidated Screening List (CSL)** | Denied party screening, restricted entity checks, sanctions compliance engine | `api.trade.gov/v1/consolidated_screening_list/search` | Free | Standardized JSON transformer normalizing 10 agency lists (SDN, DPL, Entity List, UVL, ISN, SSI, FSE, PLC, NS-MBS) into unified entity schema. | Daily (04:00 UTC) | Atomic table swap; fuzzy index (Levenshtein + token set ratio) re-indexed post-ingest. |
 | **OFAC SDN + Consolidated Non-SDN** | Specially Designated Nationals (SDN) screening, sanctions enforcement | `www.treasury.gov/ofac/downloads/{sdn,consolidated/consolidated}.xml` | Free | Streaming SAX parser (`saxes`) reads `sdn.xml` and `consolidated.xml` directly (never buffers the ~29MB file), upserting into `ScreeningEntity` in chunked batches. Runs as an Inngest background function (own native cron, zero `vercel.json` slots). | Daily (05:00 UTC) | Parsed count must equal the feed's own `Record_Count` header (hard circuit breaker) or nothing is written; CSV row count is fetched as a secondary cross-check. Delisted entities move to `SUPERSEDED`, not deleted. |
+| **UFLPA Entity List** | Uyghur Forced Labor Prevention Act entity screening | DHS UFLPA Entity List | Free | Real fetcher (`src/app/api/cron/uflpa-entity-list-ingest`) upserting into `ScreeningEntity`. | Daily | `DatasetRefreshLog` RUNNING/SUCCESS/FAILED run tracking, same pattern as the other screening-list ingesters. |
 | **Federal Register (CBP Notices)** | Regulatory monitoring, AD/CVD alerts, tariff changes, retroactive exclusion detection | `federalregister.gov/api/v1/documents.json` | Free | REST API document fetch + Gemini 3.6 Flash AI structured extraction (`extractionSchema`). Auto-generates `RefundOpportunity` records. | Daily (08:00 UTC) | Duplicate document number check; heuristic fallback if AI extraction API is unreachable. |
 | **USITC Trade Remedy Database (AD/CVD Orders)** | Anti-Dumping & Countervailing Duty scope screening, duty stack calculations | `usitc.gov/trade_remedy` | Free | Automated DOM (Cheerio) and CSV stream reader extracting AD/CVD Case Numbers, Country, Product Scope, and mapped 10-digit HTS codes. | Weekly (Sun 01:00 UTC) | Stored in `AdCvdOrder` table; cross-validated against ACE scope ruling releases. |
 | **ACE Port Codes** | Pre-filing entry validation, valid port code verification for ISF and CBP Form 7501 | `cbp.gov/document/guidance/ace-port-codes` | Free | Automated CSV file downloader and validator mapping 4-digit Port Codes, Port Names, Modes of Transport, and Field Office IDs. | Quarterly | Active/Inactive status flag toggling; invalid code rejection in `filingValidator.ts`. |
@@ -64,7 +65,7 @@ Below is the comprehensive operational policy for all 18 datasets required acros
    - If an automated fetch returns 0 records or a HTTP error status, the ingestion pipeline halts immediately and alerts administrators. Existing production data remains active and untouched.
 
 3. **Manual Triggering ("Run Now")**:
-   - Platform administrators can trigger immediate synchronization for any of the 18 datasets via the **Platform Admin Console** (`/platform-admin` -> `<Data>` tab).
+   - Platform administrators can trigger immediate synchronization for any of the 19 datasets via the **Platform Admin Console** (`/platform-admin` -> `<Data>` tab).
 
 4. **Audit Logging**:
    - Every refresh execution logs an `AuditLog` event (`DATASET_REFRESH`) recording dataset ID, execution duration, item count, status, and triggered user/cron context.

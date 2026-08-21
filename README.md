@@ -117,14 +117,14 @@ interface instead of maintaining two parallel AI surfaces:
 - **Tenancy.** Every tool reads through the account-scoped services the
   screens already use — there is no path from a chat message to another
   tenant's rows.
-- **Origin safety.** None of the current tools surface a country-of-origin
-  field, so the system prompt carries an explicit clause: manufacturing,
-  supplier, ship-from, port and export country are never legal country of
-  origin, and the assistant says plainly that no such determination is
-  available here rather than inferring one. The original Copilot's
-  code-level enforcement (`copilotOrigin.ts`, `resolveOriginPosition`) remains
-  in place and tested, ready to be wired to a future tool that does surface
-  origin facts.
+- **Origin safety.** A `get_product_origin_position` tool surfaces a
+  product's legal country-of-origin position, backed directly by the
+  original Copilot's `resolveOriginPosition()` (`copilotOrigin.ts`). The
+  system prompt requires the model to quote its verbatim result rather than
+  rephrase or reason past it, and forbids falling back to a manufacturing,
+  supplier, ship-from, port or export country as a stand-in — even when the
+  tool's own physical-fact fields mention one — when no approved
+  determination exists.
 - **Audit.** Turns are recorded in the existing audit log via the same
   `COPILOT_CONVERSATION_STARTED`, `COPILOT_QUERY`, `COPILOT_TOOL_EXECUTED` and
   `COPILOT_ERROR` actions the original Copilot used (`src/modules/copilot/copilotAudit.ts`),
@@ -159,7 +159,7 @@ logic. No real third-party customs system is wired up yet: with
 or cancelling a filing simulates and applies a matching inbound response
 inline so the Response tab populates without any manual step; set it to
 `false` once a real integration exists. See
-[docs/customs-filing-canonical-messaging-changelog.md](docs/customs-filing-canonical-messaging-changelog.md)
+[docs/customs-filing/customs-filing-canonical-messaging-changelog.md](docs/customs-filing/customs-filing-canonical-messaging-changelog.md)
 for the full implementation history, including the second-country (Germany)
 proof and the gaps closed along the way.
 
@@ -506,11 +506,11 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
-## 📊 Platform Dataset Master Registry (18 Core Datasets)
+## 📊 Platform Dataset Master Registry (19 Core Datasets)
 
-All 18 platform datasets are strictly audited under a **Zero-Fabrication Policy**. Operational calculations derive strictly from verified government and multilateral sources. Un-wired datasets return HTTP 422 and never fake success.
+All 19 platform datasets are strictly audited under a **Zero-Fabrication Policy**. Operational calculations derive strictly from verified government and multilateral sources. Un-wired datasets return HTTP 422 and never fake success.
 
-For detailed dataset architecture, source endpoints, and engineering complexity breakdowns, see **[docs/data/README.md](file:///Users/rachitlohani/Documents/GitHub/app-frontend/docs/data/README.md)** and **[docs/data/data-refresh-policy.md](file:///Users/rachitlohani/Documents/GitHub/app-frontend/docs/data/data-refresh-policy.md)**.
+For detailed dataset architecture, source endpoints, and engineering complexity breakdowns, see **[docs/data/README.md](docs/data/README.md)** and **[docs/data/data-refresh-policy.md](docs/data/data-refresh-policy.md)**.
 
 ### Dataset Status Summary Matrix
 
@@ -520,7 +520,8 @@ For detailed dataset architecture, source endpoints, and engineering complexity 
 | **Federal Register (CBP Notices)** | `LIVE` | Real REST API fetcher (`federalregister.gov/api/v1/documents.json`) + Gemini AI extraction. Auto-creates `RefundOpportunity` records. |
 | **BIS Consolidated Screening List** | `LIVE` | Real paginated REST API fetcher (`BisCslIngestionService`) querying `api.trade.gov/v1/consolidated_screening_list/search` across 10 agency lists, upserting SHA-256 entity hashes into `ScreeningEntity`. |
 | **CBP CROSS Rulings** | `LIVE` | Real REST API fetcher (`CbpCrossFetchService`) querying `rulings.cbp.gov/api/search`, storing titles, issued dates, HTS classifications, and legal text in `Ruling`. |
-| **OFAC SDN + Non-SDN** | `NOT_YET_IMPLEMENTED` | **Planned**: Treasury OFAC file is a 17,000+ entry XML/CSV file. Requires a durable background Inngest worker with streaming XML parsing to prevent Vercel 60s HTTP timeout. |
+| **OFAC SDN + Non-SDN** | `LIVE` | Cron enqueues a durable Inngest job (`ofac-sdn-ingest`) that streams and parses the ~29MB SDN.XML (~19,700 entries) plus the Consolidated Non-SDN list (~500 entries) outside the request lifecycle, avoiding the Vercel 60s timeout, and owns its own `DatasetRefreshLog` run. |
+| **UFLPA Entity List** | `LIVE` | Real fetcher (`src/app/api/cron/uflpa-entity-list-ingest`) ingesting the DHS UFLPA Entity List, with `DatasetRefreshLog` RUNNING/SUCCESS/FAILED run tracking. |
 | **USITC Trade Remedy (AD/CVD Orders)** | `NOT_YET_IMPLEMENTED` | **Planned**: AD/CVD orders published across HTML/CSV dumps. Requires Cheerio DOM scraper parsing case numbers and staging into `AdCvdOrder` with a `PENDING` review gate. |
 | **ACE Port Codes** | `NOT_YET_IMPLEMENTED` | **Planned**: Published quarterly as fixed-width/CSV directory files by CBP. Requires fixed-width text parsing and upserting into `AcePortCode`. |
 | **CBP Import Trade Trends** | `NOT_YET_IMPLEMENTED` | **Planned**: Published as monthly multi-tab Excel workbooks. Requires SheetJS binary stream parsing into `CbpImportTrend` time-series tables. |
