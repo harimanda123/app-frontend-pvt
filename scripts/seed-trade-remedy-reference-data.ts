@@ -51,29 +51,45 @@ async function seedSection301Rates() {
     { htsNumber: "0304.61.0000", tranche: "LIST_3", dutyRatePct: 25.0, effectiveDate: new Date("2019-05-10"), federalRegisterCitation: "84 Fed. Reg. 20459 (May 9, 2019); originally 10% under 83 Fed. Reg. 47974 (Sep. 21, 2018)" },
     { htsNumber: "0304.72.5000", tranche: "LIST_3", dutyRatePct: 25.0, effectiveDate: new Date("2019-05-10"), federalRegisterCitation: "84 Fed. Reg. 20459 (May 9, 2019); originally 10% under 83 Fed. Reg. 47974 (Sep. 21, 2018)" },
     { htsNumber: "0304.83.5015", tranche: "LIST_3", dutyRatePct: 25.0, effectiveDate: new Date("2019-05-10"), federalRegisterCitation: "84 Fed. Reg. 20459 (May 9, 2019); originally 10% under 83 Fed. Reg. 47974 (Sep. 21, 2018)" },
-    // List 4A -- reduced 15% -> 7.5% by 85 Fed. Reg. 3714 (Jan. 22, 2020) as part of the "Phase One" deal; originally imposed at 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)
-    { htsNumber: "3401.19.0000", tranche: "LIST_4A", dutyRatePct: 7.5, effectiveDate: new Date("2020-02-14"), federalRegisterCitation: "85 Fed. Reg. 3714 (Jan. 22, 2020); originally 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)" },
-    { htsNumber: "3306.20.0000", tranche: "LIST_4A", dutyRatePct: 7.5, effectiveDate: new Date("2020-02-14"), federalRegisterCitation: "85 Fed. Reg. 3714 (Jan. 22, 2020); originally 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)" },
-    { htsNumber: "8712.00.1510", tranche: "LIST_4A", dutyRatePct: 7.5, effectiveDate: new Date("2020-02-14"), federalRegisterCitation: "85 Fed. Reg. 3714 (Jan. 22, 2020); originally 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)" },
-    { htsNumber: "4202.12.8130", tranche: "LIST_4A", dutyRatePct: 7.5, effectiveDate: new Date("2020-02-14"), federalRegisterCitation: "85 Fed. Reg. 3714 (Jan. 22, 2020); originally 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)" },
+    { htsNumber: "8481.80.9020", tranche: "LIST_3", dutyRatePct: 25.0, effectiveDate: new Date("2019-05-10"), federalRegisterCitation: "84 Fed. Reg. 20459 (May 9, 2019); originally 10% under 83 Fed. Reg. 47974 (Sep. 21, 2018)" },
+    { htsNumber: "8481.80.5090", tranche: "LIST_3", dutyRatePct: 25.0, effectiveDate: new Date("2019-05-10"), federalRegisterCitation: "84 Fed. Reg. 20459 (May 9, 2019); originally 10% under 83 Fed. Reg. 47974 (Sep. 21, 2018)" },
+    { htsNumber: "7318.15.2065", tranche: "LIST_3", dutyRatePct: 25.0, effectiveDate: new Date("2019-05-10"), federalRegisterCitation: "84 Fed. Reg. 20459 (May 9, 2019); originally 10% under 83 Fed. Reg. 47974 (Sep. 21, 2018)" },
+    { htsNumber: "7318.15.5560", tranche: "LIST_3", dutyRatePct: 25.0, effectiveDate: new Date("2019-05-10"), federalRegisterCitation: "84 Fed. Reg. 20459 (May 9, 2019); originally 10% under 83 Fed. Reg. 47974 (Sep. 21, 2018)" },
+    // List 4A -- reduced 15% -> 7.5% by 85 Fed. Reg. 3741 (Jan. 22, 2020) as part of the "Phase One" deal; originally imposed at 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)
+    { htsNumber: "3401.19.0000", tranche: "LIST_4A", dutyRatePct: 7.5, effectiveDate: new Date("2020-02-14"), federalRegisterCitation: "85 Fed. Reg. 3741 (Jan. 22, 2020); originally 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)" },
+    { htsNumber: "3306.20.0000", tranche: "LIST_4A", dutyRatePct: 7.5, effectiveDate: new Date("2020-02-14"), federalRegisterCitation: "85 Fed. Reg. 3741 (Jan. 22, 2020); originally 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)" },
+    { htsNumber: "8712.00.1510", tranche: "LIST_4A", dutyRatePct: 7.5, effectiveDate: new Date("2020-02-14"), federalRegisterCitation: "85 Fed. Reg. 3741 (Jan. 22, 2020); originally 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)" },
+    { htsNumber: "4202.12.8130", tranche: "LIST_4A", dutyRatePct: 7.5, effectiveDate: new Date("2020-02-14"), federalRegisterCitation: "85 Fed. Reg. 3741 (Jan. 22, 2020); originally 15% under 84 Fed. Reg. 43304 (Aug. 20, 2019)" },
     // September 2024 USTR Four-Year Review additions -- 89 Fed. Reg. 76581 (Sep. 18, 2024)
     { htsNumber: "8703.80.0000", tranche: "FOUR_YEAR_REVIEW", dutyRatePct: 100.0, effectiveDate: new Date("2024-09-27"), federalRegisterCitation: "89 Fed. Reg. 76581 (Sep. 18, 2024)" },
     { htsNumber: "8507.60.0010", tranche: "FOUR_YEAR_REVIEW", dutyRatePct: 25.0, effectiveDate: new Date("2024-09-27"), federalRegisterCitation: "89 Fed. Reg. 76581 (Sep. 18, 2024)" },
+    { htsNumber: "8507.60.0020", tranche: "FOUR_YEAR_REVIEW", dutyRatePct: 25.0, effectiveDate: new Date("2024-09-27"), federalRegisterCitation: "89 Fed. Reg. 76581 (Sep. 18, 2024)" },
     { htsNumber: "8541.42.0000", tranche: "FOUR_YEAR_REVIEW", dutyRatePct: 50.0, effectiveDate: new Date("2024-09-27"), federalRegisterCitation: "89 Fed. Reg. 76581 (Sep. 18, 2024)" },
     { htsNumber: "8426.19.0000", tranche: "FOUR_YEAR_REVIEW", dutyRatePct: 25.0, effectiveDate: new Date("2024-09-27"), federalRegisterCitation: "89 Fed. Reg. 76581 (Sep. 18, 2024)" },
     { htsNumber: "8505.11.0000", tranche: "FOUR_YEAR_REVIEW", dutyRatePct: 25.0, effectiveDate: new Date("2026-01-01"), federalRegisterCitation: "89 Fed. Reg. 76581 (Sep. 18, 2024)" },
   ];
 
   let count = 0;
+  let corrected = 0;
   for (const row of rows) {
-    await db.section301Rate.upsert({
-      where: { htsNumber_tranche_effectiveDate: { htsNumber: row.htsNumber, tranche: row.tranche, effectiveDate: row.effectiveDate } },
-      update: {},
-      create: { ...row, reviewStatus: "PENDING" },
-    });
+    const key = { htsNumber_tranche_effectiveDate: { htsNumber: row.htsNumber, tranche: row.tranche, effectiveDate: row.effectiveDate } };
+    const existing = await db.section301Rate.findUnique({ where: key });
+    if (!existing) {
+      await db.section301Rate.create({ data: { ...row, reviewStatus: "PENDING" } });
+    } else if (existing.reviewStatus === "PENDING") {
+      // Safe to re-sync a still-pending row if the source data was corrected after
+      // an earlier run. Once a row is APPROVED/SUPERSEDED, a human has acted on
+      // what they saw -- silently rewriting it would invalidate that review, so
+      // leave it alone; a real correction to an approved rate needs a new
+      // superseding row, not a silent overwrite.
+      if (existing.dutyRatePct !== row.dutyRatePct || existing.federalRegisterCitation !== row.federalRegisterCitation) {
+        await db.section301Rate.update({ where: key, data: { dutyRatePct: row.dutyRatePct, federalRegisterCitation: row.federalRegisterCitation } });
+        corrected++;
+      }
+    }
     count++;
   }
-  console.log(`  Section301Rate: ${count} rows (PENDING)`);
+  console.log(`  Section301Rate: ${count} rows (PENDING)${corrected ? `, ${corrected} re-synced` : ""}`);
 }
 
 async function seedSection301Exclusions() {
@@ -331,14 +347,15 @@ async function seedAdCvdCompanyRates() {
     { caseNumber: "C-122-858", periodOfReview: "Original investigation", manufacturerName: "All others", exporterName: null, countryOfOrigin: "CA", depositRatePct: null, allOthersRatePct: 20.23, isSeparateRate: false, federalRegisterCitation: "FR Doc. 2017-28483, 83 Fed. Reg. 347 (Jan. 3, 2018)", effectiveDate: new Date("2018-01-03") },
     { caseNumber: "A-570-016", periodOfReview: "Original investigation", manufacturerName: "PRC-wide entity", exporterName: null, countryOfOrigin: "CN", depositRatePct: null, allOthersRatePct: 87.99, isSeparateRate: false, federalRegisterCitation: "80 Fed. Reg. 47902 (Aug. 10, 2015)", effectiveDate: new Date("2015-08-10") },
     { caseNumber: "C-570-017", periodOfReview: "Original investigation", manufacturerName: "All others", exporterName: null, countryOfOrigin: "CN", depositRatePct: null, allOthersRatePct: 30.61, isSeparateRate: false, federalRegisterCitation: "80 Fed. Reg. 47902 (Aug. 10, 2015)", effectiveDate: new Date("2015-08-10") },
-    { caseNumber: "A-580-887", periodOfReview: "POR 2023-2024", manufacturerName: "POSCO", exporterName: "POSCO", countryOfOrigin: "KR", depositRatePct: 0.0, allOthersRatePct: 0.0, isSeparateRate: true, federalRegisterCitation: "FR Doc. 2026-07467, 91 Fed. Reg. (Apr. 16, 2026)", effectiveDate: new Date("2026-04-16") },
-    { caseNumber: "C-580-888", periodOfReview: "Original investigation", manufacturerName: "All others", exporterName: null, countryOfOrigin: "KR", depositRatePct: null, allOthersRatePct: 4.31, isSeparateRate: false, federalRegisterCitation: "FR Doc. 2017-10756 (May 25, 2017)", effectiveDate: new Date("2017-05-25") },
-    { caseNumber: "C-580-888", periodOfReview: "POR 2023", manufacturerName: "POSCO", exporterName: "POSCO", countryOfOrigin: "KR", depositRatePct: 3.7, allOthersRatePct: 4.31, isSeparateRate: true, federalRegisterCitation: "FR Doc. 2026-09692, 91 Fed. Reg. (May 14, 2026)", effectiveDate: new Date("2026-05-14") },
+    { caseNumber: "A-580-887", periodOfReview: "Original investigation", manufacturerName: "POSCO", exporterName: "POSCO", countryOfOrigin: "KR", depositRatePct: 0.0, allOthersRatePct: 0.0, isSeparateRate: true, federalRegisterCitation: "82 Fed. Reg. 24096 (May 25, 2017)", effectiveDate: new Date("2017-05-25") },
+    { caseNumber: "C-580-888", periodOfReview: "Original investigation", manufacturerName: "All others", exporterName: null, countryOfOrigin: "KR", depositRatePct: null, allOthersRatePct: 4.31, isSeparateRate: false, federalRegisterCitation: "82 Fed. Reg. 24096 (May 25, 2017)", effectiveDate: new Date("2017-05-25") },
+    { caseNumber: "C-580-888", periodOfReview: "Original investigation", manufacturerName: "POSCO", exporterName: "POSCO", countryOfOrigin: "KR", depositRatePct: 3.7, allOthersRatePct: 4.31, isSeparateRate: true, federalRegisterCitation: "82 Fed. Reg. 24096 (May 25, 2017)", effectiveDate: new Date("2017-05-25") },
     { caseNumber: "A-570-073", periodOfReview: "Original investigation", manufacturerName: "China-wide entity", exporterName: null, countryOfOrigin: "CN", depositRatePct: null, allOthersRatePct: 59.72, isSeparateRate: false, federalRegisterCitation: "84 Fed. Reg. 2813 (Feb. 8, 2019)", effectiveDate: new Date("2019-02-08") },
     { caseNumber: "A-570-073", periodOfReview: "Original investigation", manufacturerName: "Henan Mingtai Al. Industrial Co., Ltd.", exporterName: "Henan Mingtai Al. Industrial Co., Ltd.", countryOfOrigin: "CN", depositRatePct: 49.85, allOthersRatePct: 59.72, isSeparateRate: true, federalRegisterCitation: "84 Fed. Reg. 2813 (Feb. 8, 2019)", effectiveDate: new Date("2019-02-08") },
   ];
 
   let count = 0;
+  let corrected = 0;
   for (const row of rows) {
     const existing = await db.adCvdCompanyRate.findFirst({
       where: { caseNumber: row.caseNumber, manufacturerName: row.manufacturerName, periodOfReview: row.periodOfReview },
@@ -346,12 +363,24 @@ async function seedAdCvdCompanyRates() {
     if (!existing) {
       await db.adCvdCompanyRate.create({ data: { ...row, reviewStatus: "PENDING" } });
       count++;
+    } else if (existing.reviewStatus === "PENDING") {
+      // Same rationale as seedSection301Rates: only re-sync a row a human
+      // hasn't acted on yet. An APPROVED/SUPERSEDED row reflects a review
+      // decision and must not be silently rewritten by a later script run.
+      if (existing.depositRatePct !== row.depositRatePct || existing.allOthersRatePct !== row.allOthersRatePct || existing.federalRegisterCitation !== row.federalRegisterCitation) {
+        await db.adCvdCompanyRate.update({ where: { id: existing.id }, data: { depositRatePct: row.depositRatePct, allOthersRatePct: row.allOthersRatePct, federalRegisterCitation: row.federalRegisterCitation } });
+        corrected++;
+      }
+      count++;
+    } else {
+      count++;
     }
   }
+  if (corrected) console.log(`  AdCvdCompanyRate: ${corrected} re-synced`);
   console.log(`  AdCvdCompanyRate: ${count} rows created (PENDING)`);
 }
 
-async function main() {
+export async function seedTradeRemedyReferenceData() {
   console.log("Seeding real Section 301 / Section 232 / AD-CVD reference data...");
   await seedSection301Rates();
   await seedSection301Exclusions();
@@ -361,10 +390,12 @@ async function main() {
   console.log("Done. Section301Rate/Section301Exclusion/AdCvdCompanyRate rows are PENDING -- review via the platform-admin rate-review queue before they affect computed duty.");
 }
 
-main()
-  .then(() => db.$disconnect())
-  .catch(async (err) => {
-    console.error("Seed run failed:", err);
-    await db.$disconnect();
-    process.exit(1);
-  });
+if (require.main === module) {
+  seedTradeRemedyReferenceData()
+    .then(() => db.$disconnect())
+    .catch(async (err) => {
+      console.error("Seed run failed:", err);
+      await db.$disconnect();
+      process.exit(1);
+    });
+}
