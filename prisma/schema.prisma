@@ -3586,13 +3586,13 @@ model FilingMessage {
 /// cancelFiling()/amendFiling() stay single, country-agnostic implementations:
 /// they ask this table what a context needs, they never branch on country.
 model FilingActionDataRequirement {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   country       String
   procedureCode String
   messageName   String
   action        String
-  release       String?
   fields        Json
+  release       String?
 
   @@unique([country, procedureCode, messageName, action])
 }
@@ -3722,7 +3722,6 @@ model FilingActionConfiguration {
   country          String
   procedureCode    String
   messageName      String
-  release          String?
   status           String
   availableActions String[]
   allowSubmit      Boolean  @default(false)
@@ -3731,6 +3730,7 @@ model FilingActionConfiguration {
   updatedAt        DateTime @updatedAt
   createdBy        String?
   updatedBy        String?
+  release          String?
 
   @@unique([country, procedureCode, messageName, status])
   @@index([country, procedureCode, messageName])
