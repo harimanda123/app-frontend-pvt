@@ -53,6 +53,44 @@ function getNestedValue(row: Row, path: string): unknown {
   return value;
 }
 
+/**
+ * Format cell value for display - handles special cases like joined data
+ */
+function formatCellValue(row: Row, field: FieldMeta, tableKey: string): string {
+  // Special handling for customer-customs-version table
+  if (tableKey === "customer-customs-version") {
+    if (field.key === "filingCountryCustomsId") {
+      const countryVersion = getNestedValue(row, "countryCustomsVersion");
+      if (countryVersion && typeof countryVersion === "object") {
+        const cv = countryVersion as any;
+        return `${cv.country || ""} ${cv.procedureCode || ""} ${cv.release || ""}`.trim();
+      }
+      return String(getNestedValue(row, field.key) ?? "");
+    }
+    
+    if (field.key === "customerId") {
+      const value = getNestedValue(row, field.key);
+      // If customerId is null/empty, check if applyToAllCustomers is true
+      if (!value) {
+        const applyToAll = getNestedValue(row, "applyToAllCustomers");
+        if (applyToAll) {
+          return "(All Customers)";
+        }
+        return "";
+      }
+      // If we have optionLabels, use them to display the formatted name
+      if (field.optionLabels && value) {
+        return field.optionLabels[String(value)] || String(value);
+      }
+      return String(value);
+    }
+  }
+
+  // Default formatting
+  const value = getNestedValue(row, field.key);
+  return String(value ?? "");
+}
+
 export interface SubFieldMeta {
   key: string;
   label: string;
@@ -73,10 +111,14 @@ export interface SubFieldMeta {
 export interface FieldMeta {
   key: string;
   label: string;
-  type: "text" | "boolean" | "fieldArray";
+  type: "text" | "boolean" | "fieldArray" | "select" | "date";
   help?: string;
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldMeta[];
+  /** Only present when type === "select": the dropdown options. */
+  options?: string[];
+  /** Only present when type === "select": map of value -> display label. */
+  optionLabels?: Record<string, string>;
 }
 
 export interface TableMeta {
@@ -292,7 +334,7 @@ function TablePanel({ table, onShowUIConfigEditor }: { table: TableMeta; onShowU
                           ? interpolate(t.filingConfig?.fieldsConfiguredCount ?? "{count} field(s) configured", {
                               count: Array.isArray(getNestedValue(row, f.key)) ? (getNestedValue(row, f.key) as unknown[]).length : 0,
                             })
-                          : String(getNestedValue(row, f.key) ?? "")}
+                          : formatCellValue(row, f, table.key)}
                     </td>
                   ))}
                   <td className="py-2.5 px-3 text-right">
