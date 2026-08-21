@@ -40,6 +40,54 @@ enum DocumentType {
   OTHER
 }
 
+// Normalized shipment-tracking vocabulary. Provider payloads are retained
+// separately; these enums are the stable contract consumed by Qubere's UI,
+// rules, and APIs.
+enum TrackingIdentifierType {
+  MBL
+  HBL
+  BOOKING
+  CONTAINER
+  MAWB
+  HAWB
+  PRO
+  TRACKING
+}
+
+enum TrackingTransportMode {
+  OCEAN
+  AIR
+  RAIL
+  TRUCK
+  PARCEL
+}
+
+enum TrackingEventClassifier {
+  PLANNED
+  ESTIMATED
+  ACTUAL
+}
+
+enum TrackingSourceType {
+  PROVIDER
+  CARRIER
+  TERMINAL
+  PORT
+  AIS
+  USER
+  SYSTEM
+  CBP
+  DOCUMENT
+}
+
+enum TrackingSubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  FAILED
+  ENDED
+}
+
 // ---------------------------------------------------------------------------
 // COMPLIANCE DEADLINE ENUMS
 // ---------------------------------------------------------------------------
@@ -150,6 +198,13 @@ model Account {
   assistantChatSessions       AssistantChatSession[]
   filingMessages              FilingMessage[]
   agentPolicyConfigs          AgentPolicyConfig[]
+  shipmentTrackingIdentifiers ShipmentTrackingIdentifier[]
+  transportLegs               TransportLeg[]
+  shipmentStops               ShipmentStop[]
+  shipmentEquipment           ShipmentEquipment[]
+  trackingEvents              TrackingEvent[]
+  etaObservations             EtaObservation[]
+  trackingSubscriptions       TrackingSubscription[]
 
   billingEventDefinitions BillingEventDefinition[]
   rateCards               RateCard[]
@@ -485,6 +540,13 @@ model Shipment {
   complianceDeadlines             ComplianceDeadline[]
   restrictedPartyScreeningResults RestrictedPartyScreeningResult[]
   complianceScreeningFindings     ComplianceScreeningFinding[]
+  trackingIdentifiers             ShipmentTrackingIdentifier[]
+  transportLegs                   TransportLeg[]
+  trackingStops                   ShipmentStop[]
+  trackingEquipment               ShipmentEquipment[]
+  trackingEvents                  TrackingEvent[]
+  etaObservations                 EtaObservation[]
+  trackingSubscriptions           TrackingSubscription[]
 
   usageEvents       UsageEvent[]
   shipmentCharges   ShipmentCharge[]
@@ -499,6 +561,224 @@ model Shipment {
   @@index([deletedAt])
   @@index([masterShipmentId])
   @@index([filingDeadline])
+}
+
+// ---------------------------------------------------------------------------
+// SHIPMENT TRACKING
+//
+// Shipment remains the durable customs work object. These records describe
+// movement without collapsing a shipment into a single container or carrier
+// status. Raw provider payloads live in private object storage and are linked
+// by rawPayloadRef; normalized events drive the UI and risk rules.
+// ---------------------------------------------------------------------------
+
+model ShipmentTrackingIdentifier {
+  id         String                 @id @default(cuid())
+  accountId  String
+  account    Account                @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId String
+  shipment   Shipment               @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  type       TrackingIdentifierType
+  value      String
+  issuer     String                 @default("")
+  isPrimary  Boolean                @default(false)
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  @@unique([shipmentId, type, value, issuer])
+  @@index([accountId, type, value])
+  @@index([shipmentId, type])
+  @@index([accountId, shipmentId])
+}
+
+model TransportLeg {
+  id                  String                @id @default(cuid())
+  accountId           String
+  account             Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId          String
+  shipment            Shipment              @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  sequence            Int
+  mode                TrackingTransportMode
+  carrierCode         String?
+  carrierName         String?
+  vesselName          String?
+  imoNumber           String?
+  voyageNumber        String?
+  flightNumber        String?
+  originName          String?
+  originUnlocode      String?
+  destinationName     String?
+  destinationUnlocode String?
+  plannedDeparture    DateTime?
+  estimatedDeparture  DateTime?
+  actualDeparture     DateTime?
+  plannedArrival      DateTime?
+  estimatedArrival    DateTime?
+  actualArrival       DateTime?
+  status              String                @default("NOT_STARTED")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  stops               ShipmentStop[]
+  events              TrackingEvent[]
+  etaObservations     EtaObservation[]
+
+  @@unique([shipmentId, sequence])
+  @@index([accountId, shipmentId])
+  @@index([mode, status])
+}
+
+model ShipmentStop {
+  id                 String           @id @default(cuid())
+  accountId          String
+  account            Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId         String
+  shipment           Shipment         @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  transportLegId     String?
+  transportLeg       TransportLeg?    @relation(fields: [transportLegId], references: [id], onDelete: SetNull)
+  sequence           Int
+  type               String
+  name               String
+  unlocode           String?
+  firmsCode          String?
+  latitude           Float?
+  longitude          Float?
+  timezone           String?
+  plannedArrival     DateTime?
+  estimatedArrival   DateTime?
+  actualArrival      DateTime?
+  plannedDeparture   DateTime?
+  estimatedDeparture DateTime?
+  actualDeparture    DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  events             TrackingEvent[]
+  etaObservations    EtaObservation[]
+
+  @@unique([shipmentId, sequence])
+  @@index([accountId, shipmentId])
+  @@index([transportLegId])
+  @@index([unlocode])
+}
+
+model ShipmentEquipment {
+  id                  String          @id @default(cuid())
+  accountId           String
+  account             Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId          String
+  shipment            Shipment        @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  type                String
+  containerNumber     String?
+  isoEquipmentCode    String?
+  sealNumbers         String[]        @default([])
+  status              String          @default("UNKNOWN")
+  currentLocationName String?
+  lastEventAt         DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  events              TrackingEvent[]
+
+  @@unique([shipmentId, containerNumber])
+  @@index([accountId, containerNumber])
+  @@index([shipmentId])
+  @@index([accountId, shipmentId])
+}
+
+model TrackingEvent {
+  id                String                  @id @default(cuid())
+  accountId         String
+  account           Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId        String
+  shipment          Shipment                @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  transportLegId    String?
+  transportLeg      TransportLeg?           @relation(fields: [transportLegId], references: [id], onDelete: SetNull)
+  shipmentStopId    String?
+  shipmentStop      ShipmentStop?           @relation(fields: [shipmentStopId], references: [id], onDelete: SetNull)
+  equipmentId       String?
+  equipment         ShipmentEquipment?      @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  eventType         String
+  classifier        TrackingEventClassifier
+  occurredAt        DateTime
+  receivedAt        DateTime                @default(now())
+  sourceUpdatedAt   DateTime?
+  locationName      String?
+  unlocode          String?
+  latitude          Float?
+  longitude         Float?
+  timezone          String?
+  provider          String
+  providerEventId   String?
+  sourceType        TrackingSourceType
+  confidence        Float?
+  isInferred        Boolean                 @default(false)
+  isCorrection      Boolean                 @default(false)
+  supersedesEventId String?
+  supersedesEvent   TrackingEvent?          @relation("TrackingEventCorrections", fields: [supersedesEventId], references: [id], onDelete: SetNull)
+  corrections       TrackingEvent[]         @relation("TrackingEventCorrections")
+  idempotencyKey    String
+  rawPayloadHash    String?
+  rawPayloadRef     String?
+  normalizedData    Json?
+  createdAt         DateTime                @default(now())
+
+  @@unique([accountId, provider, providerEventId])
+  @@unique([accountId, idempotencyKey])
+  @@index([shipmentId, occurredAt])
+  @@index([accountId, shipmentId, occurredAt])
+  @@index([transportLegId])
+  @@index([shipmentStopId])
+  @@index([equipmentId])
+  @@index([supersedesEventId])
+  @@index([eventType, classifier])
+}
+
+model EtaObservation {
+  id             String        @id @default(cuid())
+  accountId      String
+  account        Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId     String
+  shipment       Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  transportLegId String?
+  transportLeg   TransportLeg? @relation(fields: [transportLegId], references: [id], onDelete: SetNull)
+  shipmentStopId String?
+  shipmentStop   ShipmentStop? @relation(fields: [shipmentStopId], references: [id], onDelete: SetNull)
+  estimatedAt    DateTime
+  eta            DateTime
+  previousEta    DateTime?
+  deltaMinutes   Int?
+  provider       String
+  confidence     Float?
+  reasonCode     String?
+  createdAt      DateTime      @default(now())
+
+  @@index([shipmentId, estimatedAt])
+  @@index([accountId, shipmentId, estimatedAt])
+  @@index([transportLegId])
+  @@index([shipmentStopId])
+}
+
+model TrackingSubscription {
+  id                 String                     @id @default(cuid())
+  accountId          String
+  account            Account                    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId         String
+  shipment           Shipment                   @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  provider           String
+  providerTrackingId String?
+  status             TrackingSubscriptionStatus @default(PENDING)
+  startedAt          DateTime?
+  endedAt            DateTime?
+  lastEventAt        DateTime?
+  lastSyncAt         DateTime?
+  lastErrorAt        DateTime?
+  lastErrorCode      String?
+  nextPollAt         DateTime?
+  retryCount         Int                        @default(0)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@unique([accountId, shipmentId, provider])
+  @@index([status, nextPollAt])
+  @@index([shipmentId])
 }
 
 // ---------------------------------------------------------------------------
@@ -4320,10 +4600,10 @@ model FilingUIConfig {
   id String @id @default(cuid())
 
   // Configuration identifier (unique combination)
-  country         String   // ISO code (NL, IE, FR, etc.)
-  procedureCode   String   // e.g., H1, H4, H7
-  messageName     String   // e.g., IE501, IE503, IE015
-  messageType     String   // "request" or "response"
+  country       String // ISO code (NL, IE, FR, etc.)
+  procedureCode String // e.g., H1, H4, H7
+  messageName   String // e.g., IE501, IE503, IE015
+  messageType   String // "request" or "response"
 
   // Complete field configuration stored as JSON
   // Structure: { fields: [{ fieldPath, fieldLabel, fieldType, section, displayOrder, ... }] }
@@ -4421,14 +4701,14 @@ model FilingActionCatalog {
 /// Replaces the old FilingProcedureMapping which was US-centric (entryType-based).
 /// Example: (NL, NCTS, 5100, IE015) means Netherlands NCTS procedure 5100 uses message IE015.
 model FilingProcedureConfig {
-  id                String                @id @default(cuid())
-  country           String                 // ISO 3166-1 alpha-2 (NL, IE, FR, IN, etc.)
-  procedureCode     String                 // Country-specific procedure code (5100, 4000, etc.)
-  messageName       String                 // Official customs message code (IE015, IE013, ICEGATE_BOE, etc.)
-  canCreateNewFiling Boolean               @default(true) // If true, can be used for new declaration; if false, only for amendments/cancellations/etc.
-  isActive           Boolean               @default(true)
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  id                 String   @id @default(cuid())
+  country            String // ISO 3166-1 alpha-2 (NL, IE, FR, IN, etc.)
+  procedureCode      String // Country-specific procedure code (5100, 4000, etc.)
+  messageName        String // Official customs message code (IE015, IE013, ICEGATE_BOE, etc.)
+  canCreateNewFiling Boolean  @default(true) // If true, can be used for new declaration; if false, only for amendments/cancellations/etc.
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
   createdBy          String?
   updatedBy          String?
 
@@ -4834,9 +5114,9 @@ model RestrictedPartyMatch {
   entityType   String
   programCodes String[]
 
-  denialType String? // PARTIAL — no source field backs this yet
-  agency     String?
-  citation   String?
+  denialType     String? // PARTIAL — no source field backs this yet
+  agency         String?
+  citation       String?
   effectiveDate  DateTime? // copied from ScreeningEntity at match time
   expirationDate DateTime? // copied from ScreeningEntity at match time
 
@@ -5570,24 +5850,24 @@ enum AccountMemorySourceType {
 }
 
 model AccountMemory {
-  id                 String                   @id @default(cuid())
+  id                 String                      @id @default(cuid())
   accountId          String
-  account            Account                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account            Account                     @relation(fields: [accountId], references: [id], onDelete: Cascade)
   type               AccountMemoryType
   subjectType        AccountMemorySubjectType
   subjectId          String?
   content            String
-  confidence         Float                    @default(1.0)
-  validFrom          DateTime                 @default(now())
+  confidence         Float                       @default(1.0)
+  validFrom          DateTime                    @default(now())
   validUntil         DateTime?
   sourceType         AccountMemorySourceType
   sourceId           String?
   supersedesMemoryId String?
-  supersedesMemory   AccountMemory?           @relation("MemorySupersession", fields: [supersedesMemoryId], references: [id], onDelete: SetNull)
-  supersededBy       AccountMemory[]          @relation("MemorySupersession")
+  supersedesMemory   AccountMemory?              @relation("MemorySupersession", fields: [supersedesMemoryId], references: [id], onDelete: SetNull)
+  supersededBy       AccountMemory[]             @relation("MemorySupersession")
   /// Legacy plain-array embedding, kept for backward-compatible reads/exports.
   /// Retrieval no longer scans this column -- see embeddingVector.
-  embedding          Float[]                  @default([])
+  embedding          Float[]                     @default([])
   /// Superseded by contentTsv (real Postgres FTS). Kept only so old rows that
   /// predate the generated tsvector column still have a lowercase fallback.
   searchVector       String?
@@ -5601,9 +5881,9 @@ model AccountMemory {
   /// STORED expression so `prisma migrate diff` sees this column as in sync --
   /// it does not (and must not) make Prisma try to manage the column itself;
   /// `migrate dev` cannot create a STORED generated column, only a raw migration can.
-  contentTsv         Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, ((COALESCE(content, ''::text) || ' '::text) || COALESCE(\"subjectId\", ''::text)))"))
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
+  contentTsv         Unsupported("tsvector")?    @default(dbgenerated("to_tsvector('simple'::regconfig, ((COALESCE(content, ''::text) || ' '::text) || COALESCE(\"subjectId\", ''::text)))"))
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
   evidence           MemoryEvidence[]
 
   @@index([accountId])
