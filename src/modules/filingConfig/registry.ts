@@ -59,16 +59,14 @@ export interface SubFieldDef {
 export interface FieldDef {
   key: string;
   label: string;
-  type: "text" | "boolean" | "fieldArray" | "select" | "date";
+  type: "text" | "boolean" | "fieldArray" | "date" | "select";
   help?: string;
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldDef[];
-  /** Only present when type === "select": static dropdown options. */
-  options?: string[];
-  /** Only present when type === "select": map of value -> display label. */
+  /** Only present when type === "select": options for dropdown */
+  options?: Array<{ value: string; label: string }>;
+  /** Only present when type === "select": map of option values to readable labels */
   optionLabels?: Record<string, string>;
-  /** Only present when type === "select" and options is omitted: API path the editor fetches `{ codes: string[] }` from. */
-  optionsSource?: string;
 }
 
 interface TableDef<TRow> {
@@ -292,7 +290,7 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
       { key: "country", label: "Country", type: "text" },
       { key: "procedureCode", label: "Procedure Code", type: "text" },
       { key: "messageName", label: "Message Name", type: "text" },
-      { key: "transactionType", label: "Transaction Type", type: "select", optionsSource: "/api/filing-config/transaction-types" },
+      { key: "transactionType", label: "Transaction Type", type: "select", options: [] },
       { key: "isActive", label: "Is Active", type: "boolean" },
     ],
     list: () => db.filingProcedureConfig.findMany({
