@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { db, withAccountIdContext } from "@/lib/db";
 import { getAccountContext, hasPermission } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
@@ -25,27 +25,29 @@ export async function saveCostProfileAction(formData: FormData) {
   const aceTransmissionFee = readNonNegative(formData, "aceTransmissionFee");
   const name = String(formData.get("name") || "Default Cost Profile").trim() || "Default Cost Profile";
 
-  const profile = await db.costProfile.create({
-    data: {
+  return withAccountIdContext(ctx.accountId, async () => {
+    const profile = await db.costProfile.create({
+      data: {
+        accountId: ctx.accountId,
+        name,
+        loadedLaborRate,
+        aiTokenRate,
+        ocrPageRate,
+        aceTransmissionFee,
+        effectiveDate: new Date(),
+      },
+    });
+
+    await createAuditLog({
       accountId: ctx.accountId,
-      name,
-      loadedLaborRate,
-      aiTokenRate,
-      ocrPageRate,
-      aceTransmissionFee,
-      effectiveDate: new Date(),
-    },
-  });
+      userId: ctx.userId,
+      action: "billing.cost_profile.create",
+      entity: "CostProfile",
+      entityId: profile.id,
+      metadata: { name, loadedLaborRate, aiTokenRate, ocrPageRate, aceTransmissionFee },
+    });
 
-  await createAuditLog({
-    accountId: ctx.accountId,
-    userId: ctx.userId,
-    action: "billing.cost_profile.create",
-    entity: "CostProfile",
-    entityId: profile.id,
-    metadata: { name, loadedLaborRate, aiTokenRate, ocrPageRate, aceTransmissionFee },
+    revalidatePath("/app/billing/settings");
+    revalidatePath("/app/billing");
   });
-
-  revalidatePath("/app/billing/settings");
-  revalidatePath("/app/billing");
 }

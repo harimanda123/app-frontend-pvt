@@ -2,6 +2,7 @@
 
 import { getAccountContext, hasPermission } from "@/lib/auth";
 import { runRateSimulation, SimulationSummary } from "@/lib/billing/rateSimulation";
+import { withAccountIdContext } from "@/lib/db";
 
 export async function runRateSimulationAction(
   proposedRateCardVersionId: string,
@@ -16,9 +17,11 @@ export async function runRateSimulationAction(
     throw new Error("Historical window must be between 1 and 24 months");
   }
 
-  return runRateSimulation({
-    accountId: ctx.accountId,
-    proposedRateCardVersionId,
-    months,
+  return withAccountIdContext(ctx.accountId, async () => {
+    return runRateSimulation({
+      accountId: ctx.accountId,
+      proposedRateCardVersionId,
+      months,
+    });
   });
 }
