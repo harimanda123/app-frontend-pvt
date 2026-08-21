@@ -323,7 +323,7 @@ const createShipment: AssistantTool = {
     description: "Create a new shipment. Only call after explicit confirmation.",
     parameters: zodToGeminiSchema(createShipmentSchema),
   },
-  access: { navHref: "/app/shipments" },
+  access: { navHref: "/app/shipments", permission: "shipments.create" },
   execute: async (_ctx, rawArgs) => {
     const parsed = createShipmentSchema.safeParse(rawArgs);
     if (!parsed.success) return { error: parsed.error.message };

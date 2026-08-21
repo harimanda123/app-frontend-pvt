@@ -30,7 +30,11 @@ const getAttachmentDownloadInfoMock = vi.fn();
 const downloadAttachmentBytesMock = vi.fn();
 const createAuditLogMock = vi.fn();
 
-vi.mock("@/lib/db", () => ({ db: dbMock }));
+vi.mock("@/lib/db", () => ({
+  db: dbMock,
+  runWithAccountId: (_accountId: string | null | undefined, fn: () => unknown) => fn(),
+  withAccountIdContext: (_accountId: string | null | undefined, fn: () => Promise<unknown>) => fn(),
+}));
 vi.mock("@/lib/audit", () => ({
   createAuditLog: createAuditLogMock,
   AuditAction: { DOCUMENT_STORED: "document.stored", INBOUND_EMAIL_ATTACHMENT_QUARANTINED: "inbound_email.attachment_quarantined" },

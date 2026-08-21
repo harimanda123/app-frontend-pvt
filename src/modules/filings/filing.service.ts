@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { computeFilingTariff, loadHtsCodesMap, type TariffEngineResult } from "@/lib/tariff/dutyEngine";
 import { applyTransition, FilingTransitionError } from "./filingStateMachine";
 import { buildCanonicalDeclaration, wrapDeclarationData } from "@/lib/canonicalMessaging/declarationBuilder";
-import { resolveMessageContext } from "@/lib/canonicalMessaging/resolveMessageContext";
+import { resolveMessageContext, resolveTransactionType } from "@/lib/canonicalMessaging/resolveMessageContext";
 import { PgCanonicalMessagePublisher } from "@/lib/canonicalMessaging/publisher";
 import { getActiveSchemaVersion } from "@/lib/canonicalMessaging/schemaValidator";
 import { buildActionExtensions } from "@/lib/canonicalMessaging/actionDataRequirements";
@@ -153,7 +153,6 @@ export class FilingService {
 
     const context = await resolveMessageContext(
       {
-        transactionType: filing.procedureCode || "IMPORT", // procedureCode now stores transaction type
         procedureCode: filing.procedureCode || filing.entryType || "01",
         country: filing.country || filing.shipment?.destinationCountry || "US",
       },
@@ -252,7 +251,11 @@ export class FilingService {
         throw new Error("Cannot submit standalone filing without declaration data.");
       }
 
-      const transactionType = filing.procedureCode || "IMPORT"; // procedureCode now stores transaction type
+      const transactionType = await resolveTransactionType(
+        filing.country,
+        filing.procedureCode,
+        filing.messageName
+      );
       declaration = wrapDeclarationData(storedData.declarationDraft, transactionType);
     } else {
       if (!filing.shipment?.lineItems || filing.shipment.lineItems.length === 0) {
@@ -411,7 +414,6 @@ export class FilingService {
 
     const context = await resolveMessageContext(
       {
-        transactionType: filing.procedureCode || "IMPORT", // procedureCode now stores transaction type
         procedureCode: filing.procedureCode || filing.entryType || "01",
         country:
           filing.country ||

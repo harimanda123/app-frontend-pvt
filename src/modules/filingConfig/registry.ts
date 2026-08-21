@@ -59,14 +59,16 @@ export interface SubFieldDef {
 export interface FieldDef {
   key: string;
   label: string;
-  type: "text" | "boolean" | "fieldArray" | "date" | "select";
+  type: "text" | "boolean" | "fieldArray" | "select" | "date";
   help?: string;
   /** Only present when type === "fieldArray": the shape of each entry in the array. */
   itemFields?: SubFieldDef[];
-  /** Only present when type === "select": options for dropdown */
-  options?: Array<{ value: string; label: string }>;
-  /** Only present when type === "select": map of option values to readable labels */
+  /** Only present when type === "select": static dropdown options. */
+  options?: string[];
+  /** Only present when type === "select": map of value -> display label. */
   optionLabels?: Record<string, string>;
+  /** Only present when type === "select" and options is omitted: API path the editor fetches `{ codes: string[] }` from. */
+  optionsSource?: string;
 }
 
 interface TableDef<TRow> {
@@ -106,6 +108,7 @@ const procedureConfigSchema = z.object({
   country: z.string().trim().min(1).max(50),
   procedureCode: z.string().trim().min(1).max(50),
   messageName: z.string().trim().min(1).max(100),
+  transactionType: z.string().trim().min(1).max(50),
   isActive: z.boolean(),
   createdBy: z.string().trim().max(100).optional(),
   updatedBy: z.string().trim().max(100).optional(),
@@ -289,9 +292,10 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
       { key: "country", label: "Country", type: "text" },
       { key: "procedureCode", label: "Procedure Code", type: "text" },
       { key: "messageName", label: "Message Name", type: "text" },
+      { key: "transactionType", label: "Transaction Type", type: "select", optionsSource: "/api/filing-config/transaction-types" },
       { key: "isActive", label: "Is Active", type: "boolean" },
     ],
-    list: () => db.filingProcedureConfig.findMany({ 
+    list: () => db.filingProcedureConfig.findMany({
       orderBy: [{ country: "asc" }, { procedureCode: "asc" }]
     }),
     create: (data) => wrapPrismaErrors(() => db.filingProcedureConfig.create({ data: procedureConfigSchema.parse(data) })),
@@ -443,10 +447,10 @@ export const FILING_CONFIG_TABLES: Record<FilingConfigTableKey, TableDef<unknown
     description: "Configure form fields and layouts for declaration and response views",
     idField: "id",
     fields: [
-      { key: "country", label: "Country", type: "select", options: [] },
-      { key: "procedureCode", label: "Procedure Code", type: "select", options: [] },
-      { key: "messageName", label: "Message Name", type: "select", options: [] },
-      { key: "release", label: "Release", type: "text", help: "Release version (e.g., 1.0)" },
+      { key: "country", label: "Country", type: "text" },
+      { key: "procedureCode", label: "Procedure Code", type: "text" },
+      { key: "messageName", label: "Message Name", type: "text" },
+      { key: "messageType", label: "Message Type", type: "text", help: "request or response" },
       { key: "version", label: "Version", type: "text" },
       { key: "description", label: "Description", type: "text" },
       { key: "totalFields", label: "Total Fields", type: "text", help: "Number of configured fields" },
@@ -811,78 +815,6 @@ export async function getFilingConfigTableMeta(tableKey: FilingConfigTableKey): 
             return subField;
           })
         };
-      }
-      return field;
-    });
-
-    return {
-      ...tableDef,
-      fields: fieldsWithOptions
-    };
-  }
-
-  // For customer-customs-version table, populate Customer and Country Customs Version dropdowns
-  if (tableKey === "customer-customs-version") {
-    const [customers, countryVersions] = await Promise.all([
-      db.account.findMany({ 
-        select: { id: true, name: true }, 
-        orderBy: { name: "asc" } 
-      }),
-      db.filingCountryCustomsVersion.findMany({ 
-        select: { id: true, country: true, procedureCode: true, release: true }, 
-        orderBy: [{ country: "asc" }, { procedureCode: "asc" }, { release: "asc" }] 
-      })
-    ]);
-
-    const customerOptions = customers.map(c => ({ value: c.id, label: c.name }));
-    const countryVersionOptions = countryVersions.map(v => ({ 
-      value: v.id, 
-      label: `${v.country} ${v.procedureCode} ${v.release}` 
-    }));
-
-    const fieldsWithOptions: FieldDef[] = tableDef.fields.map(field => {
-      if (field.key === "customerId") {
-        return { ...field, options: customerOptions };
-      }
-      if (field.key === "filingCountryCustomsId") {
-        return { ...field, options: countryVersionOptions, optionLabels: Object.fromEntries(countryVersionOptions.map(o => [o.value, o.label])) };
-      }
-      return field;
-    });
-
-    return {
-      ...tableDef,
-      fields: fieldsWithOptions
-    };
-  }
-
-  // For ui-configuration table, populate Country, ProcedureCode, and MessageName dropdowns
-  if (tableKey === "ui-configuration") {
-    // Get distinct values from FilingTransactionType table
-    const transactionTypes = await db.filingTransactionType.findMany({
-      select: { country: true, code: true, messageName: true },
-      distinct: ['country', 'code', 'messageName'],
-      orderBy: [{ country: 'asc' }, { code: 'asc' }, { messageName: 'asc' }]
-    });
-
-    // Extract unique values
-    const countries = [...new Set(transactionTypes.map(t => t.country))].sort();
-    const procedures = [...new Set(transactionTypes.map(t => t.code))].sort();
-    const messages = [...new Set(transactionTypes.map(t => t.messageName).filter(Boolean))].sort();
-
-    const countryOptions = countries.map(c => ({ value: c, label: c }));
-    const procedureOptions = procedures.map(p => ({ value: p, label: p }));
-    const messageOptions = messages.map(m => ({ value: m, label: m }));
-
-    const fieldsWithOptions: FieldDef[] = tableDef.fields.map(field => {
-      if (field.key === "country") {
-        return { ...field, options: countryOptions };
-      }
-      if (field.key === "procedureCode") {
-        return { ...field, options: procedureOptions };
-      }
-      if (field.key === "messageName") {
-        return { ...field, options: messageOptions };
       }
       return field;
     });

@@ -34,10 +34,8 @@ export const GET = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, req
     return buildErrorResponse(404, "NOT_FOUND", "Filing case not found", undefined, requestId);
   }
 
-  // Use procedureCode directly (it now stores transaction type like IMPORT, EXPORT)
   const context = await resolveMessageContext(
-    { 
-      transactionType: filing.procedureCode || "IMPORT", // procedureCode now contains transaction type
+    {
       procedureCode: filing.procedureCode || filing.entryType || "01",
       country: filing.country || filing.shipment?.destinationCountry || "US"
     },
