@@ -795,18 +795,64 @@ export function FilingDetailClient({
 
   // Helper to update nested declaration data
   function updateDeclarationField(path: string, value: any) {
+    console.log('📝 updateDeclarationField:', { path, value });
     setDeclarationData((prev) => {
-      const keys = path.split('.');
-      const newData = { ...prev };
-      let current: any = newData;
+      const newData = JSON.parse(JSON.stringify(prev)); // Deep clone
       
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!current[keys[i]]) current[keys[i]] = {};
-        current[keys[i]] = { ...current[keys[i]] };
-        current = current[keys[i]];
+      // Parse path with array indices: "GoodsShipments[0].Consignment.Name"
+      const pathParts: Array<{ key: string; index?: number }> = [];
+      const regex = /([^\[\].]+)|\[(\d+)\]/g;
+      let match;
+      
+      while ((match = regex.exec(path)) !== null) {
+        if (match[1]) {
+          // Property name
+          pathParts.push({ key: match[1] });
+        } else if (match[2] !== undefined) {
+          // Array index
+          const lastPart = pathParts[pathParts.length - 1];
+          if (lastPart) {
+            lastPart.index = parseInt(match[2], 10);
+          }
+        }
       }
       
-      current[keys[keys.length - 1]] = value;
+      // Navigate to the target location
+      let current: any = newData;
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const part = pathParts[i];
+        
+        // Access by key
+        if (!current[part.key]) {
+          current[part.key] = part.index !== undefined ? [] : {};
+        }
+        current = current[part.key];
+        
+        // Access by array index if present
+        if (part.index !== undefined) {
+          if (!current[part.index]) {
+            current[part.index] = {};
+          }
+          current = current[part.index];
+        }
+      }
+      
+      // Set the final value
+      const finalPart = pathParts[pathParts.length - 1];
+      if (finalPart) {
+        if (finalPart.index !== undefined) {
+          // Setting an array element
+          if (!Array.isArray(current[finalPart.key])) {
+            current[finalPart.key] = [];
+          }
+          current[finalPart.key][finalPart.index] = value;
+        } else {
+          // Setting a property
+          current[finalPart.key] = value;
+        }
+      }
+      
+      console.log('✅ Updated declarationData:', newData);
       return newData;
     });
   }
@@ -1003,25 +1049,6 @@ export function FilingDetailClient({
         </div>
       )}
 
-      {/* Filing Information - Always visible above tabs */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="text-xs font-bold text-ink mb-3">Filing Information</h4>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-          <div>
-            <span className="text-ink-muted font-bold">Country</span>
-            <p className="text-ink font-mono">{filing.country || "—"}</p>
-          </div>
-          <div>
-            <span className="text-ink-muted font-bold">Procedure Code</span>
-            <p className="text-ink font-mono">{filing.procedureCode || "—"}</p>
-          </div>
-          <div>
-            <span className="text-ink-muted font-bold">Message Name</span>
-            <p className="text-ink font-mono">{filing.messageName || "—"}</p>
-          </div>
-        </div>
-      </div>
-
       {/* Local Reference Number and Registration Number */}
       <div className="bg-surface border border-border rounded-lg p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1038,9 +1065,6 @@ export function FilingDetailClient({
               className="mt-1"
               disabled={filing.filingStatus === "Transmitted" || filing.filingStatus === "Accepted"}
             />
-            <p className="text-xs text-ink-muted mt-1">
-              Defaults to entry number. Required for save and transmit.
-            </p>
           </div>
           <div>
             <Label htmlFor="registrationNumber" className="text-xs font-bold text-ink">
@@ -1055,9 +1079,6 @@ export function FilingDetailClient({
               className="mt-1"
               disabled={filing.filingStatus === "Transmitted" || filing.filingStatus === "Accepted"}
             />
-            <p className="text-xs text-ink-muted mt-1">
-              Optional registration or license number.
-            </p>
           </div>
         </div>
       </div>

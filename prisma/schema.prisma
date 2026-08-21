@@ -4640,11 +4640,12 @@ model FilingMessage {
 /// cancelFiling()/amendFiling() stay single, country-agnostic implementations:
 /// they ask this table what a context needs, they never branch on country.
 model FilingActionDataRequirement {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   country       String // ISO code, or "*" wildcard
   procedureCode String // or "*"
   messageName   String // or "*"
   action        String // a FilingMessageActionCatalog code, e.g. "CANCELLATION" | "AMENDMENT"
+  release       String?
   fields        Json // Array<{ key, label, type, required, source, helpText? }>
 
   @@unique([country, procedureCode, messageName, action])
@@ -4810,6 +4811,7 @@ model FilingActionConfiguration {
   country          String // ISO 3166-1 alpha-2
   procedureCode    String // Country-specific procedure code
   messageName      String // REQUEST message that was sent (IE015, IE013, ICEGATE_BOE, etc.)
+  release          String?
   status           String // Response status received (TRANSMITTED, ACCEPTED, REJECTED, PENDING, etc.)
   availableActions String[] // Array of action codes that are available (AMENDMENT, CANCELLATION, etc.)
   allowSubmit      Boolean  @default(false) // Whether original declaration can be resubmitted
