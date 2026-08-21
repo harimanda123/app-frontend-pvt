@@ -70,6 +70,7 @@ interface AgentOperationsRow {
   needsReview: number;
   blocked: number;
   verified: number;
+  overrideRate: number | null;
 }
 
 interface ClassificationSignals {
@@ -1211,6 +1212,7 @@ export function CommandCenterClient({
                         <th className="py-1.5 pr-4">Processed</th>
                         <th className="py-1.5 pr-4">Review</th>
                         <th className="py-1.5 pr-4">Blocked</th>
+                        <th className="py-1.5 pr-4">Override rate</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1230,6 +1232,19 @@ export function CommandCenterClient({
                               <span className="px-1.5 py-0.5 rounded-md bg-red-50 text-red-700 border border-red-200 font-bold">{row.blocked}</span>
                             ) : (
                               <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-4">
+                            {row.overrideRate === null ? (
+                              <span className="text-slate-400">—</span>
+                            ) : (
+                              <span className={`px-1.5 py-0.5 rounded-md border font-bold ${
+                                row.overrideRate > 0.2
+                                  ? "bg-red-50 text-red-700 border-red-200"
+                                  : "bg-slate-50 text-slate-600 border-slate-200"
+                              }`}>
+                                {Math.round(row.overrideRate * 100)}%
+                              </span>
                             )}
                           </td>
                         </tr>
