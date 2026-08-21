@@ -25,7 +25,7 @@ async function check() {
   ) VALUES (
     'sample-nl-import', 
     (SELECT id FROM "FilingTransactionType" WHERE code = 'IMPORT' LIMIT 1),
-    'NL', '5100', 'IE501', true, true, NOW(), NOW()
+    'NL', 'NCTS', 'IE501', true, true, NOW(), NOW()
   );
       `);
     } else {
