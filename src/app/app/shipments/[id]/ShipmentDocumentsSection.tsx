@@ -29,6 +29,18 @@ interface ShipmentDocumentsSectionProps {
 
 const DETACH_TITLE_ID = "detach-document-title";
 
+function formatDocTypeName(docType: string): string {
+  if (!docType || docType === "AUTO_DETECT") return "Trade Document";
+  if (docType.includes("_") || docType === docType.toUpperCase()) {
+    return docType
+      .toLowerCase()
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+  return docType;
+}
+
 export function ShipmentDocumentsSection({
   shipmentId,
   documents: initialDocs,
@@ -125,16 +137,33 @@ export function ShipmentDocumentsSection({
   return (
     <>
       <div className="bg-white p-5 rounded-2xl border border-border shadow-2xs space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-ink min-w-0 break-words">
-            DOCUMENTS ({documents.length} uploaded)
-          </h3>
-          <div className="flex items-center gap-2">
+        {/* Header with clear title and badges */}
+        <div className="space-y-2 pb-2 border-b border-border/50">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center space-x-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-ink">
+                Documents
+              </h3>
+              <span className="text-[11px] font-semibold text-brand bg-brand/10 border border-brand/20 px-2.5 py-0.5 rounded-full">
+                {documents.length} uploaded
+              </span>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsModalOpen(true)}
+              className="px-2.5 py-1 h-auto text-xs flex items-center space-x-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Upload Document</span>
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1.5 pt-1">
             <a
               href={`/api/audit/package/${shipmentId}/pdf`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl border border-border bg-white hover:bg-surface-muted text-ink text-xs font-semibold transition-colors"
+              className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg border border-border bg-white hover:bg-surface-muted text-ink text-[11px] font-medium transition-colors"
               title="Download compiled reasonable care audit PDF package"
             >
               <FileText className="w-3.5 h-3.5 text-brand" />
@@ -144,23 +173,16 @@ export function ShipmentDocumentsSection({
               href={`/api/audit/package/${shipmentId}/zip`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl border border-border bg-white hover:bg-surface-muted text-ink text-xs font-semibold transition-colors"
+              className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg border border-border bg-white hover:bg-surface-muted text-ink text-[11px] font-medium transition-colors"
               title="Download compiled reasonable care audit ZIP archive"
             >
               <Files className="w-3.5 h-3.5 text-brand" />
               <span>Audit ZIP</span>
             </a>
-            <Button
-              size="sm"
-              onClick={() => setIsModalOpen(true)}
-              className="px-3 py-1 h-auto text-xs flex items-center space-x-1 shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Upload Document</span>
-            </Button>
           </div>
         </div>
 
+        {/* Document Cards List */}
         <div className="space-y-2">
           {documents.map((doc, idx) => {
             const received = isDocReceived(doc);
@@ -182,39 +204,41 @@ export function ShipmentDocumentsSection({
                     onSelectDoc(doc.id);
                   }
                 }}
-                className={`p-3 rounded-xl block border flex items-center justify-between text-xs transition-colors hover:border-brand cursor-pointer ${
+                className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all cursor-pointer ${
                   isSelected
-                    ? "bg-blue-50/50 border-brand shadow-2xs"
-                    : "bg-surface-muted border-border"
+                    ? "bg-blue-50/60 border-brand shadow-2xs ring-1 ring-brand/20"
+                    : "bg-surface-muted/60 hover:bg-surface-muted border-border hover:border-border-strong"
                 }`}
               >
-                <div className="flex items-start space-x-2.5 min-w-0 pr-2">
-                  <GripVertical className="w-3.5 h-3.5 text-ink-muted/40 shrink-0 mt-0.5 cursor-grab active:cursor-grabbing" />
+                <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+                  <GripVertical className="w-3.5 h-3.5 text-ink-muted/40 shrink-0 cursor-grab active:cursor-grabbing hover:text-ink-muted transition-colors" />
                   {received ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <p className="font-bold text-ink break-words">{doc.docType}</p>
-                    <p className="text-[10px] text-ink-muted break-words">
-                      {doc.fileName} ({doc.pageCount || 1} pages)
+                    <p className="font-bold text-ink break-words leading-tight">
+                      {formatDocTypeName(doc.docType)}
+                    </p>
+                    <p className="text-[10px] text-ink-muted break-words leading-tight mt-0.5">
+                      {doc.fileName} ({doc.pageCount || 1} {doc.pageCount === 1 ? "page" : "pages"})
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-1.5 shrink-0">
                   {received ? (
                     doc.confidence !== null && doc.confidence !== undefined ? (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80">
                         {doc.confidence}% Parsed
                       </span>
                     ) : (
-                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/80">
                         Uploaded
                       </span>
                     )
                   ) : (
-                    <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                    <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200/80">
                       Missing
                     </span>
                   )}
@@ -225,7 +249,7 @@ export function ShipmentDocumentsSection({
                     className="p-1 rounded-lg hover:bg-red-50 text-ink-muted hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {detachingId === doc.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
                     ) : (
                       <Unlink className="w-3.5 h-3.5" />
                     )}
@@ -237,26 +261,33 @@ export function ShipmentDocumentsSection({
         </div>
 
         {/* Required documents checklist (A-2) */}
-        <div className="pt-1 border-t border-border space-y-1.5">
-          <p className="text-[10px] font-extrabold uppercase text-ink-muted tracking-wider">
-            Required Documents — {receivedCount} of {totalRequired} on file
-          </p>
-          {requiredTypes.map((type) => {
-            const present = !missingTypes.includes(type);
-            return (
-              <div key={type} className="flex items-center space-x-2 text-[11px]">
-                {present ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                )}
-                <span className={present ? "text-ink" : "text-red-600 font-semibold"}>
-                  {type}
-                  {!present && " ✗"}
-                </span>
-              </div>
-            );
-          })}
+        <div className="pt-2 border-t border-border/60 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-extrabold uppercase text-ink-muted tracking-wider">
+              Required Documents
+            </p>
+            <span className="text-[10px] font-semibold text-ink-muted">
+              {receivedCount} of {totalRequired} on file
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {requiredTypes.map((type) => {
+              const present = !missingTypes.includes(type);
+              return (
+                <div key={type} className="flex items-center space-x-2 text-[11px]">
+                  {present ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  )}
+                  <span className={present ? "text-ink font-medium" : "text-red-600 font-semibold"}>
+                    {type}
+                    {!present && " ✗"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
-import { Building2, Bot, Settings2, Building, Users, ShieldCheck, Contact2, Shield, LogOut, UserCog, Mail, type LucideIcon } from "lucide-react";
+import { Building2, Bot, Settings2, Building, Users, ShieldCheck, Contact2, Shield, LogOut, UserCog, Mail, Plug, type LucideIcon } from "lucide-react";
 import { ManageAccountModal, type ManageAccountPanelItem, type PanelItemId } from "./ManageAccountModal";
 import { HelpMenu } from "./HelpMenu";
 import { NotificationBell } from "./NotificationBell";
@@ -24,6 +24,7 @@ const PANEL_META: Record<PanelItemId, { icon: LucideIcon; description: string; e
   settings: { icon: Settings2, description: "Configuration & audit log", endpoint: "/api/admin/settings" },
   documentEmail: { icon: Mail, description: "Inbound document email routing", endpoint: "/api/settings/inbound-senders" },
   clients: { icon: Contact2, description: "Manage your customer portfolio", endpoint: "/api/clients" },
+  integrations: { icon: Plug, description: "ERP, accounting & tracking providers", endpoint: "/api/admin/integrations" },
 };
 
 function isPanelItemId(id: string): id is PanelItemId {

@@ -9,6 +9,7 @@ import {
   Truck,
   Layers,
   ChevronRight,
+  History as HistoryIcon,
 } from "lucide-react";
 import { CanonicalShipmentService } from "@/modules/shipment/canonicalShipmentService";
 import { Badge } from "@/components/ui/Badge";
@@ -34,6 +35,7 @@ import type { CategoryDetail } from "./PreFilingReadiness";
 import type { ReadinessBreakdown } from "@/lib/shipmentReadiness";
 import { getShipmentTrackingProjection } from "@/modules/tracking/shipmentTracking";
 import { ShipmentTrackingPanel } from "./ShipmentTrackingPanel";
+import { ShipmentAuditTrail, type ShipmentAuditEntry } from "./ShipmentAuditTrail";
 
 /**
  * Sums the quantities on a document's extracted line items.
@@ -68,7 +70,7 @@ export default async function ShipmentWorkspacePage(props: {
       OR: [{ id: params.id }, { shipmentNumber: params.id }],
       deletedAt: null,
     },
-    });
+  });
 
   if (!shipment) notFound();
 
@@ -80,8 +82,19 @@ export default async function ShipmentWorkspacePage(props: {
     isEnterpriseAdmin ||
     (context.roleNames.includes("PLANNER") && shipment.assignedBrokerId === context.userId);
 
-  // None of these four depend on each other; run them in parallel.
-  const [canonical, clients, fieldApprovals, reconciliationIssues, trackingProjection] = await Promise.all([
+  // None of these nine depend on each other; run them in parallel.
+  const [
+    canonical,
+    clients,
+    fieldApprovals,
+    reconciliationIssues,
+    trackingProjection,
+    dbAuditLogs,
+    customsFilings,
+    resolvedExceptions,
+    resolvedReconciliations,
+    shipmentChangeEvents,
+  ] = await Promise.all([
     CanonicalShipmentService.getCanonicalState(shipment.id),
     canEditClient
       ? db.client.findMany({
@@ -101,6 +114,48 @@ export default async function ShipmentWorkspacePage(props: {
       orderBy: { createdAt: "desc" },
     }),
     getShipmentTrackingProjection(context.accountId, shipment.id),
+    db.auditLog.findMany({
+      where: {
+        accountId: context.accountId,
+        OR: [
+          { entityId: shipment.id },
+          { entityId: params.id },
+          { entity: "ShipmentDocument" },
+        ],
+      },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    db.customsFiling.findMany({
+      where: { shipmentId: shipment.id, accountId: context.accountId },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.exceptionItem.findMany({
+      where: {
+        shipmentId: shipment.id,
+        accountId: context.accountId,
+        status: { in: ["Resolved", "RESOLVED", "ResolvedManual", "ResolvedAuto", "WAIVED", "Waived", "CLOSED", "Closed"] },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.reconciliationIssue.findMany({
+      where: {
+        shipmentId: shipment.id,
+        accountId: context.accountId,
+        status: { in: ["Resolved", "RESOLVED", "Ignored", "IGNORED"] },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.shipmentChangeEvent.findMany({
+      where: { shipmentId: shipment.id },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   if (!trackingProjection) notFound();
@@ -175,6 +230,22 @@ export default async function ShipmentWorkspacePage(props: {
     exporterName: "Exporter Name",
     importerName: "Importer / Consignee Name",
     originCountry: "Country of Origin",
+    countryOfOrigin: "Country of Origin",
+    destinationCountry: "Destination Country",
+    carrierName: "Carrier",
+    portOfEntry: "Port of Entry",
+    entryType: "Entry Type",
+    incoterm: "Incoterm",
+    invoiceNumber: "Invoice Number",
+    invoiceDate: "Invoice Date",
+    totalAmount: "Total Invoice Amount",
+    currency: "Invoice Currency",
+    grossWeight: "Gross Weight",
+    netWeight: "Net Weight",
+    billOfLading: "Bill of Lading",
+    quantity: "Line Item Quantity",
+    description: "Item Description",
+    htsCode: "HTS Classification Code",
   };
   const documentFieldSummaries = documents
     .filter((d) => Boolean(d.extractedJson))
@@ -198,8 +269,8 @@ export default async function ShipmentWorkspacePage(props: {
         const status: "MISSING" | "CONFIRMED" | "NEEDS_REVIEW" = !value
           ? "MISSING"
           : approval
-          ? "CONFIRMED"
-          : "NEEDS_REVIEW";
+            ? "CONFIRMED"
+            : "NEEDS_REVIEW";
         return {
           key,
           label: FIELD_REVIEW_LABELS[key],
@@ -227,10 +298,10 @@ export default async function ShipmentWorkspacePage(props: {
   const importerDisplay = importerOfRecord?.name
     ? { name: importerOfRecord.name, sourceLabel: null }
     : fullShipment.client?.name
-    ? { name: fullShipment.client.name, sourceLabel: "via Client, not a verified Importer of Record" }
-    : shipment.importerName
-    ? { name: shipment.importerName, sourceLabel: "unverified, entered on shipment" }
-    : { name: null, sourceLabel: null };
+      ? { name: fullShipment.client.name, sourceLabel: "via Client, not a verified Importer of Record" }
+      : shipment.importerName
+        ? { name: shipment.importerName, sourceLabel: "unverified, entered on shipment" }
+        : { name: null, sourceLabel: null };
 
   const poaRecords = importerOfRecord?.powersOfAttorney || [];
   const activePoa = poaRecords.find(
@@ -327,7 +398,7 @@ export default async function ShipmentWorkspacePage(props: {
       if (kv["Consignee"]) extractedConsignee = kv["Consignee"];
       if (kv["Notify Party"]) extractedNotifyParty = kv["Notify Party"];
       if (kv["Method of Despatch"]) extractedMethodOfDespatch = kv["Method of Despatch"];
-    } catch {}
+    } catch { }
   }
 
   // 2. Shipment & Entry Details
@@ -493,7 +564,7 @@ export default async function ShipmentWorkspacePage(props: {
         hasPack = true;
         qtyPacking += extractedQuantityTotal(parsed.lineItems);
       }
-    } catch {}
+    } catch { }
   }
   let qtyStatus: "Ready" | "Blocked" | "Needs Review" | "Needs Information" = "Ready";
   let qtyResult = "Reconciled";
@@ -663,15 +734,15 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         importerStatus === "Ready"
           ? {
-              sourceName: "Importer of Record Entity",
-              fields: [
-                { label: "CBP Importer #", value: importerOfRecord?.cbpImporterNumber || "N/A" },
-                { label: "POA Status", value: poaStatusDisplay },
-                { label: "Bond Type", value: bondTypeDisplay || "N/A" },
-              ],
-              documentUrl: filingAnchorUrl("importer-of-record-card"),
-              documentName: "Importer of Record Entity — Filing Data",
-            }
+            sourceName: "Importer of Record Entity",
+            fields: [
+              { label: "CBP Importer #", value: importerOfRecord?.cbpImporterNumber || "N/A" },
+              { label: "POA Status", value: poaStatusDisplay },
+              { label: "Bond Type", value: bondTypeDisplay || "N/A" },
+            ],
+            documentUrl: filingAnchorUrl("importer-of-record-card"),
+            documentName: "Importer of Record Entity — Filing Data",
+          }
           : undefined,
     },
     {
@@ -688,15 +759,15 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         shipmentStatus === "Ready" && bolDoc
           ? {
-              sourceName: "Bill of Lading / Forwarding Instructions",
-              fields: [
-                { label: "Vessel / Voyage", value: extractedVessel ? `${extractedVessel} / ${extractedVoyage}` : "N/A" },
-                { label: "Booking Reference", value: extractedBookingRef || "N/A" },
-                { label: "Port of Loading / Discharge", value: `${extractedPortOfLoading || "N/A"} / ${extractedPortOfDischarge || "N/A"}` },
-              ],
-              documentUrl: docEvidenceUrl(bolDoc),
-              documentName: bolDoc.fileName,
-            }
+            sourceName: "Bill of Lading / Forwarding Instructions",
+            fields: [
+              { label: "Vessel / Voyage", value: extractedVessel ? `${extractedVessel} / ${extractedVoyage}` : "N/A" },
+              { label: "Booking Reference", value: extractedBookingRef || "N/A" },
+              { label: "Port of Loading / Discharge", value: `${extractedPortOfLoading || "N/A"} / ${extractedPortOfDischarge || "N/A"}` },
+            ],
+            documentUrl: docEvidenceUrl(bolDoc),
+            documentName: bolDoc.fileName,
+          }
           : undefined,
     },
     {
@@ -713,17 +784,17 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         partyStatus === "Ready" && bolDoc
           ? {
-              sourceName: "Bill of Lading / Forwarding Instructions",
-              fields: [
-                { label: "Shipper / Exporter", value: extractedShipper || "N/A" },
-                { label: "Consignee", value: extractedConsignee || "N/A" },
-                { label: "Notify Party", value: extractedNotifyParty || "N/A" },
-                ...approvedByRow("exporterName", "Exporter Approved By"),
-                ...approvedByRow("importerName", "Importer Approved By"),
-              ],
-              documentUrl: docEvidenceUrl(bolDoc),
-              documentName: bolDoc.fileName,
-            }
+            sourceName: "Bill of Lading / Forwarding Instructions",
+            fields: [
+              { label: "Shipper / Exporter", value: extractedShipper || "N/A" },
+              { label: "Consignee", value: extractedConsignee || "N/A" },
+              { label: "Notify Party", value: extractedNotifyParty || "N/A" },
+              ...approvedByRow("exporterName", "Exporter Approved By"),
+              ...approvedByRow("importerName", "Importer Approved By"),
+            ],
+            documentUrl: docEvidenceUrl(bolDoc),
+            documentName: bolDoc.fileName,
+          }
           : undefined,
     },
     {
@@ -740,15 +811,15 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         docStatus === "Ready" && invoiceDoc
           ? {
-              sourceName: "Document Vault",
-              fields: [
-                { label: "Total Documents", value: `${documents.length} Files` },
-                { label: "Commercial Invoice", value: invoiceDoc.fileName },
-                { label: "Packing List", value: packingDoc?.fileName || "Not on file" },
-              ],
-              documentUrl: docEvidenceUrl(invoiceDoc),
-              documentName: invoiceDoc.fileName,
-            }
+            sourceName: "Document Vault",
+            fields: [
+              { label: "Total Documents", value: `${documents.length} Files` },
+              { label: "Commercial Invoice", value: invoiceDoc.fileName },
+              { label: "Packing List", value: packingDoc?.fileName || "Not on file" },
+            ],
+            documentUrl: docEvidenceUrl(invoiceDoc),
+            documentName: invoiceDoc.fileName,
+          }
           : undefined,
     },
     {
@@ -766,14 +837,14 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         merchandiseStatus === "Ready"
           ? {
-              sourceName: "Verified Line Items",
-              fields: [
-                { label: "Line Items", value: `${displayLineItems.length} Lines` },
-                { label: "Avg. Classification Confidence", value: `${metrics.classificationConfidenceScore}%` },
-              ],
-              documentUrl: workspaceAnchorUrl("extracted-line-items-section"),
-              documentName: "Verified Line Items — Operational Workspace",
-            }
+            sourceName: "Verified Line Items",
+            fields: [
+              { label: "Line Items", value: `${displayLineItems.length} Lines` },
+              { label: "Avg. Classification Confidence", value: `${metrics.classificationConfidenceScore}%` },
+            ],
+            documentUrl: filingAnchorUrl("verified-line-items-section"),
+            documentName: "Verified Line Items — Filing Data",
+          }
           : undefined,
     },
     {
@@ -790,14 +861,14 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         qtyStatus === "Ready" && hasInv && hasPack
           ? {
-              sourceName: "Invoice vs. Packing List Reconciliation",
-              fields: [
-                { label: "Invoice Quantity", value: `${qtyInvoice} PCS` },
-                { label: "Packing List Quantity", value: `${qtyPacking} PCS` },
-              ],
-              documentUrl: docEvidenceUrl(packingDoc || invoiceDoc),
-              documentName: (packingDoc || invoiceDoc)?.fileName,
-            }
+            sourceName: "Invoice vs. Packing List Reconciliation",
+            fields: [
+              { label: "Invoice Quantity", value: `${qtyInvoice} PCS` },
+              { label: "Packing List Quantity", value: `${qtyPacking} PCS` },
+            ],
+            documentUrl: docEvidenceUrl(packingDoc || invoiceDoc),
+            documentName: (packingDoc || invoiceDoc)?.fileName,
+          }
           : undefined,
     },
     {
@@ -814,14 +885,14 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         valueStatus === "Ready" && invoiceDoc
           ? {
-              sourceName: "Commercial Invoice",
-              fields: [
-                { label: "Total Invoice Value", value: totalInvoiceDisplay },
-                { label: "Incoterm", value: shipment.incoterm || "N/A" },
-              ],
-              documentUrl: docEvidenceUrl(invoiceDoc),
-              documentName: invoiceDoc.fileName,
-            }
+            sourceName: "Commercial Invoice",
+            fields: [
+              { label: "Total Invoice Value", value: totalInvoiceDisplay },
+              { label: "Incoterm", value: shipment.incoterm || "N/A" },
+            ],
+            documentUrl: docEvidenceUrl(invoiceDoc),
+            documentName: invoiceDoc.fileName,
+          }
           : undefined,
     },
     {
@@ -838,14 +909,14 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         originStatus === "Ready" && cooDoc
           ? {
-              sourceName: "Certificate of Origin",
-              fields: [
-                { label: "Country of Origin", value: shipment.countryOfOrigin || "N/A" },
-                ...approvedByRow("originCountry", "Approved By"),
-              ],
-              documentUrl: docEvidenceUrl(cooDoc),
-              documentName: cooDoc.fileName,
-            }
+            sourceName: "Certificate of Origin",
+            fields: [
+              { label: "Country of Origin", value: shipment.countryOfOrigin || "N/A" },
+              ...approvedByRow("originCountry", "Approved By"),
+            ],
+            documentUrl: docEvidenceUrl(cooDoc),
+            documentName: cooDoc.fileName,
+          }
           : undefined,
     },
     {
@@ -862,15 +933,15 @@ export default async function ShipmentWorkspacePage(props: {
       evidence:
         pgaStatus === "Ready"
           ? {
-              sourceName: "PGA Cross-Reference Screening",
-              fields: [
-                { label: "Line Items Screened", value: `${displayLineItems.length} Lines` },
-                { label: "HTS Codes Checked", value: displayLineItems.map((li) => li.htsCode).filter(Boolean).join(", ") || "N/A" },
-                { label: "Result", value: "No PGA-restricted HTS prefixes matched" },
-              ],
-              documentUrl: workspaceAnchorUrl("extracted-line-items-section"),
-              documentName: "Verified Line Items — Operational Workspace",
-            }
+            sourceName: "PGA Cross-Reference Screening",
+            fields: [
+              { label: "Line Items Screened", value: `${displayLineItems.length} Lines` },
+              { label: "HTS Codes Checked", value: displayLineItems.map((li) => li.htsCode).filter(Boolean).join(", ") || "N/A" },
+              { label: "Result", value: "No PGA-restricted HTS prefixes matched" },
+            ],
+            documentUrl: filingAnchorUrl("verified-line-items-section"),
+            documentName: "Verified Line Items — Filing Data",
+          }
           : undefined,
     },
     {
@@ -1029,11 +1100,10 @@ export default async function ShipmentWorkspacePage(props: {
             <div className="flex justify-between py-1 border-b border-surface-muted">
               <span className="text-ink-muted font-bold">POA Status</span>
               <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
-                  poaStatusDisplay === "VALID"
+                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${poaStatusDisplay === "VALID"
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"
-                }`}
+                  }`}
               >
                 {poaStatusDisplay}
               </span>
@@ -1064,19 +1134,19 @@ export default async function ShipmentWorkspacePage(props: {
                   displayLineItems.length === 0
                     ? "text-ink-muted/70 italic font-normal"
                     : classificationUnverified
-                    ? "font-extrabold text-slate-500 uppercase text-[10px] tracking-wider"
-                    : vagueItems.length > 0
-                    ? "font-extrabold text-amber-600 uppercase text-[10px] tracking-wider"
-                    : "font-extrabold text-emerald-600 uppercase text-[10px] tracking-wider"
+                      ? "font-extrabold text-slate-500 uppercase text-[10px] tracking-wider"
+                      : vagueItems.length > 0
+                        ? "font-extrabold text-amber-600 uppercase text-[10px] tracking-wider"
+                        : "font-extrabold text-emerald-600 uppercase text-[10px] tracking-wider"
                 }
               >
                 {displayLineItems.length === 0
                   ? "N/A"
                   : classificationUnverified
-                  ? "Unverified"
-                  : vagueItems.length > 0
-                  ? "Pending"
-                  : "Approved"}
+                    ? "Unverified"
+                    : vagueItems.length > 0
+                      ? "Pending"
+                      : "Approved"}
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-surface-muted">
@@ -1103,38 +1173,18 @@ export default async function ShipmentWorkspacePage(props: {
         facts={facts}
         currentCountryOfOrigin={shipment.countryOfOrigin}
       />
-    </>
-  );
 
-  const workspaceContent = (
-    <>
-      {/* Main Workspace: Documents + Embedded Viewer -- document
-          selection lives entirely client-side in this panel so
-          switching documents never re-runs this server component
-          (which would re-fetch and re-render the whole page). */}
-      <DocumentWorkspacePanel
-        shipmentId={shipment.id}
-        shipmentNumber={shipment.shipmentNumber}
-        documents={documents}
-        originStatus={originStatus}
-        displayLineItems={displayLineItems}
-        rawHtsConfidenceByLine={Array.from(rawHtsConfidenceByLine.entries())}
-        lineItemCurrency={lineItemCurrency}
-        initialDocId={docId}
-      />
-
-      {/* Verified Line Items -- the shipment's real, canonical line
-          items, independent of whichever document happens to be
-          selected above (that panel shows one document's raw, possibly
-          wrong-shipment extraction; this is ground truth). */}
-      <div className="bg-white p-6 rounded-3xl border border-border shadow-sm">
-        <h3 className="text-xs font-extrabold text-ink uppercase tracking-wider flex items-center space-x-2 mb-1">
-          <CheckCircle2 className="w-4 h-4 text-brand" />
-          <span>Verified Line Items</span>
-        </h3>
-        <p className="text-[11px] text-ink-muted mb-2">
-          This shipment&apos;s confirmed line items, regardless of which document is selected in the viewer above.
-        </p>
+      {/* Verified Line Items -- ground truth canonical line items */}
+      <div id="verified-line-items-section" className="bg-white p-6 rounded-3xl border border-border shadow-sm space-y-4">
+        <div>
+          <h3 className="text-xs font-extrabold text-ink uppercase tracking-wider flex items-center space-x-2 mb-1">
+            <CheckCircle2 className="w-4 h-4 text-brand" />
+            <span>Verified Line Items</span>
+          </h3>
+          <p className="text-[11px] text-ink-muted">
+            This shipment&apos;s confirmed line items, regardless of which document is selected in the viewer.
+          </p>
+        </div>
         <LineItemsTable
           shipmentId={shipment.id}
           initialLineItems={displayLineItems}
@@ -1145,24 +1195,212 @@ export default async function ShipmentWorkspacePage(props: {
     </>
   );
 
+  const workspaceContent = (
+    /* Main Workspace: Documents + Embedded Viewer -- document
+       selection lives entirely client-side in this panel so
+       switching documents never re-runs this server component
+       (which would re-fetch and re-render the whole page). */
+    <DocumentWorkspacePanel
+      shipmentId={shipment.id}
+      shipmentNumber={shipment.shipmentNumber}
+      documents={documents}
+      originStatus={originStatus}
+      displayLineItems={displayLineItems}
+      rawHtsConfidenceByLine={Array.from(rawHtsConfidenceByLine.entries())}
+      lineItemCurrency={lineItemCurrency}
+      initialDocId={docId}
+    />
+  );
+
+  const combinedAuditEntries: ShipmentAuditEntry[] = [
+    // 1. Explicit Human User Audit Logs (filtering out automated worker noise like PRODUCT_INTELLIGENCE_*)
+    ...dbAuditLogs
+      .filter((log) => {
+        const isProductIntel = log.action.toUpperCase().includes("PRODUCT_INTELLIGENCE");
+        const isAgentAction = log.action.toUpperCase().startsWith("AGENT_");
+        const isSystemWorker =
+          log.action.toUpperCase().startsWith("SYSTEM_") ||
+          log.action.toUpperCase().startsWith("AUTOMATED_") ||
+          log.action.toUpperCase().startsWith("NORMALIZE_") ||
+          log.action.toUpperCase().startsWith("RECONCILE_");
+        return !isProductIntel && !isAgentAction && !isSystemWorker && (log.source === "UI" || log.source === "CHAT" || Boolean(log.userId));
+      })
+      .map((log) => {
+        const userName = log.user
+          ? [log.user.firstName, log.user.lastName].filter(Boolean).join(" ") || log.user.email
+          : "System Admin";
+        return {
+          id: `audit-${log.id}`,
+          action: log.action,
+          category: "SYSTEM_AUDIT" as const,
+          title: log.action.replace(/_/g, " "),
+          description:
+            (log.metadata as Record<string, unknown> | null)?.description &&
+            typeof (log.metadata as Record<string, unknown>).description === "string"
+              ? ((log.metadata as Record<string, unknown>).description as string)
+              : `Executed action ${log.action.replace(/_/g, " ")}`,
+          source: (["UI", "CHAT"].includes(log.source) ? log.source : "UI") as "UI" | "CHAT",
+          user: { name: userName, email: log.user?.email },
+          timestamp: log.createdAt.toISOString(),
+          beforeValue: (log.metadata as Record<string, unknown> | null)?.beforeJson
+            ? JSON.stringify((log.metadata as Record<string, unknown>).beforeJson)
+            : null,
+          afterValue: (log.metadata as Record<string, unknown> | null)?.afterJson
+            ? JSON.stringify((log.metadata as Record<string, unknown>).afterJson)
+            : null,
+          metadata: log.metadata as Record<string, unknown> | null,
+        };
+      }),
+
+    // 2. Human Field Edits & Approvals (from FieldApproval)
+    ...fieldApprovals.map((fa) => {
+      const label = FIELD_REVIEW_LABELS[fa.fieldKey] || fa.fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
+      return {
+        id: `field-approval-${fa.id}`,
+        action: "FIELD_APPROVED",
+        category: "FIELD_APPROVAL" as const,
+        title: "Field Approved",
+        description: `Approved value "${fa.value || "Confirmed"}" for field ${label}`,
+        source: "UI" as const,
+        user: { name: fa.approvedByName || "Customs Broker" },
+        timestamp: fa.approvedAt.toISOString(),
+        afterValue: `${label}: ${fa.value}`,
+      };
+    }),
+
+    // 3. Human Field Updates & Provenance Changes (from ShipmentChangeEvent)
+    ...shipmentChangeEvents.map((sce) => {
+      const userName = sce.user
+        ? [sce.user.firstName, sce.user.lastName].filter(Boolean).join(" ") || sce.user.email
+        : "User";
+      const fieldLabel = FIELD_REVIEW_LABELS[sce.field] || sce.field.replace(/([A-Z])/g, " $1").trim();
+      return {
+        id: `change-event-${sce.id}`,
+        action: sce.changeType || "FIELD_UPDATED",
+        category: "FIELD_APPROVAL" as const,
+        title: "Field Updated",
+        description: `Updated ${fieldLabel} to "${sce.newValue || "Set"}"${sce.previousValue ? ` (was "${sce.previousValue}")` : ""}${sce.reason ? ` — ${sce.reason}` : ""}`,
+        source: "UI" as const,
+        user: { name: userName, email: sce.user?.email },
+        timestamp: sce.createdAt.toISOString(),
+        beforeValue: sce.previousValue ? `${fieldLabel}: ${sce.previousValue}` : null,
+        afterValue: `${fieldLabel}: ${sce.newValue || "Set"}`,
+        metadata: { field: sce.field, changeType: sce.changeType, reason: sce.reason },
+      };
+    }),
+
+    // 4. Human Trade Document Uploads
+    ...documents.map((doc) => ({
+      id: `doc-ingest-${doc.id}`,
+      action: "DOCUMENT_UPLOADED",
+      category: "DOCUMENT_INGESTION" as const,
+      title: `Trade Document Uploaded`,
+      description: `Document '${doc.fileName}' (${doc.docType || "Trade Document"}) uploaded to vault`,
+      source: "UI" as const,
+      user: { name: "Document Vault User" },
+      timestamp: doc.createdAt.toISOString(),
+      metadata: { docType: doc.docType, status: doc.status, pageCount: doc.pageCount },
+    })),
+
+    // 5. Human Exception & Conflict Resolutions
+    ...resolvedExceptions.map((ex) => ({
+      id: `exception-resolved-${ex.id}`,
+      action: "EXCEPTION_RESOLVED",
+      category: "EXCEPTION_RESOLVED" as const,
+      title: "Exception Resolved",
+      description: `Resolved exception "${ex.description}"${ex.resolutionNote ? ` — ${ex.resolutionNote}` : ""}`,
+      source: "UI" as const,
+      user: { name: ex.resolvedByName || "Platform Admin" },
+      timestamp: (ex.resolvedAt || ex.createdAt).toISOString(),
+      beforeValue: "Status: Open",
+      afterValue: `Status: ${ex.status}${ex.resolutionReasonCode ? ` (${ex.resolutionReasonCode})` : ""}`,
+      metadata: { description: ex.description, type: ex.type, severity: ex.severity, resolutionNote: ex.resolutionNote, resolutionReasonCode: ex.resolutionReasonCode },
+    })),
+    ...resolvedReconciliations.map((rec) => ({
+      id: `reconciliation-resolved-${rec.id}`,
+      action: "RECONCILIATION_RESOLVED",
+      category: "EXCEPTION_RESOLVED" as const,
+      title: "Conflict Resolved",
+      description: `Resolved data conflict on field '${rec.field}' (Expected: ${rec.expectedValue}, Actual: ${rec.actualValue})${rec.note ? ` — Note: ${rec.note}` : ""}`,
+      source: "UI" as const,
+      user: { name: rec.resolvedByUserName || "User" },
+      timestamp: (rec.resolvedAt || rec.createdAt).toISOString(),
+      beforeValue: `Expected: ${rec.expectedValue} vs Actual: ${rec.actualValue}`,
+      afterValue: `Resolved: ${rec.resolution || "Confirmed"}`,
+      metadata: { field: rec.field, resolution: rec.resolution, note: rec.note },
+    })),
+
+    // 6. Human Customs Filing Submissions
+    ...customsFilings.map((filing) => ({
+      id: `filing-submit-${filing.id}`,
+      action: "FILING_SUBMITTED",
+      category: "FILING_SUBMISSION" as const,
+      title: `Submitted for Customs Filing`,
+      description: `Submitted customs declaration entry summary ${filing.entryNumber || filing.localReferenceNumber || filing.id} for ${filing.country || "CBP"} processing`,
+      source: "UI" as const,
+      user: { name: "Customs Broker" },
+      timestamp: (filing as unknown as { createdAt?: Date }).createdAt
+        ? new Date((filing as unknown as { createdAt: Date }).createdAt).toISOString()
+        : shipment.updatedAt.toISOString(),
+      metadata: { entryNumber: filing.entryNumber, procedureCode: filing.procedureCode, country: filing.country },
+    })),
+
+    // 7. Human Shipment Creation
+    {
+      id: `shipment-created-${shipment.id}`,
+      action: "SHIPMENT_CREATED",
+      category: "SHIPMENT_MUTATION" as const,
+      title: `Shipment Created`,
+      description: `Shipment ${shipment.shipmentNumber} initialized in Operational Workspace`,
+      source: "UI" as const,
+      user: { name: fullShipment.client?.name || "Client User" },
+      timestamp: shipment.createdAt.toISOString(),
+    },
+  ];
+
+  combinedAuditEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
   const auditContent = (
     /* Secondary Audit Tab: Agent Executions & Event Logs */
-    <div className="apple-card p-6 rounded-3xl border border-border bg-white shadow-sm space-y-6">
-      <div>
-        <h3 className="text-lg font-bold text-ink flex items-center space-x-2">
-          <Layers className="w-5 h-5 text-brand" />
-          <span>Agent Execution Runs</span>
-        </h3>
-        <p className="text-xs text-ink-muted mt-0.5">
-          Every agent run on this shipment, grouped by invocation. Expand a run to see the per-agent waterfall.
-        </p>
+    <div className="space-y-6">
+      {/* Incremental Audit Log Table */}
+      <div className="apple-card p-6 rounded-3xl border border-border bg-white shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+          <div>
+            <h3 className="text-lg font-bold text-ink flex items-center space-x-2">
+              <HistoryIcon className="w-5 h-5 text-brand" />
+              <span>Shipment Audit Log & Event Table</span>
+            </h3>
+            <p className="text-xs text-ink-muted mt-0.5">
+              Append-only audit table tracking every action, field edit, document upload, and filing submission on this shipment.
+            </p>
+          </div>
+          <span className="self-start sm:self-auto px-3 py-1 bg-brand/10 text-brand text-xs font-bold rounded-full font-mono">
+            {combinedAuditEntries.length} Events Logged
+          </span>
+        </div>
+
+        <ShipmentAuditTrail entries={combinedAuditEntries} />
       </div>
 
-      <div className="space-y-4">
-        <h4 className="text-xs font-extrabold uppercase text-ink-muted tracking-wider">
-          Run History ({agentInvocations.length})
-        </h4>
-        <AgentExecutionTimeline invocations={agentInvocations} shipmentId={shipment.id} />
+      {/* Agent Execution Waterfall */}
+      <div className="apple-card p-6 rounded-3xl border border-border bg-white shadow-sm space-y-6">
+        <div>
+          <h3 className="text-lg font-bold text-ink flex items-center space-x-2">
+            <Layers className="w-5 h-5 text-brand" />
+            <span>Agent Execution Runs</span>
+          </h3>
+          <p className="text-xs text-ink-muted mt-0.5">
+            Every agent run on this shipment, grouped by invocation. Expand a run to see the per-agent waterfall.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="text-xs font-extrabold uppercase text-ink-muted tracking-wider">
+            Run History ({agentInvocations.length})
+          </h4>
+          <AgentExecutionTimeline invocations={agentInvocations} shipmentId={shipment.id} />
+        </div>
       </div>
     </div>
   );
@@ -1210,13 +1448,12 @@ export default async function ShipmentWorkspacePage(props: {
                       ? "Open exceptions or missing data require attention before filing"
                       : "No blocking issues detected"
                 }
-                className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border cursor-help ${
-                  shipment.healthStatus === "Critical"
+                className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border cursor-help ${shipment.healthStatus === "Critical"
                     ? "bg-rose-50 text-rose-700 border-rose-200"
                     : shipment.healthStatus === "At Risk"
                       ? "bg-amber-50 text-amber-700 border-amber-200"
                       : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                }`}
+                  }`}
               >
                 {shipment.healthStatus}
               </span>
@@ -1227,13 +1464,12 @@ export default async function ShipmentWorkspacePage(props: {
               <div className="flex items-center space-x-2" title={`Filing readiness: ${shipment.readinessScore}%`}>
                 <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${
-                      shipment.readinessScore >= 80
+                    className={`h-full rounded-full transition-all ${shipment.readinessScore >= 80
                         ? "bg-emerald-500"
                         : shipment.readinessScore >= 50
                           ? "bg-amber-500"
                           : "bg-rose-500"
-                    }`}
+                      }`}
                     style={{ width: `${shipment.readinessScore}%` }}
                   />
                 </div>
@@ -1304,7 +1540,7 @@ export default async function ShipmentWorkspacePage(props: {
 
       <ShipmentTabsPanel
         initialTab={activeTab}
-        auditCount={agentInvocations.length}
+        auditCount={combinedAuditEntries.length}
         workspaceContent={workspaceContent}
         trackingContent={trackingContent}
         filingContent={filingContent}
@@ -1313,3 +1549,4 @@ export default async function ShipmentWorkspacePage(props: {
     </div>
   );
 }
+

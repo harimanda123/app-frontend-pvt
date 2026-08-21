@@ -12,11 +12,12 @@ import { RolesPermissionsPanel } from "@/app/app/admin/roles/RolesPermissionsPan
 import { SettingsAuditPanel } from "@/app/app/admin/settings/SettingsAuditPanel";
 import { DocumentEmailPanel, type InboundSenderRouteRow, type TeamMemberOption } from "@/app/app/admin/settings/DocumentEmailPanel";
 import { ClientsPanel } from "@/app/app/clients/ClientsPanel";
+import { IntegrationsPanel, type IntegrationsApiResponse } from "@/app/app/admin/settings/IntegrationsPanel";
 import type { RolesPermissionsData } from "@/lib/admin/rolesData";
 import type { FormattedAuditLog } from "@/lib/admin/auditData";
 import type { FormattedClient } from "@/lib/clients/clientsData";
 
-export type PanelItemId = "account" | "users" | "roles" | "settings" | "documentEmail" | "clients";
+export type PanelItemId = "account" | "users" | "roles" | "settings" | "documentEmail" | "clients" | "integrations";
 
 interface AccountApiResponse {
   accountName: string;
@@ -58,7 +59,8 @@ type PanelApiResponse =
   | RolesApiResponse
   | SettingsApiResponse
   | DocumentEmailApiResponse
-  | ClientsApiResponse;
+  | ClientsApiResponse
+  | IntegrationsApiResponse;
 
 export interface ManageAccountPanelItem {
   id: PanelItemId;
@@ -97,12 +99,13 @@ function PanelSkeleton() {
   );
 }
 
-function PanelError({ message, onRetry }: { message: string; onRetry: () => void }) {
+function PanelError({ message, onRetry }: { message: string | unknown; onRetry: () => void }) {
+  const displayMsg = typeof message === "string" ? message : typeof message === "object" && message !== null && "message" in message ? String((message as any).message) : JSON.stringify(message);
   return (
     <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto space-y-3">
       <AlertCircle className="w-8 h-8 text-red-500" />
       <p className="text-sm text-ink font-semibold">Couldn&apos;t load this section</p>
-      <p className="text-xs text-ink-muted">{message}</p>
+      <p className="text-xs text-ink-muted">{displayMsg}</p>
       <button
         onClick={onRetry}
         className="px-4 py-2 text-xs font-semibold text-brand bg-blue-50 hover:bg-blue-100 rounded-full transition-colors cursor-pointer"
@@ -135,9 +138,16 @@ export function ManageAccountModal({ isOpen, onClose, accountName, items, extern
 
       if (!res.ok) {
         loadedIds.current.delete(item.id);
+        const errMessage =
+          typeof data.error === "string"
+            ? data.error
+            : typeof data.error === "object" && data.error?.message
+            ? data.error.message
+            : "Failed to load this section.";
+
         setEntries((prev) => ({
           ...prev,
-          [item.id]: { status: "error", message: data.error || "Failed to load this section." },
+          [item.id]: { status: "error", message: errMessage },
         }));
         return;
       }
@@ -235,6 +245,10 @@ export function ManageAccountModal({ isOpen, onClose, accountName, items, extern
       case "clients": {
         const data = entry.data as ClientsApiResponse;
         return <ClientsPanel accountName={data.accountName} clients={data.clients} onSaved={onSaved} compact />;
+      }
+      case "integrations": {
+        const data = entry.data as IntegrationsApiResponse;
+        return <IntegrationsPanel accountName={data.accountName} integrations={data.integrations} clients={data.clients} onSaved={onSaved} />;
       }
       default:
         return null;

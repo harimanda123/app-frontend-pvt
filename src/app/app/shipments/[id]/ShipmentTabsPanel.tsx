@@ -15,20 +15,23 @@ interface ShipmentTabsPanelProps {
 }
 
 function normalizeTab(tab: string): ShipmentTab {
-  return tab === "tracking" || tab === "filing" || tab === "audit" ? tab : "workspace";
+  if (tab === "tracking" || tab === "filing" || tab === "audit") {
+    return tab;
+  }
+  if (
+    tab === "line-items" ||
+    tab === "lineItems" ||
+    tab === "line_items" ||
+    tab === "verified-line-items"
+  ) {
+    return "filing";
+  }
+  return "workspace";
 }
 
 /**
  * Switches between the shipment detail page's four tabs entirely
  * client-side.
- *
- * `view` used to be a server searchParam driving which tab the page's Server
- * Component rendered, so every tab click re-fetched and re-rendered the
- * entire page (readiness ribbon, exceptions, everything) just to swap which
- * pre-computed section was visible. All four tab bodies are cheap to build
- * server-side (same data already loaded for the page), so they're rendered
- * once and handed to this component as props; switching tabs here just
- * changes which already-rendered tree is mounted.
  */
 export function ShipmentTabsPanel({
   initialTab,
@@ -107,3 +110,5 @@ export function ShipmentTabsPanel({
     </div>
   );
 }
+
+

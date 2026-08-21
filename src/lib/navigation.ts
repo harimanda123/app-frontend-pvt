@@ -130,6 +130,14 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ACCOUNT_ADMIN_ROLES,
         permission: "settings.manage",
       },
+      {
+        id: "integrations",
+        labelKey: "Integrations & APIs",
+        href: "/app/admin/integrations",
+        icon: "settings",
+        roles: ACCOUNT_ADMIN_ROLES,
+        permission: "settings.manage",
+      },
     ],
   },
   {

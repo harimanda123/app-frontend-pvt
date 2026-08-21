@@ -98,6 +98,8 @@ export function ExceptionResolutionModal({
     setSaveLoading(true);
     try {
       // 1. Perform backend mutations depending on the exception category
+      let mutationPromise: Promise<Response> | null = null;
+
       if (exception.actionType === "HTS") {
         const targetItem = lineItems.find(item => item.description.toLowerCase().includes("controller"))
           || lineItems[1]
@@ -107,14 +109,13 @@ export function ExceptionResolutionModal({
           ? { id: targetItem.id, htsCode: editHts.trim() }
           : { htsCode: editHts.trim() };
 
-        const res = await fetch(`/api/shipments/${shipmentId}`, {
+        mutationPromise = fetch(`/api/shipments/${shipmentId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             lineItems: [payload],
           }),
         });
-        if (!res.ok) throw new Error("Failed to save HTS classification");
       }
 
       else if (exception.actionType === "COO") {
@@ -126,14 +127,14 @@ export function ExceptionResolutionModal({
           ? { id: targetItem.id, countryOfOrigin: editCoo.trim() }
           : { countryOfOrigin: editCoo.trim() };
 
-        const res = await fetch(`/api/shipments/${shipmentId}`, {
+        mutationPromise = fetch(`/api/shipments/${shipmentId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            countryOfOrigin: editCoo.trim(),
             lineItems: [payload],
           }),
         });
-        if (!res.ok) throw new Error("Failed to save Country of Origin");
       }
 
       else if (exception.actionType === "MISMATCH") {
@@ -149,20 +150,18 @@ export function ExceptionResolutionModal({
           ? { id: targetItem.id, quantity: finalQuantity }
           : { quantity: finalQuantity };
 
-        const res = await fetch(`/api/shipments/${shipmentId}`, {
+        mutationPromise = fetch(`/api/shipments/${shipmentId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             lineItems: [payload],
           }),
         });
-        if (!res.ok) throw new Error("Failed to save quantity");
       }
 
       else if (exception.actionType === "UPLOAD") {
         if (!fileName.trim()) throw new Error("Please select a file to attach");
-        // Simulate uploading a document
-        const uploadRes = await fetch("/api/documents/upload", {
+        mutationPromise = fetch("/api/documents/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -172,31 +171,40 @@ export function ExceptionResolutionModal({
             docType: "GENERAL_CERTIFICATE_OF_ORIGIN",
           }),
         });
-        if (!uploadRes.ok) throw new Error("Failed to upload certificate document");
       }
 
       else if (exception.actionType === "POA") {
         if (!poaSignedName.trim()) throw new Error("Customs Broker Signature is required for POA renewal");
       }
 
-      // 2. PATCH the ExceptionItem status to "RESOLVED"
-      const resEx = await fetch(`/api/exceptions/${exception.dbId}`, {
+      // Execute shipment mutation & exception resolution status update in parallel
+      const exPatchPromise = fetch(`/api/exceptions/${exception.dbId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: "RESOLVED",
-          resolutionReason: `Resolved via Exception Resolution Hub modal for issue: ${exception.title}`,
+          resolutionReason: `Resolved via Exception Resolution Hub for issue: ${exception.title}`,
           expectedVersion: exception.version,
         }),
       });
 
+      const [resMutation, resEx] = await Promise.all([
+        mutationPromise ? mutationPromise : Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 })),
+        exPatchPromise,
+      ]);
+
+      if (resMutation && !resMutation.ok) {
+        const errData = await resMutation.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to update shipment data");
+      }
+
       if (!resEx.ok) {
-        const errData = await resEx.json();
+        const errData = await resEx.json().catch(() => ({}));
         throw new Error(errData.error || "Failed to resolve database exception item");
       }
 
       onClose();
-      // Silently reload the page to refresh metrics and drop the resolved card
+      // Refresh page instantly
       window.location.reload();
     } catch (err) {
       alert(caughtMessage(err, "Failed to resolve exception"));

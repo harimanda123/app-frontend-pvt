@@ -264,5 +264,9 @@ export const db = (globalForPrisma.prisma ??
   })) as unknown as PrismaClient;
 
 if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
+  if (globalForPrisma.prisma && !(globalForPrisma.prisma as any).integrationConfig) {
+    globalForPrisma.prisma = undefined;
+  } else {
+    globalForPrisma.prisma = db;
+  }
 }

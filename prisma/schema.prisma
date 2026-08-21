@@ -219,6 +219,9 @@ model Account {
   webhooks AccountWebhook[]
   apiKeys  AccountApiKey[]
 
+  integrationConfigs IntegrationConfig[]
+  integrationPayloads IntegrationPayload[]
+
   accountMemories AccountMemory[]
   memoryEvidence  MemoryEvidence[]
 
@@ -1780,6 +1783,9 @@ model Client {
   usageEvents       UsageEvent[]
   invoices          Invoice[]
   billingExceptions BillingException[]
+
+  integrationConfigs IntegrationConfig[]
+  integrationPayloads IntegrationPayload[]
 
   @@index([accountId])
   @@index([accountId, status])
@@ -5908,3 +5914,65 @@ model MemoryEvidence {
   @@index([accountId])
   @@index([memoryId])
 }
+
+// ---------------------------------------------------------------------------
+// INTEGRATIONS MANAGEMENT
+// ---------------------------------------------------------------------------
+
+enum IntegrationCategory {
+  ERP
+  ACCOUNTING
+  SHIPMENT_TRACKING
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+model IntegrationConfig {
+  id               String               @id @default(cuid())
+  accountId        String
+  account          Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  clientId         String?
+  client           Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  category         IntegrationCategory
+  provider         String
+  name             String
+  status           IntegrationStatus    @default(ACTIVE)
+  apiKey           String?
+  apiSecret        String?
+  baseUrl          String?
+  environment      String               @default("PRODUCTION")
+  configJson       Json?
+  lastSyncAt       DateTime?
+  lastErrorAt      DateTime?
+  lastErrorMessage String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  payloads         IntegrationPayload[]
+
+  @@index([accountId, category])
+  @@index([accountId, clientId])
+}
+
+model IntegrationPayload {
+  id                  String            @id @default(cuid())
+  accountId           String
+  account             Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  clientId            String?
+  client              Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  integrationConfigId String
+  integrationConfig   IntegrationConfig @relation(fields: [integrationConfigId], references: [id], onDelete: Cascade)
+  provider            String
+  endpoint            String?
+  payloadJson         Json
+  recordCount         Int               @default(0)
+  fetchedAt           DateTime          @default(now())
+
+  @@index([accountId, provider])
+  @@index([accountId, clientId])
+  @@index([integrationConfigId, fetchedAt])
+}
+

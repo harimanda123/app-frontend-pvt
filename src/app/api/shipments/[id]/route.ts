@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { withAuthenticatedRoute } from "@/lib/api/auth-guards";
 import { validatePathParams } from "@/lib/api/validation";
@@ -167,13 +167,19 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
       sourceType: "USER_ENTERED",
     });
 
-    // Trigger selective dependency-aware agent execution
-    await PipelineOrchestrator.processEvent({
-      shipmentId: id,
-      accountId: ctx.accountId,
-      userId: ctx.userId,
-      triggerEvent: "USER_FIELD_UPDATED",
-      payload: { field: "countryOfOrigin", newValue: countryOfOrigin },
+    // Trigger selective dependency-aware agent execution asynchronously
+    after(async () => {
+      try {
+        await PipelineOrchestrator.processEvent({
+          shipmentId: id,
+          accountId: ctx.accountId,
+          userId: ctx.userId,
+          triggerEvent: "USER_FIELD_UPDATED",
+          payload: { field: "countryOfOrigin", newValue: countryOfOrigin },
+        });
+      } catch (err) {
+        console.error("[shipment PATCH] Async pipeline background error:", err);
+      }
     });
   }
 
@@ -311,13 +317,19 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
       }
     }
 
-    // Trigger selective agent execution for HTS/CoO edits
-    await PipelineOrchestrator.processEvent({
-      shipmentId: id,
-      accountId: ctx.accountId,
-      userId: ctx.userId,
-      triggerEvent: "USER_FIELD_UPDATED",
-      payload: { field: "lineItem.countryOfOrigin", lineItems },
+    // Trigger selective agent execution for HTS/CoO edits asynchronously
+    after(async () => {
+      try {
+        await PipelineOrchestrator.processEvent({
+          shipmentId: id,
+          accountId: ctx.accountId,
+          userId: ctx.userId,
+          triggerEvent: "USER_FIELD_UPDATED",
+          payload: { field: "lineItem.countryOfOrigin", lineItems },
+        });
+      } catch (err) {
+        console.error("[shipment PATCH] Async line items pipeline background error:", err);
+      }
     });
   }
 

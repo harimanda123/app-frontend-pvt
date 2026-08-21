@@ -14,7 +14,12 @@ export const READ_ONLY_MESSAGE = "Your role is read-only and cannot modify recor
  * runtime dependency on that module — several suites replace it with a partial
  * mock, which would otherwise silently disable the check under test.
  */
-export function canWrite(ctx: Pick<AccountContext, "roleNames" | "isPlatformAdmin">): boolean {
+export function canWrite(
+  ctx: Pick<AccountContext, "roleNames" | "isPlatformAdmin"> & { platformRoles?: string[] }
+): boolean {
+  if (ctx.platformRoles?.includes("SUPER_ADMIN_READ") || ctx.platformRoles?.includes("super-admin-read")) {
+    return false;
+  }
   if (ctx.isPlatformAdmin) return true;
   return ctx.roleNames.some((role) => role !== "VIEWER");
 }

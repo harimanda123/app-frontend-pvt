@@ -11,6 +11,9 @@ export interface AccountContext {
   firstName?: string | null;
   lastName?: string | null;
   isPlatformAdmin: boolean;
+  isSuperAdminReadWrite?: boolean;
+  isSuperAdminRead?: boolean;
+  isSuperAdminSettings?: boolean;
   platformRoles: string[];
   accountId: string;
   accountName: string;
@@ -306,7 +309,10 @@ async function loadAccountContext(): Promise<AccountContext | null> {
     const roleNames = activeMembership.roles.map((mr) => mr.role.name);
 
     const platformRoleNames = dbUser.platformRoles.map((pr) => pr.platformRole.name);
-    const isPlatformAdmin = platformRoleNames.includes("PLATFORM_ADMIN");
+    const isSuperAdminReadWrite = platformRoleNames.includes("SUPER_ADMIN_READWRITE") || platformRoleNames.includes("PLATFORM_ADMIN");
+    const isSuperAdminRead = platformRoleNames.includes("SUPER_ADMIN_READ");
+    const isSuperAdminSettings = platformRoleNames.includes("SUPER_ADMIN_SETTINGS") || platformRoleNames.includes("SUPER_ADMIN");
+    const isPlatformAdmin = isSuperAdminReadWrite || isSuperAdminRead || isSuperAdminSettings;
 
     const allMemberships = dbUser.memberships
       .filter((m) => m.status === "ACTIVE" && m.account.deletedAt === null)
@@ -326,6 +332,9 @@ async function loadAccountContext(): Promise<AccountContext | null> {
       firstName: dbUser.firstName,
       lastName: dbUser.lastName,
       isPlatformAdmin,
+      isSuperAdminReadWrite,
+      isSuperAdminRead,
+      isSuperAdminSettings,
       platformRoles: platformRoleNames,
       accountId: activeMembership.account.id,
       accountName: activeMembership.account.name,

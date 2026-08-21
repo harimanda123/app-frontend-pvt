@@ -18,7 +18,7 @@ import { z } from "zod";
 const paramsSchema = z.object({ id: z.string().min(1), documentId: z.string().min(1) });
 
 const bodySchema = z.object({
-  fieldKey: z.enum(["exporterName", "importerName", "originCountry"]),
+  fieldKey: z.string().min(1, "fieldKey is required"),
   action: z.enum(["APPROVE", "EDIT"]),
   value: z.string().trim().min(1, "A value is required"),
   expectedVersion: z.number().optional(),
@@ -148,7 +148,7 @@ export const POST = withAuthenticatedRoute<{ id: string; documentId: string }>(a
       },
     });
 
-    const label = DOCUMENT_FIELD_LABELS[fieldKey];
+    const label = (DOCUMENT_FIELD_LABELS as Record<string, string>)[fieldKey] || fieldKey;
     await ExceptionService.resolveDocumentFieldException(
       documentId,
       fieldKey,

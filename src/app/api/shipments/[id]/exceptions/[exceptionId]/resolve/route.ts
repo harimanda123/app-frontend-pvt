@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withAuthenticatedRoute } from "@/lib/api/auth-guards";
 import { validatePathParams } from "@/lib/api/validation";
 import { db } from "@/lib/db";
+import { createAuditLog } from "@/lib/audit";
 import { ShipmentEventBus } from "@/modules/events/shipmentEventBus";
 import { CanonicalShipmentService } from "@/modules/shipment/canonicalShipmentService";
 import { z } from "zod";
@@ -26,13 +27,30 @@ export const POST = withAuthenticatedRoute<{ id: string; exceptionId: string }>(
       return NextResponse.json({ error: "Exception item not found" });
     }
 
+    const resolverName = [ctx.firstName, ctx.lastName].filter(Boolean).join(" ") || ctx.email;
+
     await db.exceptionItem.update({
       where: { id: exceptionId, accountId: ctx.accountId },
       data: {
         status: "Resolved",
         resolvedAt: new Date(),
         resolvedBy: ctx.userId,
-        resolvedByName: [ctx.firstName, ctx.lastName].filter(Boolean).join(" ") || ctx.email,
+        resolvedByName: resolverName,
+      },
+    });
+
+    await createAuditLog({
+      accountId: ctx.accountId,
+      userId: ctx.userId,
+      action: "EXCEPTION_RESOLVED",
+      entity: "ExceptionItem",
+      entityId: exceptionId,
+      source: "UI",
+      metadata: {
+        shipmentId: id,
+        description: exception.description,
+        type: exception.type,
+        resolvedByName: resolverName,
       },
     });
 
