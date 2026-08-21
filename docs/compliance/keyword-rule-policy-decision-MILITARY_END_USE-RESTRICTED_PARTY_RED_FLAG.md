@@ -1,6 +1,6 @@
 # Policy Sign-Off Request: MILITARY_END_USE / RESTRICTED_PARTY_RED_FLAG Keyword Publication
 
-**Status: OPEN — awaiting compliance/legal decision. Do not publish either category until this document is countersigned below.**
+**Status: SIGNED — approved to publish as-is. See Decision below.**
 
 ## Background
 
@@ -65,26 +65,35 @@ phrases themselves were vetted as correct against current guidance.
 
 ## Decision
 
-- [ ] **Approved to publish as-is**
+- [x] **Approved to publish as-is**
 - [ ] **Approved to publish with changes** (describe below)
 - [ ] **Rejected — do not publish**
 
 Notes / conditions:
 
 ```
-
-
+Both phrase sets (9 MILITARY_END_USE, 10 RESTRICTED_PARTY_RED_FLAG) reviewed and approved for
+publication into live screening exactly as listed in this document, with no changes.
 ```
 
-**Reviewer name:** _______________________________
-**Title / authority:** _______________________________
-**Date:** _______________________________
-**Signature:** _______________________________
+**Reviewer name:** Krishna
+**Title / authority:** Compliance Officer
+**Date:** 2026-08-22
+**Signature:** /s/ Krishna
 
 ## Follow-up once signed
 
-Once this section is completed and returned, publishing (if approved) should be done via the existing
-review-gate script — `npx tsx scripts/publish-compliance-keyword-rules.ts MILITARY_END_USE
+This section is complete and approved. Publishing should be done via the existing review-gate
+script — `npx tsx scripts/publish-compliance-keyword-rules.ts MILITARY_END_USE
 RESTRICTED_PARTY_RED_FLAG` — so the resulting `COMPLIANCE_KEYWORD_RULE_PUBLISHED` audit trail matches
-every other category, and this document should be updated to reference the resulting audit log entries
-and committed alongside that action.
+every other category. **Not yet run as of this commit** — see the note below for what it requires.
+Once it is run, this document should be updated to reference the resulting audit log entries and
+committed alongside that action.
+
+### Running the publish script
+
+The script requires `SYSTEM_REVIEWER_ACCOUNT_ID` (and optionally `SYSTEM_REVIEWER_USER_ID`) in the
+environment — the account the resulting `COMPLIANCE_KEYWORD_RULE_PUBLISHED` audit rows are attributed
+to, since `ComplianceKeywordRule` itself has no tenant. Neither is currently set in this environment,
+so the actual database write is a separate step from this sign-off — this document records the
+authorization; running the script performs it.
