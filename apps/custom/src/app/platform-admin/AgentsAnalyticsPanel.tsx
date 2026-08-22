@@ -15,6 +15,16 @@ import {
   HelpCircle,
   FileText,
   Clock,
+  FileCheck2,
+  ScanText,
+  Boxes,
+  Scale,
+  Globe2,
+  Calculator,
+  ShieldAlert,
+  Send,
+  Receipt,
+  Cpu,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import type {
@@ -477,6 +487,153 @@ function DocumentProcessingSection({ data }: { data: DocumentProcessingAnalytics
   );
 }
 
+const REAL_AUTONOMOUS_AGENTS = [
+  {
+    id: "document-intake",
+    name: "Document Intake Agent",
+    category: "Intake & Intelligence",
+    icon: FileCheck2,
+    regulation: "19 CFR § 141.86",
+    description: "Automated document ingestion, packet stitching, and format normalization across commercial invoices, BOLs, and packing lists.",
+    status: "ACTIVE",
+  },
+  {
+    id: "document-intelligence",
+    name: "Document Intelligence Agent",
+    category: "Intake & Intelligence",
+    icon: ScanText,
+    regulation: "19 CFR § 141.89",
+    description: "Deep multi-modal extraction of trade attributes, line item hierarchies, Incoterms, and MID builder.",
+    status: "ACTIVE",
+  },
+  {
+    id: "product-intelligence",
+    name: "Product Intelligence Agent",
+    category: "Intake & Intelligence",
+    icon: Boxes,
+    regulation: "GRI 1 & GRI 3",
+    description: "Deterministic SKU/GTIN Product Master matching, material composition enrichment, and conflict detection.",
+    status: "ACTIVE",
+  },
+  {
+    id: "hts-classification",
+    name: "HTS Classification Agent",
+    category: "Classification & Tariff",
+    icon: Scale,
+    regulation: "19 U.S.C. § 1202",
+    description: "Automated 10-digit HTS code resolution with legal GRI citations and CBP CROSS Customs Rulings vector search.",
+    status: "ACTIVE",
+  },
+  {
+    id: "origin-rules",
+    name: "Origin & Trade Agreement Agent",
+    category: "Classification & Tariff",
+    icon: Globe2,
+    regulation: "19 CFR Part 102 & Part 181",
+    description: "Tariff shift rules engine (CC, CTH, CTSH), USMCA RVC calculations, and Section 301/232 exclusion analysis.",
+    status: "ACTIVE",
+  },
+  {
+    id: "valuation-assists",
+    name: "Valuation & Assists Agent",
+    category: "Classification & Tariff",
+    icon: Calculator,
+    regulation: "19 U.S.C. § 1401a",
+    description: "CBP transaction valuation, tooling assist allocations, buyer rebates, and ocean freight deductions.",
+    status: "ACTIVE",
+  },
+  {
+    id: "compliance-audit",
+    name: "Compliance & Audit Risk Agent",
+    category: "Risk & Compliance Audit",
+    icon: ShieldAlert,
+    regulation: "19 U.S.C. § 1592",
+    description: "50+ pre-filing compliance audit rules, PGA screening (FDA, EPA, FCC), ADD/CVD verification, and UFLPA screening.",
+    status: "ACTIVE",
+  },
+  {
+    id: "filing-readiness",
+    name: "Filing Readiness Agent",
+    category: "Risk & Compliance Audit",
+    icon: CheckCircle2,
+    regulation: "19 CFR § 141.61",
+    description: "CBP Form 7501 field-level verification, continuous bond validation, and automated broker queue routing.",
+    status: "ACTIVE",
+  },
+  {
+    id: "customs-filing",
+    name: "Customs Filing Agent",
+    category: "ACE Filing & Response",
+    icon: Send,
+    regulation: "19 CFR Part 143",
+    description: "Direct electronic ABI/ACE EDI transmission (Types 01, 11, 86, 06) and real-time CBP status listener.",
+    status: "ACTIVE",
+  },
+  {
+    id: "response-management",
+    name: "Response & Post-Summary Agent",
+    category: "ACE Filing & Response",
+    icon: Receipt,
+    regulation: "19 CFR § 173 & Part 190",
+    description: "Post-entry event monitoring, CBP Form 28/29 legal response drafting, PSC filing, and Duty Drawback refunds.",
+    status: "ACTIVE",
+  },
+];
+
+function ActiveAgentsCatalog() {
+  return (
+    <div className="apple-card rounded-3xl border border-border bg-white shadow-sm overflow-hidden p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-4">
+        <div>
+          <h2 className="text-lg font-bold text-ink flex items-center space-x-2">
+            <Cpu className="w-5 h-5 text-amber-600" />
+            <span>Active Autonomous Agents Directory</span>
+          </h2>
+          <p className="text-xs text-ink-muted mt-0.5">
+            The 10 production-deployed AI agents powering end-to-end customs intake, tariff classification, compliance, and ACE filing.
+          </p>
+        </div>
+        <Badge variant="success" className="text-xs font-bold px-3 py-1 self-start sm:self-auto">
+          10 Active Autonomous Agents
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+        {REAL_AUTONOMOUS_AGENTS.map((agent) => {
+          const IconComponent = agent.icon;
+          return (
+            <div
+              key={agent.id}
+              className="p-4 rounded-2xl bg-surface-muted/60 border border-border hover:border-amber-500/40 transition-all space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-amber-100/70 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0">
+                    <IconComponent className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-xs text-ink block">{agent.name}</span>
+                    <span className="text-[10px] text-ink-muted font-mono">{agent.category}</span>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white border border-border text-ink-muted">
+                    {agent.regulation}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                    {agent.status}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-ink-muted leading-relaxed pl-9">{agent.description}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function AgentsAnalyticsPanel({
   data,
   documentProcessing,
@@ -512,6 +669,8 @@ export function AgentsAnalyticsPanel({
           footnote="Metered AI capabilities with at least one call"
         />
       </div>
+
+      <ActiveAgentsCatalog />
 
       <UsageTrendChart daily={data.daily} />
 
