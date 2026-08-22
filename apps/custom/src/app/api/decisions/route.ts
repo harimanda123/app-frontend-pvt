@@ -417,27 +417,28 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
   // Approving a reclassification used to change only the decision row, so the
   // line items kept the code the reviewer had just rejected.
   let classificationApplied: ClassificationApplication | null = null;
-  if (action === "APPROVE" && decision.proposedHtsCode) {
-    classificationApplied = await applyProposedHtsCode(decision, decision.proposedHtsCode, {
-      accountId: ctx.accountId,
-      userId: ctx.userId,
-      reviewerName: reviewer.name || ctx.userId,
-    });
-  } else if (action === "REJECT" && decision.lineNumber != null) {
-    // Nothing on the curated record changed -- just flagged back for
-    // re-review -- so this does not bump Shipment.version.
+  if (action === "APPROVE" && decision.proposedHtsCode && decision.shipmentId) {
+    classificationApplied = await applyProposedHtsCode(
+      { ...decision, shipmentId: decision.shipmentId },
+      decision.proposedHtsCode,
+      {
+        accountId: ctx.accountId,
+        userId: ctx.userId,
+        reviewerName: reviewer.name || ctx.userId,
+      }
+    );
+  } else if (action === "REJECT" && decision.lineNumber != null && decision.shipmentId) {
     await db.shipmentLineItem.updateMany({
       where: { shipmentId: decision.shipmentId, accountId: ctx.accountId, lineNumber: decision.lineNumber },
       data: { status: "Review Required" },
     });
   }
 
-  // Resolves HTS_REVIEW_REQUIRED (and any other now-stale exception) against
-  // the line item state this review action just produced, instead of
-  // leaving it to wait for the next pipeline trigger.
-  await ReconciliationEngine.reconcileShipment(decision.shipmentId, ctx.accountId, "USER_FIELD_UPDATED").catch((err) => {
-    console.error("[decisions/route] Reconciliation after review failed:", err);
-  });
+  if (decision.shipmentId) {
+    await ReconciliationEngine.reconcileShipment(decision.shipmentId, ctx.accountId, "USER_FIELD_UPDATED").catch((err) => {
+      console.error("[decisions/route] Reconciliation after review failed:", err);
+    });
+  }
 
   const updatedDecision = await db.agentDecision.findFirst({
     where: { id: decisionId, accountId: ctx.accountId },
@@ -462,7 +463,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     },
   });
 
-  if (action === "APPROVE") {
+  if (action === "APPROVE" && decision.shipmentId) {
     deliverWebhookEvent(ctx.accountId, "decision.approved", {
       decisionId,
       shipmentId: decision.shipmentId,
@@ -471,18 +472,18 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     }).catch((err) => console.error("[webhook] Failed to dispatch decision.approved:", err));
   }
 
-  // Billing: emit usage event for HTS manual review (non-blocking, must never fail the route)
-  if (decision.agentName?.includes("HTS")) {
+  if (decision.agentName?.includes("HTS") && decision.shipmentId) {
+    const shpId = decision.shipmentId;
     db.shipment
       .findUnique({
-        where: { id: decision.shipmentId },
+        where: { id: shpId },
         select: { clientId: true, importerOfRecordId: true },
       })
       .then((shipment) =>
         recordUsageEvent({
           accountId: ctx.accountId,
           eventCode: "HTS_MANUAL_REVIEW_COMPLETED",
-          shipmentId: decision.shipmentId,
+          shipmentId: shpId,
           clientId: shipment?.clientId ?? undefined,
           importerId: shipment?.importerOfRecordId ?? undefined,
           userId: ctx.userId,
@@ -491,8 +492,6 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
           quantity: 1,
           success: action === "APPROVE",
           automated: false,
-          // processingDuration intentionally omitted — no client-side timer exists yet.
-          // costingEngine will log UNTRACKED_LABOR_DURATION exception (by design).
           idempotencyKey: `billing:decision:${decisionId}:${action}`,
           metadata: { overridesClassification, action },
         })

@@ -139,9 +139,15 @@ export function ActionsClient({ groups: initialGroups, canWrite, canWaive, initi
     return (
       g.shipmentNumber.toLowerCase().includes(q) ||
       (g.clientName ?? "").toLowerCase().includes(q) ||
-      g.items.some(
-        (item) =>
-          (item.kind === "decision" ? item.agentName : item.type).toLowerCase().includes(q)
+      g.items.some((item) =>
+        (item.kind === "decision"
+          ? item.agentName
+          : item.kind === "exception"
+            ? item.type
+            : item.title
+        )
+          .toLowerCase()
+          .includes(q)
       )
     );
   });
@@ -342,6 +348,8 @@ export function ActionsClient({ groups: initialGroups, canWrite, canWaive, initi
             <option value="exception">Exceptions</option>
             <option value="document">Documents</option>
             <option value="filing">Filings</option>
+            <option value="tender">Tenders</option>
+            <option value="carrier_invoice">Carrier Invoices</option>
           </select>
 
           {/* Shipment / Item Status filter dropdown */}
@@ -658,6 +666,8 @@ export function ActionsClient({ groups: initialGroups, canWrite, canWaive, initi
                               setDocModal({ documentId: docId, fileName, fileUrl: doc?.fileUrl ?? null });
                             }}
                           />
+                        ) : item.kind === "tender" || item.kind === "carrier_invoice" ? (
+                          <FreightActionCard key={item.id} item={item} />
                         ) : (
                           <ExceptionCard
                             key={item.id}
@@ -780,6 +790,10 @@ function categorize(item: ActionItem): TriageCategory {
   if (item.kind === "exception") {
     // Critical exceptions block downstream work the same way a blocked decision does.
     if (item.severity === "Critical") return "blocked";
+    return "review";
+  }
+
+  if (item.kind === "tender" || item.kind === "carrier_invoice") {
     return "review";
   }
 
@@ -1498,4 +1512,47 @@ function BulkConfirmDialog({
     </div>
   );
 }
+
+function FreightActionCard({
+  item,
+}: {
+  item: Extract<ActionItem, { kind: "tender" | "carrier_invoice" }>;
+}) {
+  const isTender = item.kind === "tender";
+  return (
+    <div className="border border-border bg-white rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-ink uppercase tracking-wide">
+          {isTender ? "Tender Action" : "Carrier Invoice Match"}
+        </span>
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+          {item.status}
+        </span>
+      </div>
+      <p className="text-xs text-ink font-medium">{item.title || item.description}</p>
+      <div className="flex items-center gap-2 pt-1">
+        {isTender ? (
+          <>
+            <button className="px-3 py-1.5 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand-hover transition-colors">
+              Review Tender Response
+            </button>
+            <button className="px-3 py-1.5 rounded-xl border border-border text-ink text-xs font-bold hover:bg-surface-muted transition-colors">
+              Send Tender
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-colors">
+              Review Invoice Mismatch
+            </button>
+            <button className="px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-bold hover:bg-red-100 transition-colors">
+              Override Mismatch
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 

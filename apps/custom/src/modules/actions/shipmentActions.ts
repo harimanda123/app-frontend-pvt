@@ -51,6 +51,26 @@ export type ActionItem =
       assignedToUserId: string | null;
       assignedToUser: ExceptionRecord["assignedToUser"];
       raw: ExceptionRecord;
+    }
+  | {
+      kind: "tender";
+      id: string;
+      title: string;
+      description: string;
+      status: string;
+      severity?: string;
+      createdAt: string | Date;
+      raw: any;
+    }
+  | {
+      kind: "carrier_invoice";
+      id: string;
+      title: string;
+      description: string;
+      status: string;
+      severity?: string;
+      createdAt: string | Date;
+      raw: any;
     };
 
 export interface ShipmentActionGroup {
@@ -249,18 +269,24 @@ export function buildShipmentActionGroups(
   for (const [shipmentId, { shipmentNumber, clientId, clientName, assignedBrokerId, assignedBrokerName, items }] of byShipment) {
     if (items.length === 0) continue;
 
-    const priorities = items.map((item) =>
-      item.kind === "decision"
-        ? (decisionPriority(item.status, item.proposedDescription) ?? "normal")
-        : exceptionPriority(item.severity)
-    );
+    const getItemPriority = (item: ActionItem): WorkPriority => {
+      if (item.kind === "decision") {
+        return decisionPriority(item.status, item.proposedDescription) ?? "normal";
+      }
+      if (item.kind === "exception") {
+        return exceptionPriority(item.severity);
+      }
+      return item.severity ? exceptionPriority(item.severity) : "normal";
+    };
+
+    const priorities = items.map(getItemPriority);
 
     const decisionCount = items.filter((i) => i.kind === "decision").length;
     const exceptionCount = items.filter((i) => i.kind === "exception").length;
 
     items.sort((a, b) => {
-      const pa = a.kind === "decision" ? (decisionPriority(a.status, a.proposedDescription) ?? "normal") : exceptionPriority(a.severity);
-      const pb = b.kind === "decision" ? (decisionPriority(b.status, b.proposedDescription) ?? "normal") : exceptionPriority(b.severity);
+      const pa = getItemPriority(a);
+      const pb = getItemPriority(b);
       const rankDiff = PRIORITY_RANK[pa] - PRIORITY_RANK[pb];
       if (rankDiff !== 0) return rankDiff;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();

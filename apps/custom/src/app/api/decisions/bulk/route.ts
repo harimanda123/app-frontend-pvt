@@ -209,20 +209,26 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
       }
 
       // Apply HTS code for classification approvals
-      if (action === "APPROVE" && decision.proposedHtsCode) {
-        await applyProposedHtsCode(decision, decision.proposedHtsCode, {
-          accountId: ctx.accountId,
-          userId: ctx.userId,
-          reviewerName: reviewer.name || ctx.userId,
-        });
-      } else if (action === "REJECT" && decision.lineNumber != null) {
+      if (action === "APPROVE" && decision.proposedHtsCode && decision.shipmentId) {
+        await applyProposedHtsCode(
+          { ...decision, shipmentId: decision.shipmentId },
+          decision.proposedHtsCode,
+          {
+            accountId: ctx.accountId,
+            userId: ctx.userId,
+            reviewerName: reviewer.name || ctx.userId,
+          }
+        );
+      } else if (action === "REJECT" && decision.lineNumber != null && decision.shipmentId) {
         await db.shipmentLineItem.updateMany({
           where: { shipmentId: decision.shipmentId, accountId: ctx.accountId, lineNumber: decision.lineNumber },
           data: { status: "Review Required" },
         });
       }
 
-      affectedShipmentIds.add(decision.shipmentId);
+      if (decision.shipmentId) {
+        affectedShipmentIds.add(decision.shipmentId);
+      }
 
       const auditSource = (req.headers?.get?.("x-qubere-source") === "CHAT" || (body as any)?.source === "CHAT") ? "CHAT" : "UI";
 

@@ -3,8 +3,8 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Qubere TMS",
-  description: "Transportation Management System skeleton -- shared auth and DB connection scaffold.",
+  title: "Qubere TMS — AI Freight Execution Engine",
+  description: "Autonomous end-to-end freight execution, rate shopping, tendering, tracking, and 3-way invoice matching.",
 };
 
 export default function RootLayout({
@@ -15,7 +15,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className="min-h-screen bg-slate-950 text-slate-50 antialiased">
+        <body className="min-h-screen bg-surface-muted text-ink selection:bg-brand/20 selection:text-brand antialiased">
           {children}
         </body>
       </html>

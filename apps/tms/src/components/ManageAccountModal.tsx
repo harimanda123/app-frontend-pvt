@@ -1,0 +1,292 @@
+"use client";
+
+import { useState } from "react";
+import { createPortal } from "react-dom";
+import { X, Building, Users, ShieldCheck, Settings2, Plug, Mail, Shield } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export type PanelItemId = "account" | "users" | "roles" | "settings" | "documentEmail" | "integrations";
+
+export interface ManageAccountPanelItem {
+  id: PanelItemId;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  endpoint?: string;
+}
+
+export interface ManageAccountExternalItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+}
+
+interface ManageAccountModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  accountName: string;
+  items?: ManageAccountPanelItem[];
+  externalItems?: ManageAccountExternalItem[];
+}
+
+const DEFAULT_ITEMS: ManageAccountPanelItem[] = [
+  { id: "account", name: "Account Profile", icon: Building, description: "Company details & TMS preferences" },
+  { id: "users", name: "User Management", icon: Users, description: "Dispatchers, drivers, finance & invitation grants" },
+  { id: "roles", name: "Roles & Permissions", icon: ShieldCheck, description: "Role definitions & permission levels" },
+  { id: "settings", name: "System Settings", icon: Settings2, description: "Configuration, dispatch rules & audit logs" },
+  { id: "integrations", name: "Integrations & APIs", icon: Plug, description: "ERPs, P44, Samsara, QuickBooks & Webhooks" },
+  { id: "documentEmail", name: "Inbound Email Routing", icon: Mail, description: "Automated document ingestion email addresses" },
+];
+
+export function ManageAccountModal({
+  isOpen,
+  onClose,
+  accountName,
+  items = DEFAULT_ITEMS,
+  externalItems = [{ name: "Qubere Freight Console", href: "/platform-admin", icon: Shield, description: "Cross-tenant administration" }],
+}: ManageAccountModalProps) {
+  const [activeTab, setActiveTab] = useState<PanelItemId>("account");
+
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 backdrop-blur-xs flex justify-end transition-opacity">
+      <div className="relative w-full max-w-4xl bg-white h-full shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
+        {/* Header */}
+        <div className="h-16 px-6 border-b border-border flex items-center justify-between bg-surface-muted/50">
+          <div>
+            <h2 className="text-base font-bold text-ink">Account & Governance Settings</h2>
+            <p className="text-xs text-ink-muted">{accountName} — Freight OS</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-ink-muted hover:text-ink hover:bg-white border border-border/40 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content Body: Sidebar + Main Panel */}
+        <div className="flex-1 flex min-h-0 overflow-hidden">
+          {/* Navigation Sidebar */}
+          <div className="w-64 border-r border-border bg-surface-muted/30 p-3 space-y-1 overflow-y-auto shrink-0">
+            <div className="px-3 py-1.5 text-[10px] font-bold text-ink-muted uppercase tracking-wider">
+              Management & Controls
+            </div>
+            {items.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={cn(
+                    "w-full flex items-start space-x-3 p-2.5 rounded-xl text-left transition-all cursor-pointer",
+                    isActive
+                      ? "bg-white text-brand shadow-2xs border border-border font-semibold"
+                      : "text-ink hover:bg-white/60 hover:text-brand"
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4 shrink-0 mt-0.5", isActive ? "text-brand" : "text-ink-muted")} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold truncate">{item.name}</p>
+                    <p className="text-[10px] text-ink-muted line-clamp-1">{item.description}</p>
+                  </div>
+                </button>
+              );
+            })}
+
+            {externalItems.length > 0 && (
+              <>
+                <div className="px-3 pt-4 pb-1.5 text-[10px] font-bold text-amber-700 uppercase tracking-wider">
+                  Platform Admin
+                </div>
+                {externalItems.map((ext) => {
+                  const Icon = ext.icon;
+                  return (
+                    <a
+                      key={ext.name}
+                      href={ext.href}
+                      className="flex items-start space-x-3 p-2.5 rounded-xl text-amber-900 bg-amber-500/10 hover:bg-amber-500/20 transition-all border border-amber-500/20"
+                    >
+                      <Icon className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate">{ext.name}</p>
+                        <p className="text-[10px] text-amber-800 line-clamp-1">{ext.description}</p>
+                      </div>
+                    </a>
+                  );
+                })}
+              </>
+            )}
+          </div>
+
+          {/* Active Tab Panel */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            {activeTab === "account" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-ink">Account Profile</h3>
+                  <p className="text-xs text-ink-muted">Organization identity and TMS dispatch preferences</p>
+                </div>
+                <div className="space-y-4 max-w-lg">
+                  <div>
+                    <label className="block text-xs font-semibold text-ink mb-1">Company Name</label>
+                    <input
+                      type="text"
+                      defaultValue={accountName}
+                      className="w-full px-3 py-2 rounded-xl border border-border text-xs bg-white focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-ink mb-1">SCAC / DOT Carrier Number</label>
+                    <input
+                      type="text"
+                      defaultValue="QBR-FREIGHT-8821"
+                      className="w-full px-3 py-2 rounded-xl border border-border text-xs bg-white focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-ink mb-1">Default Auto-Tender Protocol</label>
+                    <select className="w-full px-3 py-2 rounded-xl border border-border text-xs bg-white focus:outline-none focus:border-brand">
+                      <option>Lowest Rate First (Waterfall Routing)</option>
+                      <option>Highest On-Time Performance (KPI Routing)</option>
+                      <option>Broadcast to All Contracted Carriers</option>
+                    </select>
+                  </div>
+                  <button className="px-4 py-2 bg-brand text-white rounded-xl text-xs font-bold shadow-xs hover:bg-brand-hover transition-colors">
+                    Save Account Profile
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "users" && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-ink">User & Member Management</h3>
+                    <p className="text-xs text-ink-muted">Manage active dispatchers, brokers, and access permissions</p>
+                  </div>
+                  <a href="/admin/users" className="px-3 py-1.5 bg-brand text-white rounded-xl text-xs font-bold hover:bg-brand-hover">
+                    Full User Management Page →
+                  </a>
+                </div>
+                <div className="border border-border rounded-xl overflow-hidden bg-white">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-surface-muted border-b border-border font-semibold text-ink">
+                      <tr>
+                        <th className="p-3">User</th>
+                        <th className="p-3">Role</th>
+                        <th className="p-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      <tr>
+                        <td className="p-3 font-semibold text-ink">Operations Lead (You)</td>
+                        <td className="p-3 text-ink-muted">OWNER / DISPATCHER</td>
+                        <td className="p-3"><span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">Active</span></td>
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-ink">Freight Finance Team</td>
+                        <td className="p-3 text-ink-muted">FINANCE_ADMIN</td>
+                        <td className="p-3"><span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">Active</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "roles" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-ink">Roles & Permissions</h3>
+                  <p className="text-xs text-ink-muted">Role definitions and fine-grained authorization levels</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl border border-border bg-white">
+                    <h4 className="font-bold text-xs text-ink mb-1">OWNER / DISPATCHER</h4>
+                    <p className="text-[11px] text-ink-muted mb-3">Full administrative access to dispatching, rate negotiations, and billing.</p>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">All Permissions Granted</span>
+                  </div>
+                  <div className="p-4 rounded-xl border border-border bg-white">
+                    <h4 className="font-bold text-xs text-ink mb-1">FINANCE & AUDITOR</h4>
+                    <p className="text-[11px] text-ink-muted mb-3">Access to 3-way invoice matching, billing approval, and audit logs.</p>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[10px] font-bold">Finance & Billing Only</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "settings" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-ink">System Settings & Audit Log</h3>
+                  <p className="text-xs text-ink-muted">Audit trail of all autonomous dispatch actions and rate approvals</p>
+                </div>
+                <div className="border border-border rounded-xl p-4 bg-white space-y-3">
+                  <div className="flex items-center justify-between text-xs pb-2 border-b border-border">
+                    <span className="font-semibold text-ink">Auto-Approve Rate Quotes below Target +5%</span>
+                    <input type="checkbox" defaultChecked className="rounded border-border text-brand" />
+                  </div>
+                  <div className="flex items-center justify-between text-xs pb-2 border-b border-border">
+                    <span className="font-semibold text-ink">Automated 3-Way Invoice Audit Tolerance</span>
+                    <span className="text-xs font-bold text-brand">$15.00 Threshold</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "integrations" && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-ink">Carrier & System Integrations</h3>
+                    <p className="text-xs text-ink-muted">Connected Project44, Samsara, QuickBooks, and Carrier APIs</p>
+                  </div>
+                  <a href="/admin/integrations" className="px-3 py-1.5 bg-brand text-white rounded-xl text-xs font-bold hover:bg-brand-hover">
+                    Manage All Integrations →
+                  </a>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl border border-border bg-white flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-xs text-ink">Project44 Real-Time Tracking</h4>
+                      <p className="text-[10px] text-ink-muted">Active ELD & GPS telemetry sync</p>
+                    </div>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  </div>
+                  <div className="p-4 rounded-xl border border-border bg-white flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-xs text-ink">Samsara Fleet ELD</h4>
+                      <p className="text-[10px] text-ink-muted">Live HOS & Driver status</p>
+                    </div>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "documentEmail" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-ink">Inbound Freight Email Ingestion</h3>
+                  <p className="text-xs text-ink-muted">Automated AI extraction for incoming Rate Confirmation & BOL emails</p>
+                </div>
+                <div className="p-4 rounded-xl border border-border bg-surface-muted/50">
+                  <p className="text-xs font-bold text-ink mb-1">Your Dedicated Inbound Email Address:</p>
+                  <code className="text-xs font-mono bg-white px-3 py-2 rounded-lg border border-border block text-brand select-all">
+                    freight-docs-acme@inbound.qubere.ai
+                  </code>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}

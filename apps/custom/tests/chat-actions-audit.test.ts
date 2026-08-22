@@ -3,7 +3,18 @@ import { createAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { headers } from "next/headers";
 
-vi.mock("@/lib/db", () => ({
+const dbMock = {
+  auditLog: {
+    create: vi.fn().mockImplementation(async ({ data }) => ({
+      id: "audit-123",
+      ...data,
+      createdAt: new Date(),
+    })),
+  },
+};
+
+vi.mock("@/lib/db", () => ({ db: dbMock.auditLog ? dbMock : { db: dbMock } }));
+vi.mock("@qubere/db", () => ({
   db: {
     auditLog: {
       create: vi.fn().mockImplementation(async ({ data }) => ({

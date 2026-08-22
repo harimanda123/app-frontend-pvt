@@ -8,37 +8,8 @@ import {
   triageDecision,
 } from "@/modules/decisions/decisionState";
 
-export type WorkItemKind = "decision" | "finding" | "filing" | "document" | "exception";
-export type WorkPriority = "critical" | "high" | "normal";
-
-/** The most-urgent open deadline on the shipment this item belongs to. */
-export interface UrgencyContext {
-  deadlineType: string;
-  dueAt: Date;
-  msRemaining: number;
-  breached: boolean;
-  /** True when dueAt was computed from ETA/ETD rather than a confirmed date. */
-  estimated: boolean;
-  /** USD penalty exposure from the rule, or null when not quantifiable. */
-  exposureUsd: number | null;
-}
-
-export interface WorkItem {
-  id: string;
-  kind: WorkItemKind;
-  title: string;
-  reason: string;
-  href: string;
-  priority: WorkPriority;
-  /** Numeric sort key — higher is more urgent. Never rendered in the UI. */
-  score: number;
-  createdAt: Date;
-  shipmentNumber: string | null;
-  assignedToMe: boolean;
-  filingDeadline: Date | null;
-  /** Set when the item's shipment has an open ComplianceDeadline. */
-  urgency: UrgencyContext | null;
-}
+import type { WorkItemKind, WorkPriority, UrgencyContext, WorkItem } from "@qubere/decisions";
+export type { WorkItemKind, WorkPriority, UrgencyContext, WorkItem };
 
 export interface DecisionRow {
   id: string;
@@ -49,7 +20,7 @@ export interface DecisionRow {
   proposedDescription?: string | null;
   confidence?: number | null;
   createdAt: Date;
-  shipmentId: string;
+  shipmentId: string | null;
   shipmentNumber: string | null;
   filingDeadline?: Date | null;
   /** Sum of ShipmentLineItem.totalValue for the shipment, in USD. Used for B-1 ranking. */
@@ -474,6 +445,8 @@ export function countByKind(items: WorkItem[]): Record<WorkItemKind, number> {
     filing: 0,
     document: 0,
     exception: 0,
+    tender: 0,
+    carrier_invoice: 0,
   };
   for (const item of items) {
     counts[item.kind] += 1;
