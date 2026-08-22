@@ -25,6 +25,7 @@ function validInput(overrides: Partial<ValidatorInput> = {}): ValidatorInput {
     blockingReconciliationIssues: [],
     htsReleaseAgeInDays: 10,
     transportMode: null,
+    pgaRequirements: [],
     ...overrides,
   };
 }
@@ -196,6 +197,39 @@ describe("runFilingValidation — HTS release freshness", () => {
     expect(warning).toBeDefined();
     expect(warning?.blocking).toBe(false);
     expect(outcome.blockers.some((b) => b.rule === "HTS_RELEASE_CURRENT")).toBe(false);
+  });
+});
+
+// ── PGA (Partner Government Agency) requirements ───────────────────────────────
+// Detected PgaRequirement rows (agency + missingPermits) used to be surfaced
+// in the UI but never gated transmission at all. checkPgaRequirementsSatisfied
+// blocks on any detected requirement whose missingPermits is still non-empty,
+// using that row's own real data -- not an inferred rule.
+
+describe("runFilingValidation — PGA requirements", () => {
+  it("passes when no PGA requirements were detected", () => {
+    const outcome = runFilingValidation(validInput());
+    expect(outcome.blockers.some((b) => b.rule === "PGA_REQUIREMENTS_SATISFIED")).toBe(false);
+  });
+
+  it("passes when detected PGA requirements have no missing permits", () => {
+    const outcome = runFilingValidation(
+      validInput({ pgaRequirements: [{ id: "pga_1", agency: "EPA", missingPermits: [] }] })
+    );
+    expect(outcome.valid).toBe(true);
+  });
+
+  it("blocks when a detected PGA requirement still has missing permits", () => {
+    const outcome = runFilingValidation(
+      validInput({
+        pgaRequirements: [{ id: "pga_1", agency: "FDA", missingPermits: ["FDA Device Listing Number (LST)"] }],
+      })
+    );
+    expect(outcome.valid).toBe(false);
+    const blocker = outcome.blockers.find((b) => b.rule === "PGA_REQUIREMENTS_SATISFIED");
+    expect(blocker).toBeDefined();
+    expect(blocker?.blocking).toBe(true);
+    expect(blocker?.message).toContain("FDA");
   });
 });
 

@@ -65,6 +65,17 @@ export interface ValidatorInput {
   // Transport mode for entry-type compatibility check
   transportMode: string | null;
   validEntryTypesForMode?: string[];
+  // PGA (Partner Government Agency) requirements detected against this
+  // filing's line items (PgaRequirement rows). Each entry's own
+  // missingPermits is the authoritative satisfaction signal -- it is real
+  // data collected via the PGA screening flow, not inferred here.
+  pgaRequirements: ValidatorPgaRequirement[];
+}
+
+export interface ValidatorPgaRequirement {
+  id: string;
+  agency: string;
+  missingPermits: string[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -303,6 +314,30 @@ function checkHtsReleaseFreshness(input: ValidatorInput): ValidationResult {
   return pass("htsRelease", "HTS_RELEASE_CURRENT", `HTS release is ${input.htsReleaseAgeInDays} day(s) old — within the 30-day freshness window.`, false);
 }
 
+function checkPgaRequirementsSatisfied(input: ValidatorInput): ValidationResult {
+  const unresolved = input.pgaRequirements.filter((r) => r.missingPermits.length > 0);
+  if (unresolved.length > 0) {
+    const detail = unresolved
+      .map((r) => `${r.agency} (${r.missingPermits.join(", ")})`)
+      .join("; ");
+    return fail(
+      "pgaRequirements",
+      "PGA_REQUIREMENTS_SATISFIED",
+      `${unresolved.length} partner government agency requirement(s) have outstanding permits: ${detail}.`,
+      true
+    );
+  }
+  if (input.pgaRequirements.length > 0) {
+    return pass(
+      "pgaRequirements",
+      "PGA_REQUIREMENTS_SATISFIED",
+      `All ${input.pgaRequirements.length} detected PGA requirement(s) have their required permits on file.`,
+      true
+    );
+  }
+  return pass("pgaRequirements", "PGA_REQUIREMENTS_SATISFIED", "No PGA requirements detected for this filing.", true);
+}
+
 function checkReadinessScore(input: ValidatorInput): ValidationResult {
   const score = input.readinessScore ?? 0;
   const threshold = input.readinessThreshold;
@@ -335,6 +370,7 @@ export function runFilingValidation(input: ValidatorInput): ValidationOutcome {
     checkPortOfEntry(input),
     checkEntryTypeForMode(input),
     checkHtsReleaseFreshness(input),
+    checkPgaRequirementsSatisfied(input),
     checkReadinessScore(input),
   ];
 

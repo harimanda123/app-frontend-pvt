@@ -52,6 +52,29 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, re
 
   const isStandalone = !filingForValidation.shipmentId || !filingForValidation.shipment;
 
+  // Maker/checker: whoever prepared this filing cannot also be the one who
+  // transmits it. Applies to standalone filings too -- segregation of duties
+  // is a property of who's acting on the filing, not of whether a shipment
+  // happens to be attached.
+  if (filingForValidation.preparedByUserId && filingForValidation.preparedByUserId === ctx.userId) {
+    await createAuditLog({
+      accountId: ctx.accountId,
+      userId: ctx.userId,
+      action: AuditAction.FILING_SEGREGATION_VIOLATION,
+      entity: "CustomsFiling",
+      entityId: id,
+      source: auditSource,
+      metadata: { attemptedAction: "transmit", entryNumber: filingForValidation.entryNumber },
+    });
+    return buildErrorResponse(
+      403,
+      "SEGREGATION_OF_DUTIES_VIOLATION",
+      "The user who prepared this filing cannot also transmit it. A different user must submit it to customs.",
+      undefined,
+      requestId
+    );
+  }
+
   if (isStandalone) {
     if (!filingForValidation.localReferenceNumber) {
       return NextResponse.json({
@@ -67,25 +90,6 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, re
   } else {
     if (!filingForValidation.shipment) {
       return buildErrorResponse(400, "BAD_REQUEST", "Shipment not found for this filing", undefined, requestId);
-    }
-
-    if (filingForValidation.preparedByUserId && filingForValidation.preparedByUserId === ctx.userId) {
-      await createAuditLog({
-        accountId: ctx.accountId,
-        userId: ctx.userId,
-        action: AuditAction.FILING_SEGREGATION_VIOLATION,
-        entity: "CustomsFiling",
-        entityId: id,
-        source: auditSource,
-        metadata: { attemptedAction: "transmit", entryNumber: filingForValidation.entryNumber },
-      });
-      return buildErrorResponse(
-        403,
-        "SEGREGATION_OF_DUTIES_VIOLATION",
-        "The user who prepared this filing cannot also transmit it. A different user must submit it to customs.",
-        undefined,
-        requestId
-      );
     }
 
     const policyConfig = await db.agentPolicyConfig.findFirst({
@@ -110,6 +114,11 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, re
       hasApprovedDecision: (li.product?.classifications?.length ?? 0) > 0,
     }));
 
+    const pgaRequirements = await db.pgaRequirement.findMany({
+      where: { shipmentLineItemId: { in: lineItemsForValidation.map((li) => li.id) } },
+      select: { id: true, agency: true, missingPermits: true },
+    });
+
     const validatorInput: ValidatorInput = {
       filingId: id,
       entryType: filingForValidation.entryType,
@@ -126,6 +135,7 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, re
       blockingReconciliationIssues: filingForValidation.shipment.reconciliationIssues.filter((r) => r.severity === "Critical").map((r) => ({ id: r.id })),
       htsReleaseAgeInDays,
       transportMode: filingForValidation.shipment.transportMode,
+      pgaRequirements,
     };
 
     const outcome = runFilingValidation(validatorInput);

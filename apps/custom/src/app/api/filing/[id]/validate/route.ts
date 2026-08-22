@@ -107,6 +107,11 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, re
     hasApprovedDecision: (li.product?.classifications?.length ?? 0) > 0,
   }));
 
+  const pgaRequirements = await db.pgaRequirement.findMany({
+    where: { shipmentLineItemId: { in: lineItems.map((li) => li.id) } },
+    select: { id: true, agency: true, missingPermits: true },
+  });
+
   const validatorInput: ValidatorInput = {
     filingId: filing.id,
     entryType: filing.entryType,
@@ -125,6 +130,7 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, re
       .map((r) => ({ id: r.id })),
     htsReleaseAgeInDays,
     transportMode: filing.shipment.transportMode,
+    pgaRequirements,
   };
 
   const outcome = runFilingValidation(validatorInput);
