@@ -42,6 +42,12 @@ function resolveDeploymentLog(): string {
 }
 
 const nextConfig: NextConfig = {
+  // @qubere/db is a local TS workspace package (packages/db), not a pre-built
+  // npm package -- Next must compile its TypeScript source rather than
+  // treating it as opaque runtime code. App Router + Turbopack/webpack
+  // transpile workspace packages automatically in most cases, but this is
+  // kept explicit since it's a hard requirement for the build to work.
+  transpilePackages: ["@qubere/db"],
   env: {
     NEXT_PUBLIC_GIT_COMMIT_SHA: resolveGitCommitSha(),
     NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),

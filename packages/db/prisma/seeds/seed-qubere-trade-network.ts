@@ -16,14 +16,14 @@
  * Usage:
  *   npx tsx scripts/seed-qubere-trade-network.ts
  */
-import { db, withDataModeContext } from "@/lib/db";
-import { assertDemoSeedingAllowed } from "@/lib/environment";
+import { db, withDataModeContext } from "../../src/index";
+import { assertDemoSeedingAllowed } from "../../src/environment";
 import {
   createParty,
   addRelationship,
   type PartyActor,
-} from "@/modules/party/partyService";
-import type { CreatePartyInput } from "@/modules/party/partySchemas";
+} from "../../../../apps/custom/src/modules/party/partyService";
+import type { CreatePartyInput } from "../../../../apps/custom/src/modules/party/partySchemas";
 import {
   createProduct,
   setAttribute,
@@ -33,8 +33,8 @@ import {
   proposeClassification,
   reviewClassification,
   type ProductActor,
-} from "@/modules/product/productService";
-import type { CreateProductInput } from "@/modules/product/productSchemas";
+} from "../../../../apps/custom/src/modules/product/productService";
+import type { CreateProductInput } from "../../../../apps/custom/src/modules/product/productSchemas";
 
 assertDemoSeedingAllowed();
 

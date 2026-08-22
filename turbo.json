@@ -5,6 +5,11 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "dist/**"]
     },
+    "@qubere/db#build": {
+      "dependsOn": [],
+      "cache": false,
+      "outputs": []
+    },
     "test": {
       "dependsOn": ["^build"],
       "outputs": []

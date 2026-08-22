@@ -5,8 +5,8 @@
  *
  * Run with: npx tsx scripts/customs-filing-inbound-worker.ts
  */
-import { PgCanonicalMessageConsumer } from "@/lib/canonicalMessaging/consumer";
-import { processInboundMessage } from "@/lib/canonicalMessaging/inboundConsumer";
+import { PgCanonicalMessageConsumer } from "../../../../apps/custom/src/lib/canonicalMessaging/consumer";
+import { processInboundMessage } from "../../../../apps/custom/src/lib/canonicalMessaging/inboundConsumer";
 
 const POLL_INTERVAL_MS = 2000;
 

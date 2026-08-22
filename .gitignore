@@ -1,7 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+#
+# This is a monorepo (apps/*, packages/*): most patterns below are
+# intentionally NOT root-anchored (no leading `/`) so they also match inside
+# every workspace, not just the repo root.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,18 +15,21 @@
 !.yarn/versions
 
 # testing
-/coverage
-/test-results
-/playwright-report
-/blob-report
-/.playwright
+coverage
+test-results
+playwright-report
+blob-report
+.playwright
 
 # next.js
-/.next/
-/out/
+.next/
+out/
+
+# turborepo
+.turbo/
 
 # production
-/build
+build
 
 # misc
 .DS_Store
@@ -45,12 +52,12 @@ yarn-error.log*
 next-env.d.ts
 
 # clerk configuration (can include secrets)
-/.clerk/
+.clerk/
 
 # local document-processing artifacts (parsed customer document contents)
-/.qubere/
+.qubere/
 
 # public uploads directory (preserve .gitkeep only)
-/public/uploads/*
-!/public/uploads/.gitkeep
+apps/custom/public/uploads/*
+!apps/custom/public/uploads/.gitkeep
 

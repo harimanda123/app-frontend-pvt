@@ -24,7 +24,7 @@ vi.mock("@/lib/auth", () => ({
   hasPermission: vi.fn(async () => true),
 }));
 
-const { ScreeningAgent } = await import("@/../packages/ai/screening/screeningAgent");
+const { ScreeningAgent } = await import("@/../../../packages/ai/screening/screeningAgent");
 const { POST: screenParty } = await import("@/app/api/demo/screening/dps/route");
 const { POST: screenEmbargo } = await import("@/app/api/screening/embargo/route");
 
