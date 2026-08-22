@@ -32,56 +32,52 @@ export interface ActionItemDetail {
 }
 
 function mapActionItemToWorkQueueItem(item: ActionItemDetail, group: ShipmentGroup): WorkQueueItem {
-  const isCustoms = item.type.includes("CUSTOMS") || item.type.includes("FILING") || group.filingStatus === "FILING BLOCKED";
+  const isTmsDispatch = item.type.includes("TENDER") || item.type.includes("DISPATCH") || group.dispatchStatus === "DISPATCH BLOCKED";
 
   return {
     id: item.id,
     itemType: item.kind === "decision" ? "DECISION" : "EXCEPTION",
-    domain: isCustoms ? "CUSTOMS" : item.kind === "document" ? "DOCUMENT" : "TRANSPORTATION",
-    specificType: isCustoms
-      ? "CUSTOMS EXCEPTION"
-      : item.kind === "document"
-      ? "DOCUMENT EXCEPTION"
-      : "DELIVERY EXCEPTION",
+    domain: item.kind === "document" ? "DOCUMENT" : "TRANSPORTATION",
+    specificType: item.kind === "document" ? "DOCUMENT EXCEPTION" : "DELIVERY EXCEPTION",
     decisionState: item.category === "review" ? "AI_NEEDS_INPUT" : "AI_NEEDS_APPROVAL",
     severity: item.severity,
-    urgencyLabel: item.deadlineBreached ? "DEADLINE BREACHED • 6h 18m ago" : "ACTION REQUIRED IN 1H 42M",
-    timeToActFormatted: item.deadlineBreached ? "DEADLINE BREACHED • 6h 18m ago" : "ACTION REQUIRED IN 1H 42M",
+    urgencyLabel: item.deadlineBreached ? "SLA BREACHED • 6h 18m ago" : "ACTION REQUIRED IN 1H 42M",
+    timeToActFormatted: item.deadlineBreached ? "SLA BREACHED • 6h 18m ago" : "ACTION REQUIRED IN 1H 42M",
     shipmentId: group.shipmentId,
     shipmentNumber: group.shipmentNumber,
     routeText: `${group.originPort} → ${group.destPort}`,
-    customerName: group.importerName,
-    operationalTitle: item.type.includes("DEADLINE") || isCustoms ? "CUSTOMS FILING DEADLINE MISSED" : item.type.toUpperCase(),
-    subtext: item.description || "Operational problem flagged for human decision.",
-    legalBasis: isCustoms ? "19 CFR 141.68(a)" : undefined,
-    agentStatusText: "Automation paused because human approval is required.",
-    whatHappened: item.description || "Filing deadline expired prior to Customs acceptance.",
-    whyItMatters: item.impactSummary || "Shipment cannot clear Customs. Risk of terminal demurrage and delivery delay.",
-    qubereRecommends: item.aiRecommendation || "Move shipment into General Order remediation workflow.",
-    whyRecommends: "Normal filing window expired. Immediate remediation avoids additional terminal delays.",
+    customerName: group.customerName,
+    operationalTitle: isTmsDispatch ? "CARRIER TENDER DISPATCH TIMEOUT" : item.type.replace(/_/g, " ").toUpperCase(),
+    subtext: item.description || "Operational freight dispatch issue flagged for human decision.",
+    legalBasis: "49 CFR § 395.3 (FMCSA HOS)",
+    agentStatusText: "Automation paused because human dispatcher approval is required.",
+    whatHappened: item.description || "Primary carrier failed to acknowledge tender dispatch within 60-minute SLA window.",
+    whyItMatters: item.impactSummary || "Delivery promise date at risk. Container faces terminal demurrage exposure ($350/day).",
+    qubereRecommends: item.aiRecommendation || "Re-tender load to secondary waterfall carrier (EFSX Express) at contracted rate.",
+    whyRecommends: "Primary carrier tender timed out. Secondary carrier is fully contracted with verified rate sheet.",
     ruleConfidence: 100,
-    recommendationConfidence: 90,
+    recommendationConfidence: 94,
     confidenceLevel: "High",
     impact: {
       schedule: "+1 day risk",
-      costUsd: 375,
-      exposureUsd: 375,
-      customerImpact: "Delivery at risk",
-      customsImpact: "Blocked",
+      costUsd: 350,
+      exposureUsd: 350,
+      customerImpact: "Delivery promise date at risk",
+      customsImpact: "Clear / Released",
     },
     afterApproval: [
-      "Create General Order remediation workflow",
-      "Assign Customs escalation",
-      "Recalculate ETA and notify operations",
-      "Continue monitoring for resolution",
+      "Re-tender freight load to secondary waterfall carrier (EFSX Express)",
+      "Notify operations dispatcher & update customer tracking ETA",
+      "Confirm pickup appointment window with port terminal",
+      "Monitor carrier EDI 214 status event stream",
     ],
     evidence: [
-      { label: "Entry deadline", value: "Aug 22 • 12:00 AM", source: "ACE Engine" },
-      { label: "Current status", value: group.filingStatus, source: "CBP Integration" },
-      { label: "Legal reference", value: "19 CFR 141.68(a)", source: "US Customs Code" },
+      { label: "Tender SLA Window", value: "60 Minutes Expiration", source: "Policy Engine" },
+      { label: "Dispatch Status", value: group.dispatchStatus, source: "TMS Telematics" },
+      { label: "DOT Reference", value: "49 CFR § 395.3 HOS Rules", source: "FMCSA Code" },
     ],
-    primaryActionLabel: isCustoms ? "Start Remediation" : "Approve Recommended Action",
-    secondaryActionLabel: "Modify Action",
+    primaryActionLabel: "Re-Tender Carrier",
+    secondaryActionLabel: "Modify Dispatch",
     allowModify: true,
     allowReject: true,
   };
@@ -90,11 +86,12 @@ function mapActionItemToWorkQueueItem(item: ActionItemDetail, group: ShipmentGro
 export interface ShipmentGroup {
   shipmentId: string;
   shipmentNumber: string;
-  importerName: string;
+  customerName: string;
+  carrierName?: string;
   transportMode: string;
   originPort: string;
   destPort: string;
-  filingStatus: "FILING BLOCKED" | "FILING READY" | "CLEARED";
+  dispatchStatus: "DISPATCH BLOCKED" | "TENDER PENDING" | "DEMURRAGE RISK" | "IN TRANSIT" | "DELIVERED";
   priority: "critical" | "high" | "normal";
   deadlineLabel: string;
   deadlineBreached: boolean;
@@ -146,7 +143,7 @@ export function ExceptionsGroupedClient({ initialGroups }: { initialGroups: Ship
     return groups.filter(
       (g) =>
         g.shipmentNumber.toLowerCase().includes(q) ||
-        g.importerName.toLowerCase().includes(q) ||
+        g.customerName.toLowerCase().includes(q) ||
         g.items.some((i) => i.type.toLowerCase().includes(q) || i.description.toLowerCase().includes(q))
     );
   }, [groups, searchQuery]);
@@ -197,7 +194,7 @@ export function ExceptionsGroupedClient({ initialGroups }: { initialGroups: Ship
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search shipment, HTS or issue…"
+                  placeholder="Search shipment, carrier or issue…"
                   className="pl-8 pr-4 py-2 text-xs bg-surface-muted border border-border rounded-xl focus:outline-none focus:border-brand focus:bg-white text-ink w-64 transition-all font-medium"
                 />
               </div>
@@ -229,7 +226,6 @@ export function ExceptionsGroupedClient({ initialGroups }: { initialGroups: Ship
                 <div className="space-y-2.5 max-h-[75vh] overflow-y-auto pr-1">
                   {filteredGroups.map((g) => {
                     const isSelected = g.shipmentId === selectedShipmentId;
-                    const activeCount = g.items.filter((i) => !resolvedItemIds.includes(i.id)).length;
 
                     return (
                       <button
@@ -249,9 +245,11 @@ export function ExceptionsGroupedClient({ initialGroups }: { initialGroups: Ship
                           <span className="font-mono font-bold text-brand text-xs">{g.shipmentNumber}</span>
                           <div className="flex items-center space-x-1">
                             <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
-                              g.filingStatus === "FILING BLOCKED" ? "bg-red-100 text-red-800 border-red-300" : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                              g.dispatchStatus === "DISPATCH BLOCKED" || g.dispatchStatus === "DEMURRAGE RISK"
+                                ? "bg-red-100 text-red-800 border-red-300"
+                                : "bg-emerald-100 text-emerald-800 border-emerald-200"
                             }`}>
-                              {g.filingStatus}
+                              {g.dispatchStatus}
                             </span>
                             <span className="text-[9px] font-bold text-red-700 bg-red-50 px-1 py-0.5 rounded border border-red-200">
                               Critical
@@ -288,11 +286,11 @@ export function ExceptionsGroupedClient({ initialGroups }: { initialGroups: Ship
                       <div className="flex items-center space-x-3">
                         <h2 className="text-xl font-black text-ink font-mono">{selectedGroup.shipmentNumber}</h2>
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase bg-red-100 text-red-900 border border-red-300">
-                          {selectedGroup.filingStatus}
+                          {selectedGroup.dispatchStatus}
                         </span>
                       </div>
                       <p className="text-xs text-ink-muted font-medium mt-1">
-                        Importer: <strong className="text-ink">{selectedGroup.importerName}</strong> • Lane: <strong className="text-mono text-ink">{selectedGroup.originPort} → {selectedGroup.destPort}</strong>
+                        Customer: <strong className="text-ink">{selectedGroup.customerName}</strong> • Lane: <strong className="text-mono text-ink">{selectedGroup.originPort} → {selectedGroup.destPort}</strong>
                       </p>
                     </div>
 
