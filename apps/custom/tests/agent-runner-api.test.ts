@@ -47,8 +47,8 @@ vi.mock("@/modules/agents/originRulesAgent", () => agentModule());
 vi.mock("@/modules/agents/valuationAssistsAgent", () => agentModule());
 vi.mock("@/modules/agents/complianceAuditAgent", () => agentModule());
 vi.mock("@/modules/agents/filingReadinessAgent", () => agentModule());
-vi.mock("@/modules/demo/customsFilingAgent", () => agentModule());
-vi.mock("@/modules/demo/responseManagementAgent", () => agentModule());
+vi.mock("@/modules/agents/customsFilingAgent", () => agentModule());
+vi.mock("@/modules/agents/responseManagementAgent", () => agentModule());
 
 const route = await import("@/app/api/agents/[agentId]/route");
 

@@ -17,8 +17,8 @@ import { OriginRulesAgent } from "@/modules/agents/originRulesAgent";
 import { ValuationAssistsAgent } from "@/modules/agents/valuationAssistsAgent";
 import { ComplianceAuditAgent } from "@/modules/agents/complianceAuditAgent";
 import { FilingReadinessAgent } from "@/modules/agents/filingReadinessAgent";
-import { CustomsFilingAgent } from "@/modules/demo/customsFilingAgent";
-import { ResponseManagementAgent } from "@/modules/demo/responseManagementAgent";
+import { CustomsFilingAgent } from "@/modules/agents/customsFilingAgent";
+import { ResponseManagementAgent } from "@/modules/agents/responseManagementAgent";
 import { z } from "zod";
 
 const paramsSchema = z.object({ agentId: z.string().min(1) });
