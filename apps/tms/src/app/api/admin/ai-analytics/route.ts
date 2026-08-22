@@ -15,8 +15,6 @@ export const GET = withAuthenticatedRoute(
       const scope: TmsAiAnalyticsScope = {
         level,
         accountId,
-        clientId,
-        userId,
         rangeDays,
       };
 

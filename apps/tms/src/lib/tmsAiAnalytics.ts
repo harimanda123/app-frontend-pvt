@@ -71,10 +71,8 @@ export interface TmsDocumentProcessingAnalytics {
 }
 
 export interface TmsAiAnalyticsScope {
-  level: "OVERALL" | "ACCOUNT" | "CLIENT" | "USER";
+  level: "OVERALL" | "ACCOUNT";
   accountId?: string;
-  clientId?: string;
-  userId?: string;
   rangeDays?: number;
 }
 
@@ -93,14 +91,10 @@ export interface TmsAiAnalyticsData {
   bySurface: TmsSurfaceUsage[];
   daily: TmsDailyUsage[];
   topAccounts: TmsEntityUsage[];
-  topClients: TmsEntityUsage[];
-  topUsers: TmsEntityUsage[];
   copilot: TmsCopilotHealth;
   documentProcessing: TmsDocumentProcessingAnalytics;
   filterOptions: {
     accounts: { id: string; name: string }[];
-    clients: { id: string; name: string }[];
-    users: { id: string; name: string }[];
   };
 }
 
@@ -131,7 +125,7 @@ function surfaceLabel(surface: string): string {
     .join(" ");
 }
 
-// Memory Cache with 15-second TTL to eliminate latency stalls on Vercel
+// Memory Cache with 15-second TTL
 interface CacheEntry {
   timestamp: number;
   data: TmsAiAnalyticsData;
@@ -162,17 +156,13 @@ export async function getTmsAiAnalytics(scope: TmsAiAnalyticsScope = { level: "O
   if (scope.level === "ACCOUNT" && scope.accountId) {
     usageWhere.accountId = scope.accountId;
   }
-  if (scope.level === "USER" && scope.userId) {
-    usageWhere.userId = scope.userId;
-  }
 
-  // Fast optimized parallel queries (capped with take: 100 max)
+  // Ultra-fast parallel queries on Account-level denormalized data
   const [
     bySurfaceRows,
     dailyRows,
     accountSurfaceRows,
     accounts,
-    users,
     docParseStatusRows,
     docConfidenceRows,
     docLatencyRows,
@@ -201,8 +191,6 @@ export async function getTmsAiAnalytics(scope: TmsAiAnalyticsScope = { level: "O
     }).catch(() => []),
 
     db.account.findMany({ select: { id: true, name: true }, take: 50 }).catch(() => []),
-
-    db.user.findMany({ select: { id: true, email: true }, take: 50 }).catch(() => []),
 
     db.documentParseVersion.groupBy({
       by: ["status"],
@@ -313,7 +301,7 @@ export async function getTmsAiAnalytics(scope: TmsAiAnalyticsScope = { level: "O
     });
   }
 
-  // Real Top Accounts Breakdown
+  // Real Top Customer Accounts Breakdown
   const accountTotals = new Map<string, { requests: number; tokens: number; surfaceTokens: Map<string, number> }>();
   for (const r of accountSurfaceRows as any[]) {
     const accId = r.accountId;
@@ -349,7 +337,6 @@ export async function getTmsAiAnalytics(scope: TmsAiAnalyticsScope = { level: "O
     })
     .sort((a, b) => b.totalTokens - a.totalTokens);
 
-  // Populate Accounts if rows empty
   if (topAccounts.length === 0 && accounts.length > 0) {
     for (const acc of accounts as any[]) {
       topAccounts.push({
@@ -361,22 +348,6 @@ export async function getTmsAiAnalytics(scope: TmsAiAnalyticsScope = { level: "O
       });
     }
   }
-
-  // Real Top Clients (Shippers) from DB
-  const topClients: TmsEntityUsage[] = [
-    { id: "cli_nike", name: "Nike Distribution NA", requests: Math.round(totalRequests * 0.35), totalTokens: Math.round(totalTokensSpent * 0.38), topSurface: "Freight Intake Agent" },
-    { id: "cli_walmart", name: "Walmart Logistics East", requests: Math.round(totalRequests * 0.28), totalTokens: Math.round(totalTokensSpent * 0.26), topSurface: "Carrier Rating & Quote Agent" },
-    { id: "cli_samsung", name: "Samsung Electronics America", requests: Math.round(totalRequests * 0.21), totalTokens: Math.round(totalTokensSpent * 0.22), topSurface: "Tracking & ETA Cascade Agent" },
-  ];
-
-  // Real Top Users from DB
-  const topUsers: TmsEntityUsage[] = users.map((u: any) => ({
-    id: u.id,
-    name: u.email || "Dispatcher",
-    requests: Math.round(totalRequests / Math.max(users.length, 1)),
-    totalTokens: Math.round(totalTokensSpent / Math.max(users.length, 1)),
-    topSurface: "Qubere Freight Supervisor Assistant",
-  }));
 
   // Copilot Assistant Query Health from REAL db.agentDecision status counts
   const agentStatusMap = new Map<string, number>(agentDecisionStatusRows.map((r: any) => [r.status, r._count._all]));
@@ -460,14 +431,10 @@ export async function getTmsAiAnalytics(scope: TmsAiAnalyticsScope = { level: "O
     bySurface,
     daily,
     topAccounts,
-    topClients,
-    topUsers,
     copilot: copilotHealth,
     documentProcessing,
     filterOptions: {
       accounts: accounts.map((a: any) => ({ id: a.id, name: a.name })),
-      clients: topClients.map((c) => ({ id: c.id, name: c.name })),
-      users: topUsers.map((u) => ({ id: u.id, name: u.name })),
     },
   };
 

@@ -16,8 +16,6 @@ import {
   FileText,
   Clock,
   Building,
-  User,
-  ShoppingBag,
   Filter,
   RefreshCw,
 } from "lucide-react";
@@ -80,7 +78,7 @@ function UsageTrendChart({ daily }: { daily: TmsDailyUsage[] }) {
             <TrendingUp className="w-5 h-5 text-brand" />
             <span>AI Call & Token Usage Trend</span>
           </h3>
-          <p className="text-xs text-ink-muted">Daily volume across all TMS autonomous agent surfaces.</p>
+          <p className="text-xs text-ink-muted font-medium">Daily volume across all TMS autonomous agent surfaces.</p>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -89,7 +87,7 @@ function UsageTrendChart({ daily }: { daily: TmsDailyUsage[] }) {
             onClick={() => setMetric("requests")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               metric === "requests"
-                ? "bg-brand text-white"
+                ? "bg-brand text-white shadow-2xs"
                 : "bg-surface-muted text-ink-muted hover:text-ink border border-border"
             }`}
           >
@@ -100,7 +98,7 @@ function UsageTrendChart({ daily }: { daily: TmsDailyUsage[] }) {
             onClick={() => setMetric("totalTokens")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               metric === "totalTokens"
-                ? "bg-brand text-white"
+                ? "bg-brand text-white shadow-2xs"
                 : "bg-surface-muted text-ink-muted hover:text-ink border border-border"
             }`}
           >
@@ -130,7 +128,7 @@ function UsageTrendChart({ daily }: { daily: TmsDailyUsage[] }) {
         })}
       </div>
 
-      <div className="flex items-center justify-between text-[10px] text-ink-muted border-t border-border pt-2 font-mono">
+      <div className="flex items-center justify-between text-[10px] text-ink-muted border-t border-border pt-2 font-mono font-semibold">
         <span>{formatShortDate(daily[0]?.date)}</span>
         <span>{formatShortDate(daily[Math.floor(daily.length / 2)]?.date)}</span>
         <span>{formatShortDate(daily[daily.length - 1]?.date)}</span>
@@ -147,7 +145,7 @@ function SurfaceUsageTable({ bySurface, totalTokens }: { bySurface: TmsSurfaceUs
           <Layers className="w-5 h-5 text-brand" />
           <span>Usage by Agent Surface</span>
         </h3>
-        <p className="text-xs text-ink-muted">Token consumption broken down by specific TMS autonomous agent capability.</p>
+        <p className="text-xs text-ink-muted font-medium">Token consumption broken down by specific TMS autonomous agent capability.</p>
       </div>
 
       <div className="overflow-x-auto">
@@ -188,77 +186,39 @@ function SurfaceUsageTable({ bySurface, totalTokens }: { bySurface: TmsSurfaceUs
   );
 }
 
-function EntityUsageTables({
-  accounts,
-  clients,
-  users,
-}: {
-  accounts: TmsEntityUsage[];
-  clients: TmsEntityUsage[];
-  users: TmsEntityUsage[];
-}) {
-  const [tab, setTab] = useState<"accounts" | "clients" | "users">("accounts");
-  const list = tab === "accounts" ? accounts : tab === "clients" ? clients : users;
-
+function EntityUsageTables({ accounts }: { accounts: TmsEntityUsage[] }) {
   return (
     <Card className="p-6 rounded-2xl border border-border bg-white shadow-sm space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="border-b border-border pb-4 flex items-center justify-between">
         <div>
           <h3 className="text-base font-bold text-ink flex items-center space-x-2">
             <Users className="w-5 h-5 text-brand" />
-            <span>Top Entities by AI Usage</span>
+            <span>Usage by Customer Account</span>
           </h3>
-          <p className="text-xs text-ink-muted">Highest consumption by Customer Account, Shipper Client, or User.</p>
+          <p className="text-xs text-ink-muted font-medium">Metered token burn per tenant customer account.</p>
         </div>
-
-        <div className="flex items-center space-x-1.5 bg-surface-muted p-1 rounded-xl border border-border">
-          <button
-            type="button"
-            onClick={() => setTab("accounts")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === "accounts" ? "bg-white text-brand shadow-3xs" : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            Accounts ({accounts.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("clients")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === "clients" ? "bg-white text-brand shadow-3xs" : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            Shippers ({clients.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("users")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === "users" ? "bg-white text-brand shadow-3xs" : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            Users ({users.length})
-          </button>
-        </div>
+        <span className="px-2.5 py-1 rounded-full bg-brand/10 text-brand font-mono font-bold text-xs">
+          {accounts.length} Active Accounts
+        </span>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-border text-ink-muted uppercase font-bold text-[10px] tracking-wider">
-              <th className="pb-3">Entity Name</th>
-              <th className="pb-3">Entity ID</th>
+              <th className="pb-3">Account Name</th>
+              <th className="pb-3">Account ID</th>
               <th className="pb-3">Top Agent Surface</th>
               <th className="pb-3 text-right">LLM Calls</th>
-              <th className="pb-3 text-right">Total Tokens</th>
+              <th className="pb-3 text-right">Total Tokens Spent</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/60">
-            {list.map((item) => (
+            {accounts.map((item) => (
               <tr key={item.id} className="hover:bg-surface-muted/40 transition-colors">
                 <td className="py-3 font-bold text-ink">{item.name}</td>
                 <td className="py-3 font-mono text-ink-muted text-[11px]">{item.id}</td>
-                <td className="py-3 font-semibold text-brand">{item.topSurface ?? "Tender Dispatch"}</td>
+                <td className="py-3 font-semibold text-brand">{item.topSurface ?? "Autonomous Tender Dispatch"}</td>
                 <td className="py-3 text-right font-mono text-ink font-semibold">{item.requests.toLocaleString()}</td>
                 <td className="py-3 text-right font-mono text-ink font-bold">{formatCompactNumber(item.totalTokens)}</td>
               </tr>
@@ -279,7 +239,7 @@ function CopilotHealthSection({ data }: { data: TmsCopilotHealth }) {
             <Wrench className="w-5 h-5 text-brand" />
             <span>Chat Assistant Query Health & Tool Execution</span>
           </h3>
-          <p className="text-xs text-ink-muted">Qubere Freight Supervisor Assistant response quality and tool execution metrics.</p>
+          <p className="text-xs text-ink-muted font-medium">Qubere Freight Supervisor Assistant response quality and tool execution metrics.</p>
         </div>
         <span className="px-2.5 py-1 rounded-full bg-brand/10 text-brand font-mono font-bold text-xs">
           {data.totalQueries.toLocaleString()} Queries Total
@@ -344,7 +304,7 @@ function DocumentProcessingSection({ data }: { data: TmsDocumentProcessingAnalyt
           <FileText className="w-5 h-5 text-brand" />
           <span>Document Processing & Multi-Modal OCR Performance</span>
         </h3>
-        <p className="text-xs text-ink-muted">PDF rate sheets, Bill of Lading, and commercial invoice OCR extraction confidence.</p>
+        <p className="text-xs text-ink-muted font-medium">PDF rate sheets, Bill of Lading, and commercial invoice OCR extraction confidence.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -381,11 +341,9 @@ export function TmsAiAnalyticsPanel({ data: initialData }: { data: TmsAiAnalytic
   const [data, setData] = useState<TmsAiAnalyticsData>(initialData);
   const [loading, setLoading] = useState(false);
 
-  const [scopeLevel, setScopeLevel] = useState<"OVERALL" | "ACCOUNT" | "CLIENT" | "USER">(initialData.scope?.level ?? "OVERALL");
+  const [scopeLevel, setScopeLevel] = useState<"OVERALL" | "ACCOUNT">(initialData.scope?.level ?? "OVERALL");
   const [rangeDays, setRangeDays] = useState<number>(initialData.rangeDays ?? 30);
   const [selectedAccountId, setSelectedAccountId] = useState<string>(initialData.filterOptions.accounts[0]?.id ?? "");
-  const [selectedClientId, setSelectedClientId] = useState<string>(initialData.filterOptions.clients[0]?.id ?? "");
-  const [selectedUserId, setSelectedUserId] = useState<string>(initialData.filterOptions.users[0]?.id ?? "");
 
   const fetchTelemetry = useCallback(async () => {
     setLoading(true);
@@ -395,8 +353,6 @@ export function TmsAiAnalyticsPanel({ data: initialData }: { data: TmsAiAnalytic
         rangeDays: rangeDays.toString(),
       });
       if (scopeLevel === "ACCOUNT" && selectedAccountId) params.set("accountId", selectedAccountId);
-      if (scopeLevel === "CLIENT" && selectedClientId) params.set("clientId", selectedClientId);
-      if (scopeLevel === "USER" && selectedUserId) params.set("userId", selectedUserId);
 
       const res = await fetch(`/api/admin/ai-analytics?${params.toString()}`);
       if (res.ok) {
@@ -408,7 +364,7 @@ export function TmsAiAnalyticsPanel({ data: initialData }: { data: TmsAiAnalytic
     } finally {
       setLoading(false);
     }
-  }, [scopeLevel, rangeDays, selectedAccountId, selectedClientId, selectedUserId]);
+  }, [scopeLevel, rangeDays, selectedAccountId]);
 
   useEffect(() => {
     fetchTelemetry();
@@ -424,9 +380,9 @@ export function TmsAiAnalyticsPanel({ data: initialData }: { data: TmsAiAnalytic
               <Filter className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-ink">TMS AI Analytics Scope & Multi-Tenant Drilldown</h3>
+              <h3 className="font-bold text-sm text-ink">TMS AI Telemetry Scope</h3>
               <p className="text-xs text-ink-muted">
-                Filter LLM calls, token burn, and turn metrics by Overall Platform, Customer Account, Client Shipper, or User.
+                Denormalized token usage and LLM call metrics for Overall TMS Platform or Customer Accounts.
               </p>
             </div>
           </div>
@@ -440,7 +396,7 @@ export function TmsAiAnalyticsPanel({ data: initialData }: { data: TmsAiAnalytic
               className="text-xs flex items-center space-x-1.5 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-brand ${loading ? "animate-spin" : ""}`} />
-              <span>{loading ? "Fetching Live Telemetry..." : "Refresh Telemetry"}</span>
+              <span>{loading ? "Fetching..." : "Refresh Telemetry"}</span>
             </Button>
 
             <span className="text-xs font-semibold text-ink-muted pl-2">Lookback:</span>
@@ -451,7 +407,7 @@ export function TmsAiAnalyticsPanel({ data: initialData }: { data: TmsAiAnalytic
                 onClick={() => setRangeDays(d)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   rangeDays === d
-                    ? "bg-brand text-white"
+                    ? "bg-brand text-white shadow-2xs"
                     : "bg-surface-muted text-ink-muted hover:text-ink border border-border"
                 }`}
               >
@@ -462,118 +418,52 @@ export function TmsAiAnalyticsPanel({ data: initialData }: { data: TmsAiAnalytic
         </div>
 
         {/* Scope Level Selector Buttons */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => setScopeLevel("OVERALL")}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center space-x-2.5 ${
+            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center space-x-3 ${
               scopeLevel === "OVERALL"
-                ? "border-brand bg-brand/5 text-brand font-bold"
+                ? "border-brand bg-brand/5 text-brand font-bold shadow-2xs"
                 : "border-border bg-white text-ink-muted hover:bg-surface-muted"
             }`}
           >
-            <Zap className="w-4 h-4 shrink-0" />
+            <Zap className="w-5 h-5 shrink-0 text-brand" />
             <div>
-              <span className="text-xs block">Overall TMS</span>
-              <span className="text-[10px] text-ink-muted font-normal">Platform Total</span>
+              <span className="text-xs block font-bold text-ink">Overall TMS Platform</span>
+              <span className="text-[11px] text-ink-muted font-normal">All customer accounts & agents total</span>
             </div>
           </button>
 
           <button
             type="button"
             onClick={() => setScopeLevel("ACCOUNT")}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center space-x-2.5 ${
+            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center space-x-3 ${
               scopeLevel === "ACCOUNT"
-                ? "border-brand bg-brand/5 text-brand font-bold"
+                ? "border-brand bg-brand/5 text-brand font-bold shadow-2xs"
                 : "border-border bg-white text-ink-muted hover:bg-surface-muted"
             }`}
           >
-            <Building className="w-4 h-4 shrink-0" />
+            <Building className="w-5 h-5 shrink-0 text-brand" />
             <div>
-              <span className="text-xs block">Customer Account</span>
-              <span className="text-[10px] text-ink-muted font-normal">Tenant Carrier / Broker</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setScopeLevel("CLIENT")}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center space-x-2.5 ${
-              scopeLevel === "CLIENT"
-                ? "border-brand bg-brand/5 text-brand font-bold"
-                : "border-border bg-white text-ink-muted hover:bg-surface-muted"
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4 shrink-0" />
-            <div>
-              <span className="text-xs block">Shipper / Client</span>
-              <span className="text-[10px] text-ink-muted font-normal">Merchant Client</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setScopeLevel("USER")}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center space-x-2.5 ${
-              scopeLevel === "USER"
-                ? "border-brand bg-brand/5 text-brand font-bold"
-                : "border-border bg-white text-ink-muted hover:bg-surface-muted"
-            }`}
-          >
-            <User className="w-4 h-4 shrink-0" />
-            <div>
-              <span className="text-xs block">Individual User</span>
-              <span className="text-[10px] text-ink-muted font-normal">Operator / Dispatcher</span>
+              <span className="text-xs block font-bold text-ink">Customer Account</span>
+              <span className="text-[11px] text-ink-muted font-normal">Per-tenant customer billing scope</span>
             </div>
           </button>
         </div>
 
-        {/* Dynamic Selector Dropdowns */}
+        {/* Dynamic Selector Dropdown */}
         {scopeLevel === "ACCOUNT" && (
-          <div className="p-3 bg-surface-muted/60 rounded-xl border border-border flex items-center space-x-3">
+          <div className="p-3.5 bg-surface-muted/60 rounded-xl border border-border flex items-center space-x-3">
             <span className="text-xs font-bold text-ink">Select Customer Account:</span>
             <select
               value={selectedAccountId}
               onChange={(e) => setSelectedAccountId(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white border border-border rounded-lg font-semibold text-ink focus:outline-none focus:border-brand"
+              className="px-3.5 py-1.5 text-xs bg-white border border-border rounded-lg font-semibold text-ink focus:outline-none focus:border-brand cursor-pointer"
             >
               {data.filterOptions.accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name} ({a.id})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {scopeLevel === "CLIENT" && (
-          <div className="p-3 bg-surface-muted/60 rounded-xl border border-border flex items-center space-x-3">
-            <span className="text-xs font-bold text-ink">Select Shipper Client:</span>
-            <select
-              value={selectedClientId}
-              onChange={(e) => setSelectedClientId(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white border border-border rounded-lg font-semibold text-ink focus:outline-none focus:border-brand"
-            >
-              {data.filterOptions.clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.id})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {scopeLevel === "USER" && (
-          <div className="p-3 bg-surface-muted/60 rounded-xl border border-border flex items-center space-x-3">
-            <span className="text-xs font-bold text-ink">Select User Operator:</span>
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white border border-border rounded-lg font-semibold text-ink focus:outline-none focus:border-brand"
-            >
-              {data.filterOptions.users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.id})
                 </option>
               ))}
             </select>
@@ -615,8 +505,8 @@ export function TmsAiAnalyticsPanel({ data: initialData }: { data: TmsAiAnalytic
       {/* Usage by Surface Table */}
       <SurfaceUsageTable bySurface={data.bySurface} totalTokens={data.totals.totalTokens} />
 
-      {/* Top Accounts / Clients / Users Tables */}
-      <EntityUsageTables accounts={data.topAccounts} clients={data.topClients} users={data.topUsers} />
+      {/* Top Accounts Table */}
+      <EntityUsageTables accounts={data.topAccounts} />
 
       {/* Chat Assistant Query Health */}
       <CopilotHealthSection data={data.copilot} />
