@@ -3,6 +3,7 @@ import { withAuthenticatedRoute } from "@qubere/auth";
 import { db } from "@qubere/db";
 import { createAuditLog } from "@qubere/decisions";
 import { z } from "zod";
+import { queueTmsMemoryEvent } from "@/lib/inngest/functions/tmsMemoryExtraction";
 
 const respondTenderSchema = z.object({
   status: z.enum(["ACCEPTED", "REJECTED"]),
@@ -63,6 +64,12 @@ export const POST = withAuthenticatedRoute<{ id: string }>(
         reason: parsed.reason ?? null,
       },
     });
+
+    await queueTmsMemoryEvent({
+      kind: "TENDER_OUTCOME_RECORDED",
+      accountId: ctx.accountId,
+      tenderId: id,
+    }).catch((error) => console.error("[TMS memory] Failed to enqueue tender outcome", error));
 
     return NextResponse.json({ tender: updatedTender });
   },

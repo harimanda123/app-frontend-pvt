@@ -7,6 +7,8 @@ import {
   getPendingAuditsForShipment,
 } from "./freightAuditService";
 import { publishTransportationEvent } from "../../events/services/eventService";
+import { queueTmsMemoryEvent } from "../../../lib/inngest/functions/tmsMemoryExtraction";
+import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
 
 // ---------------------------------------------------------------------------
 // Freight Audit Agent
@@ -47,6 +49,15 @@ export async function runFreightAuditAgent(
 ): Promise<AuditAgentResult> {
   // ---- OBSERVE + UNDERSTAND: 3-way match ----
   const auditResult = await performFreightAudit(ctx, carrierInvoiceId);
+  const accountMemory = await TmsAccountContextBuilder.build({
+    accountId: ctx.accountId,
+    task: "FREIGHT_AUDIT",
+    query: [carrierInvoiceId, auditResult.auditStatus].join(" "),
+    scope: {
+      shipmentId: auditResult.shipmentId,
+      invoiceId: carrierInvoiceId,
+    },
+  });
 
   const isClean =
     auditResult.auditStatus === "MATCHED" ||
@@ -109,6 +120,12 @@ export async function runFreightAuditAgent(
           sourceSpan: "ProofOfDelivery",
           confidence: 90,
         },
+        ...TmsAccountContextBuilder.summarizeForEvidence(accountMemory).map((memory) => ({
+          field: "accountOperatingMemory",
+          extractedValue: memory.content,
+          sourceSpan: `AccountMemory ${memory.memoryId} (${memory.sourceType})`,
+          confidence: Math.round(memory.confidence * 100),
+        })),
       ] as any,
     },
   });
@@ -154,6 +171,13 @@ export async function runFreightAuditAgent(
       agentDecisionId: decision.id,
     },
   }).catch(() => null);
+
+  await queueTmsMemoryEvent({
+    kind: "INVOICE_AUDITED",
+    accountId: ctx.accountId,
+    carrierInvoiceId,
+    decisionId: decision.id,
+  }).catch((error) => console.error("[TMS memory] Failed to enqueue invoice audit", error));
 
   // ---- ACT: If auto-approved + has POD → update shipment financial lock ----
   if (autoApproved && auditResult.hasSignedPod) {

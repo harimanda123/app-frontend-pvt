@@ -3,6 +3,7 @@ import type { AssistantTool } from "@qubere/assistant";
 import type { AccountContext } from "@qubere/auth";
 import { db } from "@qubere/db";
 import { createAuditLog } from "@qubere/decisions";
+import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
 
 export const planMovementStopsSchema = z.object({
   shipmentId: z.string(),
@@ -57,6 +58,20 @@ export const planMovementStopsTool: AssistantTool = {
 
     const autoThreshold = 80;
     const isHighConfidence = input.confidence >= autoThreshold;
+    const accountMemory = await TmsAccountContextBuilder.build({
+      accountId: ctx.accountId,
+      task: "MOVEMENT_PLANNING",
+      query: [
+        ...input.legs.flatMap((leg) => [leg.mode, leg.carrierName, leg.carrierCode]),
+        ...input.stops.flatMap((stop) => [stop.type, stop.name, stop.unlocode]),
+      ].filter(Boolean).join(" "),
+      scope: {
+        shipmentId: input.shipmentId,
+        mode: input.legs[0]?.mode,
+        origin: input.stops[0]?.unlocode ?? input.stops[0]?.name ?? undefined,
+        destination: input.stops.at(-1)?.unlocode ?? input.stops.at(-1)?.name ?? undefined,
+      },
+    });
 
     // 1. Create AgentDecision record
     const agentDecision = await db.agentDecision.create({
@@ -69,7 +84,14 @@ export const planMovementStopsTool: AssistantTool = {
         triageState: isHighConfidence ? "AUTO_VERIFIED" : "NEEDS_REVIEW",
         confidence: input.confidence,
         rulesApplied: ["MOVEMENT_PLAN_V1"],
-        evidenceItems: input.evidenceItems as any,
+        evidenceItems: [
+          ...input.evidenceItems,
+          ...TmsAccountContextBuilder.summarizeForEvidence(accountMemory).map((memory) => ({
+            field: "accountOperatingMemory",
+            extractedValue: memory.content,
+            sourceSpan: `AccountMemory ${memory.memoryId} (${memory.sourceType})`,
+          })),
+        ] as any,
         proposedDescription: `Planned ${input.legs.length} legs and ${input.stops.length} stops for shipment ${input.shipmentId}`,
       },
     });

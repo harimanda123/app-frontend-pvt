@@ -52,6 +52,7 @@ export class MemoryRepository {
     const memory = await db.accountMemory.create({
       data: {
         accountId: data.accountId,
+        domain: "CUSTOMS",
         type: data.type,
         subjectType: data.subjectType,
         subjectId: data.subjectId ?? null,
@@ -126,7 +127,7 @@ export class MemoryRepository {
   private static async hydrateRankedIds(ids: string[]): Promise<AccountMemoryRecord[]> {
     if (ids.length === 0) return [];
     const memories = await db.accountMemory.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, domain: "CUSTOMS" },
       include: { evidence: true },
     });
     const byId = new Map(memories.map((m) => [m.id, m as unknown as AccountMemoryRecord]));
@@ -160,6 +161,7 @@ export class MemoryRepository {
       SELECT id
       FROM "AccountMemory"
       WHERE "accountId" = ${accountId}
+        AND domain = 'CUSTOMS'::"AccountMemoryDomain"
         AND ("validUntil" IS NULL OR "validUntil" > now())
         AND (${subjectTypeFilter}::text[] IS NULL OR "subjectType"::text = ANY(${subjectTypeFilter}))
         AND (
@@ -190,6 +192,7 @@ export class MemoryRepository {
       SELECT id, 1 - ("embeddingVector" <=> ${vectorLiteral}::vector) AS similarity
       FROM "AccountMemory"
       WHERE "accountId" = ${accountId}
+        AND domain = 'CUSTOMS'::"AccountMemoryDomain"
         AND "embeddingVector" IS NOT NULL
         AND ("validUntil" IS NULL OR "validUntil" > now())
         AND (${subjectTypeFilter}::text[] IS NULL OR "subjectType"::text = ANY(${subjectTypeFilter}))
@@ -219,6 +222,7 @@ export class MemoryRepository {
       : {};
     const whereClause: Prisma.AccountMemoryWhereInput = {
       accountId,
+      domain: "CUSTOMS",
       ...(options?.type && { type: options.type }),
       ...subjectTypeClause,
       ...(!options?.includeSuperseded && {
@@ -247,13 +251,13 @@ export class MemoryRepository {
     sourceId: string
   ): Promise<AccountMemoryRecord | null> {
     const evidence = await db.memoryEvidence.findFirst({
-      where: { accountId, sourceType, sourceId },
+      where: { accountId, sourceType, sourceId, memory: { domain: "CUSTOMS" } },
       orderBy: { createdAt: "desc" },
     });
     if (!evidence) return null;
 
     const memory = await db.accountMemory.findUnique({
-      where: { id: evidence.memoryId },
+      where: { id: evidence.memoryId, accountId, domain: "CUSTOMS" },
       include: { evidence: true },
     });
     return (memory as unknown as AccountMemoryRecord) ?? null;
@@ -280,16 +284,16 @@ export class MemoryRepository {
       },
     });
 
-    const current = await db.accountMemory.findUnique({ where: { id: memoryId } });
+    const current = await db.accountMemory.findUnique({ where: { id: memoryId, accountId, domain: "CUSTOMS" } });
     const boostedConfidence = current ? Math.max(current.confidence, evidence.confidence) : evidence.confidence;
 
     await db.accountMemory.update({
-      where: { id: memoryId },
+      where: { id: memoryId, accountId, domain: "CUSTOMS" },
       data: { confidence: boostedConfidence, updatedAt: new Date() },
     });
 
     const full = await db.accountMemory.findUnique({
-      where: { id: memoryId },
+      where: { id: memoryId, accountId, domain: "CUSTOMS" },
       include: { evidence: true },
     });
     return full as unknown as AccountMemoryRecord;
@@ -299,7 +303,9 @@ export class MemoryRepository {
   static async getMemoryAnalytics(
     accountId?: string
   ): Promise<MemoryAnalyticsSummary> {
-    const where: Prisma.AccountMemoryWhereInput = accountId ? { accountId } : {};
+    const where: Prisma.AccountMemoryWhereInput = accountId
+      ? { accountId, domain: "CUSTOMS" }
+      : { domain: "CUSTOMS" };
     const decisionAccountFilter = accountId ? { accountId } : {};
 
     const totalMemories = await db.accountMemory.count({ where });

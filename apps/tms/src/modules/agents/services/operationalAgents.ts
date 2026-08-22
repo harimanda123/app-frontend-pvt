@@ -4,6 +4,7 @@ import type { AccountContext } from "@qubere/auth";
 import { publishTransportationEvent } from "../../events/services/eventService";
 import { evaluateAutonomyPolicy } from "../../autonomy/services/policyEngineService";
 import { persistPromiseState } from "../../shipments/services/promiseService";
+import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -58,6 +59,21 @@ export async function runTrackingEtaAgent(
   });
 
   if (!shipment) throw new Error(`Shipment ${shipmentId} not found.`);
+
+  const accountMemory = await TmsAccountContextBuilder.build({
+    accountId: ctx.accountId,
+    task: "ETA_PREDICTION",
+    query: [shipment.transportMode, shipment.countryOfExport, shipment.destinationCountry, shipment.carrierName]
+      .filter(Boolean)
+      .join(" "),
+    scope: {
+      shipmentId,
+      mode: shipment.transportMode ?? undefined,
+      origin: shipment.countryOfExport ?? undefined,
+      destination: shipment.destinationCountry ?? undefined,
+      carrierName: shipment.carrierName ?? undefined,
+    },
+  });
 
   const latestEvent = shipment.trackingEvents?.[0];
   const previousEta = shipment.etaObservations?.[0]?.eta ?? shipment.estimatedArrival;
@@ -198,6 +214,9 @@ export async function runTrackingEtaAgent(
       autoApproved: policyResult.allowed,
       status: policyResult.allowed ? "Completed" : "Review Required",
       blockedReason: policyResult.allowed ? null : policyResult.reason,
+      evidenceItems: {
+        accountMemory: TmsAccountContextBuilder.summarizeForEvidence(accountMemory),
+      } as any,
     },
   });
 
@@ -227,6 +246,14 @@ export async function runRiskAgent(ctx: AccountContext): Promise<{
   exceptionsCreated: number;
   shipmentsAtRisk: string[];
 }> {
+  const accountMemory = await TmsAccountContextBuilder.build({
+    accountId: ctx.accountId,
+    task: "RISK_DETECTION",
+    limit: 3,
+  });
+  const priorHandling = accountMemory.memories.find((memory) =>
+    memory.sourceType === "HUMAN_DECISION" && memory.type === "PROCEDURE"
+  );
   const policyResult = await evaluateAutonomyPolicy(
     ctx,
     { actionType: "RESOLVE_EXCEPTION", confidenceScore: 95 },
@@ -298,7 +325,7 @@ export async function runRiskAgent(ctx: AccountContext): Promise<{
           category: "TRANSPORTATION",
           severity: hoursToLfd < 12 ? "Critical" : "High",
           description: `Last Free Day is ${hoursToLfd.toFixed(1)}h away and customs has not been released. Demurrage risk is active.`,
-          requiredAction: `Expedite customs release immediately to avoid demurrage charges. Contact broker for Entry ${shipment.shipmentNumber}.`,
+          requiredAction: `Expedite customs release immediately to avoid demurrage charges. Contact broker for Entry ${shipment.shipmentNumber}.${priorHandling ? ` Prior account handling: ${priorHandling.content}` : ""}`,
           blocking: true,
           status: "Open",
           sourceAgent: "Risk Agent",
@@ -372,6 +399,18 @@ export async function runExceptionResolutionAgent(
   if (!shipment) throw new Error(`Shipment ${shipmentId} not found.`);
 
   const openExceptions = shipment.exceptionItems;
+  const accountMemory = await TmsAccountContextBuilder.build({
+    accountId: ctx.accountId,
+    task: "EXCEPTION_RESOLUTION",
+    query: openExceptions.map((exception) => `${exception.type} ${exception.category ?? ""}`).join(" "),
+    scope: {
+      shipmentId,
+      exceptionType: openExceptions[0]?.type,
+      mode: shipment.transportMode ?? undefined,
+      carrierName: shipment.carrierName ?? undefined,
+    },
+  });
+
   const latestFiling = shipment.customsFilings[0];
   const isCustomsHold =
     latestFiling?.filingStatus === "CustomsHold" ||
@@ -420,6 +459,9 @@ export async function runExceptionResolutionAgent(
       autoApproved: triageState === "AUTO_VERIFIED",
       status:
         triageState === "NEEDS_HUMAN_REVIEW" ? "Review Required" : "Completed",
+      evidenceItems: {
+        accountMemory: TmsAccountContextBuilder.summarizeForEvidence(accountMemory),
+      } as any,
     },
   });
 

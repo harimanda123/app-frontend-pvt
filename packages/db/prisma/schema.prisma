@@ -6074,6 +6074,11 @@ enum AccountMemoryType {
   PATTERN
 }
 
+enum AccountMemoryDomain {
+  CUSTOMS
+  TMS
+}
+
 enum AccountMemorySubjectType {
   PRODUCT
   SUPPLIER
@@ -6082,6 +6087,18 @@ enum AccountMemorySubjectType {
   VALUATION
   FILING
   SHIPMENT
+  CUSTOMER
+  CARRIER
+  LANE
+  FACILITY
+  MOVEMENT
+  APPOINTMENT
+  RATE
+  TENDER
+  TRACKING
+  ETA
+  ACCESSORIAL
+  INVOICE
 }
 
 enum AccountMemorySourceType {
@@ -6089,12 +6106,20 @@ enum AccountMemorySourceType {
   FILING_OUTCOME
   VERIFIED_DOCUMENT
   AGENT_INFERENCE
+  CUSTOMER_INSTRUCTION
+  TENDER_OUTCOME
+  CARRIER_PERFORMANCE
+  TRACKING_OUTCOME
+  INVOICE_AUDIT
 }
 
 model AccountMemory {
   id                 String                      @id @default(cuid())
   accountId          String
   account            Account                     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  domain             AccountMemoryDomain         @default(CUSTOMS)
+  task               String?
+  agentName          String?
   type               AccountMemoryType
   subjectType        AccountMemorySubjectType
   subjectId          String?
@@ -6104,6 +6129,9 @@ model AccountMemory {
   validUntil         DateTime?
   sourceType         AccountMemorySourceType
   sourceId           String?
+  /// Idempotency key for asynchronous memory projection. TMS events namespace
+  /// this by account; existing Customs rows remain null.
+  eventKey           String?                     @unique
   supersedesMemoryId String?
   supersedesMemory   AccountMemory?              @relation("MemorySupersession", fields: [supersedesMemoryId], references: [id], onDelete: SetNull)
   supersededBy       AccountMemory[]             @relation("MemorySupersession")
@@ -6113,6 +6141,12 @@ model AccountMemory {
   /// Superseded by contentTsv (real Postgres FTS). Kept only so old rows that
   /// predate the generated tsvector column still have a lowercase fallback.
   searchVector       String?
+  /// Structured retrieval hints only (entity ids, lane key, mode, equipment,
+  /// exception/charge codes). Canonical shipment, carrier, quote, and invoice
+  /// data remains in its domain tables.
+  scope              Json?
+  occurrenceCount    Int                         @default(1)
+  lastObservedAt     DateTime                    @default(now())
   /// pgvector column queried by findVectorMatches via the `<=>` operator.
   /// Unsupported because Prisma Client has no native vector type; written via
   /// raw SQL in MemoryRepository.createMemory, indexed with HNSW (see migration).
@@ -6129,6 +6163,7 @@ model AccountMemory {
   evidence           MemoryEvidence[]
 
   @@index([accountId])
+  @@index([accountId, domain, task])
   @@index([accountId, type])
   @@index([accountId, subjectType, subjectId])
   @@index([supersedesMemoryId])
@@ -6143,6 +6178,7 @@ model MemoryEvidence {
   memory     AccountMemory           @relation(fields: [memoryId], references: [id], onDelete: Cascade)
   sourceType AccountMemorySourceType
   sourceId   String?
+  eventKey   String?                 @unique
   excerpt    String
   confidence Float                   @default(1.0)
   createdAt  DateTime                @default(now())
@@ -6890,5 +6926,3 @@ model CarrierInvoiceLine {
 
   @@index([accountId])
 }
-
-

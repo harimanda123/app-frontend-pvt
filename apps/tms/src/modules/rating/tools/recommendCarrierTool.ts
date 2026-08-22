@@ -3,6 +3,7 @@ import type { AssistantTool } from "@qubere/assistant";
 import type { AccountContext } from "@qubere/auth";
 import { db } from "@qubere/db";
 import { createAuditLog } from "@qubere/decisions";
+import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
 
 export const recommendCarrierSchema = z.object({
   shipmentId: z.string(),
@@ -52,6 +53,12 @@ export const recommendCarrierTool: AssistantTool = {
     });
 
     const carrierMap = new Map(carriers.map((c) => [c.id, c]));
+    const accountMemory = await TmsAccountContextBuilder.build({
+      accountId: ctx.accountId,
+      task: "CARRIER_SELECTION",
+      query: quotes.flatMap((quote) => [quote.carrierId, quote.carrierName, quote.mode, quote.equipment]).filter(Boolean).join(" "),
+      scope: { shipmentId: input.shipmentId },
+    });
 
     // Filter and score options
     const evaluatedOptions = quotes.map((quote) => {
@@ -61,7 +68,14 @@ export const recommendCarrierTool: AssistantTool = {
 
       // Simple scoring model: rate weight + transit weight
       const numericAmount = Number(quote.amount);
-      const score = (isEligible ? 1000 : 0) - numericAmount - (quote.transitDays ?? 5) * 10;
+      const memoryAdjustment = quote.carrierId
+        ? TmsAccountContextBuilder.carrierPreferenceAdjustment(accountMemory, {
+            carrierId: quote.carrierId,
+            carrierName: carrier?.legalName ?? quote.carrierName,
+            scac: carrier?.scac,
+          })
+        : 0;
+      const score = (isEligible ? 1000 : 0) - numericAmount - (quote.transitDays ?? 5) * 10 + memoryAdjustment * 10;
 
       return {
         quote,
@@ -70,6 +84,7 @@ export const recommendCarrierTool: AssistantTool = {
         isEligible,
         numericAmount,
         score,
+        memoryAdjustment,
       };
     });
 
@@ -87,6 +102,11 @@ export const recommendCarrierTool: AssistantTool = {
       extractedValue: `Carrier: ${opt.carrier?.legalName ?? opt.quote.carrierId}, Rate: $${opt.numericAmount}, Insurance: ${opt.hasInsurance}`,
       sourceSpan: `Quote ID: ${opt.quote.id}, Transit Days: ${opt.quote.transitDays ?? "N/A"}`,
     }));
+    evidenceItems.push(...TmsAccountContextBuilder.summarizeForEvidence(accountMemory).map((memory) => ({
+      field: "accountOperatingMemory",
+      extractedValue: memory.content,
+      sourceSpan: `AccountMemory ${memory.memoryId} (${memory.sourceType})`,
+    })));
 
     // 3. Create AgentDecision recommendation record
     const agentDecision = await db.agentDecision.create({

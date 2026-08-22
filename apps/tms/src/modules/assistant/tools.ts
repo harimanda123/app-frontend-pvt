@@ -7,6 +7,7 @@ import { evaluateCarriersForShipment } from "@/modules/carriers/services/carrier
 import { parseFreightEmailTool } from "@/modules/orders/tools/parseFreightEmailTool";
 import { planMovementStopsTool } from "@/modules/movement/tools/planMovementStopsTool";
 import { recommendCarrierTool } from "@/modules/rating/tools/recommendCarrierTool";
+import { queueTmsMemoryEvent } from "../../lib/inngest/functions/tmsMemoryExtraction";
 
 export interface AssistantToolDefinition {
   name: string;
@@ -350,6 +351,14 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
             blockedReason: action === "reject" ? note || "Rejected by operator" : null,
           },
         });
+        await queueTmsMemoryEvent({
+          kind: "DECISION_REVIEWED",
+          accountId,
+          eventId: crypto.randomUUID(),
+          decisionId: itemId,
+          action: action === "approve" ? "approve" : "reject",
+          note,
+        }).catch((error) => console.error("[TMS memory] Failed to enqueue assistant decision review", error));
         return { success: true, type: "DECISION", action: action.toUpperCase(), itemId };
       }
 
@@ -368,6 +377,12 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
             resolutionNote: note || "Resolved by operator via Assistant",
           },
         });
+        await queueTmsMemoryEvent({
+          kind: "EXCEPTION_RESOLVED",
+          accountId,
+          eventId: crypto.randomUUID(),
+          exceptionId: itemId,
+        }).catch((error) => console.error("[TMS memory] Failed to enqueue assistant resolution", error));
         return { success: true, type: "EXCEPTION", action: "RESOLVED", itemId };
       }
 

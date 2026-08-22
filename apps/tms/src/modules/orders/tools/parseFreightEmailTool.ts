@@ -4,6 +4,7 @@ import type { AccountContext } from "@qubere/auth";
 import { db } from "@qubere/db";
 import { createAuditLog } from "@qubere/decisions";
 import { publishTransportationEvent } from "../../events/services/eventService";
+import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
 
 export const parseFreightEmailSchema = z.object({
   inboundEmailId: z.string().optional().nullable(),
@@ -54,6 +55,16 @@ export const parseFreightEmailTool: AssistantTool = {
 
     const autoThreshold = 80;
     const isHighConfidence = input.confidence >= autoThreshold;
+    const accountMemory = await TmsAccountContextBuilder.build({
+      accountId: ctx.accountId,
+      task: "FREIGHT_INTAKE",
+      query: [input.requestedBy, input.customerReference, input.mode].filter(Boolean).join(" "),
+      scope: {
+        customerName: input.requestedBy ?? undefined,
+        mode: input.mode ?? undefined,
+      },
+    });
+    const rememberedDefaults = TmsAccountContextBuilder.rememberedIntakeDefaults(accountMemory);
 
     // 1. Create TransportationOrder
     const orderStatus = isHighConfidence ? "UNDERSTOOD" : "NEEDS_REVIEW";
@@ -71,10 +82,11 @@ export const parseFreightEmailTool: AssistantTool = {
         weight: input.weight ?? null,
         totalWeight: input.weight ?? null,
         totalVolume: input.totalVolume ?? null,
-        mode: input.mode ?? null,
-        serviceLevel: input.serviceLevel ?? null,
-        incoterm: input.incoterm ?? null,
-        customsRequired: input.customsRequired ?? true,
+        mode: input.mode ?? rememberedDefaults.mode ?? null,
+        serviceLevel: input.serviceLevel ?? rememberedDefaults.serviceLevel ?? null,
+        equipmentRequirements: rememberedDefaults.equipment ? ([rememberedDefaults.equipment] as any) : undefined,
+        incoterm: input.incoterm ?? rememberedDefaults.incoterm ?? null,
+        customsRequired: input.customsRequired ?? rememberedDefaults.customsRequired ?? true,
         confidence: input.confidence,
         originAddress: input.originAddress ? (input.originAddress as any) : undefined,
         destinationAddress: input.destinationAddress ? (input.destinationAddress as any) : undefined,
@@ -94,7 +106,15 @@ export const parseFreightEmailTool: AssistantTool = {
         triageState: isHighConfidence ? "AUTO_VERIFIED" : "NEEDS_REVIEW",
         confidence: input.confidence,
         rulesApplied: ["EMAIL_INTAKE_V1"],
-        evidenceItems: input.evidenceItems as any,
+        evidenceItems: [
+          ...input.evidenceItems,
+          ...TmsAccountContextBuilder.summarizeForEvidence(accountMemory).map((memory) => ({
+            field: "accountOperatingMemory",
+            extractedValue: memory.content,
+            sourceSpan: `AccountMemory ${memory.memoryId} (${memory.sourceType})`,
+            confidence: Math.round(memory.confidence * 100),
+          })),
+        ] as any,
         proposedDescription: `TransportationOrder ${order.id} proposed with confidence ${input.confidence}%`,
       },
     });
@@ -136,4 +156,3 @@ export const parseFreightEmailTool: AssistantTool = {
     };
   },
 };
-

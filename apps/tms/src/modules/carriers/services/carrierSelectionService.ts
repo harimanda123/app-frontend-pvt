@@ -1,5 +1,7 @@
 import { db } from "@qubere/db";
 import type { AccountContext } from "@qubere/auth";
+import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
+import { buildLaneKey } from "../../memory/memory.domain-events";
 
 export interface CarrierScoringInput {
   mode: string;
@@ -35,6 +37,7 @@ export interface ScoredCarrier {
     onTime: number;
     tenderAcceptance: number;
     recentHistory: number;
+    accountMemory: number;
   };
 }
 
@@ -43,6 +46,20 @@ export async function evaluateCarriersForShipment(
   input: CarrierScoringInput
 ): Promise<ScoredCarrier[]> {
   const mode = input.mode.toUpperCase();
+  const laneKey = buildLaneKey({ mode, equipment: input.equipment, origin: input.origin, destination: input.destination });
+  const memoryContext = await TmsAccountContextBuilder.build({
+    accountId: ctx.accountId,
+    task: "CARRIER_SELECTION",
+    query: [mode, input.equipment, input.origin?.unlocode, input.destination?.unlocode].filter(Boolean).join(" "),
+    scope: {
+      shipmentId: input.shipmentId,
+      laneKey,
+      mode,
+      equipment: input.equipment,
+      origin: input.origin?.unlocode ?? input.origin?.city,
+      destination: input.destination?.unlocode ?? input.destination?.city,
+    },
+  });
   const profileModel = (db as any).carrierProfile ?? (db as any).carrier;
 
   if (!profileModel) return [];
@@ -160,6 +177,11 @@ export async function evaluateCarriersForShipment(
 
       const recentRejectionCount = tenderHistory?.rejected ?? 0;
       const recentHistoryScore = Math.max(-15, -recentRejectionCount * 5);
+      const accountMemoryScore = TmsAccountContextBuilder.carrierPreferenceAdjustment(memoryContext, {
+        carrierId: cId,
+        carrierName,
+        scac: profile.scac,
+      });
 
       const rawScore =
         base +
@@ -168,7 +190,8 @@ export async function evaluateCarriersForShipment(
         preferredScore +
         onTimeScore +
         tenderAcceptanceScore +
-        recentHistoryScore;
+        recentHistoryScore +
+        accountMemoryScore;
 
       const score = Math.max(0, Math.min(100, rawScore));
 
@@ -201,6 +224,7 @@ export async function evaluateCarriersForShipment(
           onTime: onTimeScore,
           tenderAcceptance: tenderAcceptanceScore,
           recentHistory: recentHistoryScore,
+          accountMemory: accountMemoryScore,
         },
       } satisfies ScoredCarrier;
     })

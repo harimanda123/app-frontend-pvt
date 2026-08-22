@@ -2,6 +2,7 @@ import type { AccountContext } from "@qubere/auth";
 import { db } from "@qubere/db";
 import { createAuditLog } from "@qubere/decisions";
 import { publishTransportationEvent } from "../../events/services/eventService";
+import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
 
 export interface EvidenceItem {
   field: string;
@@ -39,6 +40,20 @@ export async function parseIntakeRequest(
   const confidence = input.confidence ?? 85;
   const isHighConfidence = confidence >= 80;
   const status = isHighConfidence ? "UNDERSTOOD" : "NEEDS_REVIEW";
+  const accountMemory = await TmsAccountContextBuilder.build({
+    accountId: ctx.accountId,
+    task: "FREIGHT_INTAKE",
+    query: [input.requestedBy, input.customerReference, input.mode, input.origin?.unlocode, input.destination?.unlocode]
+      .filter(Boolean)
+      .join(" "),
+    scope: {
+      customerName: input.requestedBy ?? undefined,
+      mode: input.mode ?? undefined,
+      origin: input.origin?.unlocode ?? input.origin?.city,
+      destination: input.destination?.unlocode ?? input.destination?.city,
+    },
+  });
+  const rememberedDefaults = TmsAccountContextBuilder.rememberedIntakeDefaults(accountMemory);
 
   // Build structured order
   const order = await db.transportationOrder.create({
@@ -55,10 +70,15 @@ export async function parseIntakeRequest(
       weight: input.weight ?? null,
       totalWeight: input.weight ?? null,
       totalVolume: input.totalVolume ?? null,
-      mode: input.mode ?? "OCEAN",
-      equipmentRequirements: input.equipmentRequirements ? (input.equipmentRequirements as any) : undefined,
-      incoterm: input.incoterm ?? null,
-      customsRequired: input.customsRequired ?? true,
+      mode: input.mode ?? rememberedDefaults.mode ?? "OCEAN",
+      serviceLevel: rememberedDefaults.serviceLevel ?? null,
+      equipmentRequirements: input.equipmentRequirements
+        ? (input.equipmentRequirements as any)
+        : rememberedDefaults.equipment
+          ? ([rememberedDefaults.equipment] as any)
+          : undefined,
+      incoterm: input.incoterm ?? rememberedDefaults.incoterm ?? null,
+      customsRequired: input.customsRequired ?? rememberedDefaults.customsRequired ?? true,
       confidence,
       origin: input.origin ? (input.origin as any) : undefined,
       destination: input.destination ? (input.destination as any) : undefined,
@@ -78,7 +98,15 @@ export async function parseIntakeRequest(
       autoApprovalPolicy: isHighConfidence ? "freight-intake-auto-v1" : undefined,
       confidence,
       rulesApplied: ["INTAKE_EXTRACTION_V1", "EVIDENCE_PROVENANCE_V1"],
-      evidenceItems: (input.evidenceItems ?? []) as any,
+      evidenceItems: [
+        ...(input.evidenceItems ?? []),
+        ...TmsAccountContextBuilder.summarizeForEvidence(accountMemory).map((memory) => ({
+          field: "accountOperatingMemory",
+          extractedValue: memory.content,
+          sourceSpan: `AccountMemory ${memory.memoryId} (${memory.sourceType})`,
+          confidence: Math.round(memory.confidence * 100),
+        })),
+      ] as any,
       proposedDescription: `Proposed TransportationOrder ${order.id} (${input.mode ?? "OCEAN"}) with ${confidence}% confidence`,
     },
   });

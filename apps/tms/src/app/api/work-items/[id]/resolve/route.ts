@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuthenticatedRoute } from "@qubere/auth";
 import { db } from "@qubere/db";
+import { queueTmsMemoryEvent } from "@/lib/inngest/functions/tmsMemoryExtraction";
 
 interface RouteParams {
   id: string;
@@ -13,7 +14,7 @@ interface RouteParams {
  * Body: { action: "approve" | "reject" | "resolve", note?: string, itemType?: "EXCEPTION" | "DECISION" }
  */
 export const PATCH = withAuthenticatedRoute<RouteParams>(
-  async ({ req, ctx, params }) => {
+  async ({ req, ctx, params, requestId }) => {
     const { id } = await params;
     const body = await req.json();
     const { action, note, itemType } = body as {
@@ -42,6 +43,14 @@ export const PATCH = withAuthenticatedRoute<RouteParams>(
               reviewedByUserId: ctx.userId,
             },
           });
+          await queueTmsMemoryEvent({
+            kind: "DECISION_REVIEWED",
+            accountId: ctx.accountId,
+            eventId: requestId,
+            decisionId: id,
+            action: "approve",
+            note,
+          }).catch((error) => console.error("[TMS memory] Failed to enqueue decision approval", error));
           return NextResponse.json({
             success: true,
             type: "DECISION",
@@ -60,6 +69,14 @@ export const PATCH = withAuthenticatedRoute<RouteParams>(
               blockedReason: note ?? "Rejected by operator.",
             },
           });
+          await queueTmsMemoryEvent({
+            kind: "DECISION_REVIEWED",
+            accountId: ctx.accountId,
+            eventId: requestId,
+            decisionId: id,
+            action: "reject",
+            note,
+          }).catch((error) => console.error("[TMS memory] Failed to enqueue decision rejection", error));
           return NextResponse.json({
             success: true,
             type: "DECISION",
@@ -88,6 +105,12 @@ export const PATCH = withAuthenticatedRoute<RouteParams>(
               note ?? "Resolved by operator via Operations Dashboard.",
           },
         });
+        await queueTmsMemoryEvent({
+          kind: "EXCEPTION_RESOLVED",
+          accountId: ctx.accountId,
+          eventId: requestId,
+          exceptionId: id,
+        }).catch((error) => console.error("[TMS memory] Failed to enqueue exception resolution", error));
         return NextResponse.json({
           success: true,
           type: "EXCEPTION",

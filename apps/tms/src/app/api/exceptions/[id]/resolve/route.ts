@@ -3,6 +3,7 @@ import { withAuthenticatedRoute, hasPermission } from "@qubere/auth";
 import { db } from "@qubere/db";
 import { createAuditLog, RISK_ACCEPTANCE_PERMISSION } from "@qubere/decisions";
 import { z } from "zod";
+import { queueTmsMemoryEvent } from "@/lib/inngest/functions/tmsMemoryExtraction";
 
 const resolveExceptionSchema = z.object({
   actionType: z.enum(["NOTIFY_CARRIER", "ADJUST_ETA", "REROUTE", "EXPEDITE", "CANCEL_REBOOK"]),
@@ -65,6 +66,13 @@ export const POST = withAuthenticatedRoute<{ id: string }>(
         isHighImpactAction,
       },
     });
+
+    await queueTmsMemoryEvent({
+      kind: "EXCEPTION_RESOLVED",
+      accountId: ctx.accountId,
+      eventId: requestId,
+      exceptionId: id,
+    }).catch((error) => console.error("[TMS memory] Failed to enqueue exception resolution", error));
 
     return NextResponse.json({ exception: updatedException });
   },

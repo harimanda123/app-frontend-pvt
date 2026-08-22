@@ -3,6 +3,8 @@ import { db } from "@qubere/db";
 import type { AccountContext } from "@qubere/auth";
 import { publishTransportationEvent } from "../../events/services/eventService";
 import { evaluateAutonomyPolicy } from "../../autonomy/services/policyEngineService";
+import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
+import { buildLaneKey } from "../../memory/memory.domain-events";
 import {
   getLaneIntelligence,
   computeSellPrice,
@@ -105,6 +107,23 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
     destinationUnlocode: destData.unlocode,
     destinationCountry: destData.country,
   };
+  const accountMemory = await TmsAccountContextBuilder.build({
+    accountId: ctx.accountId,
+    task: "RATE_QUOTING",
+    query: [mode, equipment, lane.originUnlocode, lane.destinationUnlocode, order.client?.name]
+      .filter(Boolean)
+      .join(" "),
+    scope: {
+      transportationOrderId: order.id,
+      customerId: order.clientId ?? undefined,
+      customerName: order.client?.name,
+      laneKey: buildLaneKey({ mode, equipment, origin: order.origin, destination: order.destination }),
+      mode,
+      equipment,
+      origin: lane.originUnlocode,
+      destination: lane.destinationUnlocode,
+    },
+  });
 
   // ---- UNDERSTAND: Lane intelligence + rate matching ----
   let availableRates: any[] = [];
@@ -209,9 +228,10 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
   );
 
   // Determine target margin — use policy default, then input override, then 15%
-  const targetMarginPct = new Decimal(
-    input.targetMarginPercent ?? 15.0
-  );
+  const rememberedTargetMargin = input.targetMarginPercent == null
+    ? TmsAccountContextBuilder.rememberedTargetMargin(accountMemory)
+    : null;
+  const targetMarginPct = new Decimal(input.targetMarginPercent ?? rememberedTargetMargin ?? 15.0);
 
   const { sellAmount, grossProfit, actualMarginPct } = computeSellPrice(
     totalBuyCost,
@@ -259,9 +279,19 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
         {
           field: "targetMarginPct",
           extractedValue: `${targetMarginPct.toFixed(1)}%`,
-          sourceSpan: input.targetMarginPercent != null ? "Caller Override" : "Account Default",
+          sourceSpan: input.targetMarginPercent != null
+            ? "Caller Override"
+            : rememberedTargetMargin != null
+              ? "Account Operating Memory"
+              : "Account Default",
           confidence: 100,
         },
+        ...TmsAccountContextBuilder.summarizeForEvidence(accountMemory).map((memory) => ({
+          field: "accountOperatingMemory",
+          extractedValue: memory.content,
+          sourceSpan: `AccountMemory ${memory.memoryId} (${memory.sourceType})`,
+          confidence: Math.round(memory.confidence * 100),
+        })),
         {
           field: "sellAmount",
           extractedValue: `$${sellAmount.toFixed(2)}`,

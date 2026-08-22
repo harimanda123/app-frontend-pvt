@@ -4,6 +4,7 @@ import { publishTransportationEvent } from "../../events/services/eventService";
 import { createAuditLog } from "@qubere/decisions";
 import { evaluateAutonomyPolicy } from "../../autonomy/services/policyEngineService";
 import { evaluateCarriersForShipment } from "../../carriers/services/carrierSelectionService";
+import { queueTmsMemoryEvent } from "../../../lib/inngest/functions/tmsMemoryExtraction";
 
 // ---------------------------------------------------------------------------
 // Tender Agent — Carrier Dispatch
@@ -22,6 +23,7 @@ export interface CreateTenderInput {
   carrierId: string;
   timeoutHours?: number;
   idempotencyKey?: string;  // prevents double-dispatch on retry
+  selectionEvidence?: Record<string, unknown>;
 }
 
 export interface RespondTenderInput {
@@ -91,6 +93,15 @@ export async function createAndSendTender(
       triageState: "AUTO_VERIFIED",
       autoApproved: true,
       status: "Completed",
+      evidenceItems: input.selectionEvidence
+        ? [{
+            field: "carrierSelection",
+            extractedValue: input.carrierId,
+            sourceSpan: "Carrier ranking, policy gate, and account operating memory",
+            confidence: 95,
+            details: input.selectionEvidence,
+          }] as any
+        : undefined,
     },
   });
 
@@ -165,6 +176,12 @@ export async function respondToTender(
     })
     .catch(() => null);
 
+  await queueTmsMemoryEvent({
+    kind: "TENDER_OUTCOME_RECORDED",
+    accountId: ctx.accountId,
+    tenderId: tender.id,
+  }).catch((error) => console.error("[TMS memory] Failed to enqueue tender outcome", error));
+
   await publishTransportationEvent(ctx, {
     entityType: "TENDER",
     entityId: tender.id,
@@ -220,6 +237,12 @@ export async function sweepExpiredTenders(callerCtx?: AccountContext) {
       },
     });
 
+    await queueTmsMemoryEvent({
+      kind: "TENDER_OUTCOME_RECORDED",
+      accountId: tender.accountId,
+      tenderId: tender.id,
+    }).catch((error) => console.error("[TMS memory] Failed to enqueue tender expiry", error));
+
     await createAuditLog({
       accountId: tender.accountId,
       userId: "system_cron",
@@ -264,7 +287,7 @@ export async function triggerFallbackCascade(
 ) {
   // Find shipment mode for carrier scoring
   let shipmentMode = "OCEAN";
-  let shipmentEquipment = "40HC";
+  const shipmentEquipment = "40HC";
 
   if (failedTender.shipmentId && typeof db.shipment?.findFirst === "function") {
     const shipment = await db.shipment
@@ -421,6 +444,12 @@ export async function autoDispatchTender(
     carrierId: topCarrier.carrierId,
     timeoutHours: 4,
     idempotencyKey: `auto-${shipmentId}`,
+    selectionEvidence: {
+      carrierName: topCarrier.carrierName,
+      score: topCarrier.score,
+      scoreBreakdown: topCarrier.scoreBreakdown,
+      memoryAdjustment: topCarrier.scoreBreakdown.accountMemory,
+    },
   });
 
   return {
