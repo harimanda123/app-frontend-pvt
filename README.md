@@ -508,13 +508,57 @@ Some data is not seeded by `prisma db seed` and must be run explicitly:
 
 GET endpoints **never** seed data. If a collection is empty, they return `[]`. Run the appropriate seed script above to populate it.
 
-### 5. Run Development Server
+### 5. Running & Managing Applications
 
-```bash
-npm run dev
-```
+This repository is a Turborepo monorepo containing two primary web applications:
+- **`apps/custom`** (Customs & Trade Compliance App) ➔ **`http://localhost:3000`**
+- **`apps/tms`** (Autonomous Freight Execution TMS App) ➔ **`http://localhost:3001`**
 
-Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+#### 🚀 How to Start the Applications
+
+- **Start All Applications Simultaneously (Recommended)**:
+  ```bash
+  npm run dev
+  ```
+  *Launches both Customs (`:3000`) and TMS (`:3001`) concurrently via Turborepo.*
+
+- **Start Only the TMS App (Port 3001)**:
+  ```bash
+  npm run dev --workspace=@qubere/tms
+  ```
+
+- **Start Only the Customs App (Port 3000)**:
+  ```bash
+  npm run dev --workspace=@qubere/custom
+  ```
+
+---
+
+#### 🛑 How to Stop the Applications
+
+- **Graceful Stop**: Press **`Ctrl + C`** in the terminal where `npm run dev` is running.
+- **Kill Lingering Processes (If `EADDRINUSE` Port 3000/3001 error occurs)**:
+  If a Node background process remains bound to port 3000 or 3001, clear them instantly:
+  ```bash
+  lsof -ti :3000 -ti :3001 | xargs kill -9
+  ```
+
+---
+
+#### 🗄️ Database & Schema Management
+
+- **Push Prisma Schema Changes to Database**:
+  ```bash
+  npx prisma db push --accept-data-loss --schema=packages/db/prisma/schema.prisma
+  ```
+- **Regenerate Prisma Client Types**:
+  ```bash
+  npm run build --workspace=@qubere/db
+  ```
+- **Typecheck Workspaces**:
+  ```bash
+  npm run typecheck:workspaces
+  ```
 
 ## ⏰ Scheduled Jobs & Data Dispatcher
 
