@@ -11,6 +11,7 @@ import { TmsSidebar } from "@/components/TmsSidebar";
 import { TmsHeader } from "@/components/TmsHeader";
 import { Card, Badge, Button } from "@/components/ui";
 import { FeatureDetailModal } from "./FeatureDetailModal";
+import { StatTileModal } from "./StatTileModal";
 
 interface FeatureGuideItem {
   id: string;
@@ -186,6 +187,7 @@ export function GuideClient() {
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedFeature, setSelectedFeature] = useState<FeatureGuideItem | null>(null);
+  const [activeStatModal, setActiveStatModal] = useState<"modules" | "agents" | "sla" | "demurrage" | null>(null);
 
   const categories = ["All", "Intake & Orders", "Tenders & Rating", "Shipments & Tracking", "Freight Audit", "AI Supervisor & Admin"];
 
@@ -226,7 +228,7 @@ export function GuideClient() {
                   </span>
                 </div>
                 <p className="text-xs text-ink-muted mt-0.5 font-medium">
-                  Interactive reference manual and step-by-step instructions. Click any box for blueprint popups or direct product access.
+                  Interactive reference manual and step-by-step instructions. Click any box for module details or direct product access.
                 </p>
               </div>
             </div>
@@ -246,51 +248,63 @@ export function GuideClient() {
             </div>
           </div>
 
-          {/* OVERVIEW STAT CARDS GRID */}
+          {/* OVERVIEW STAT CARDS GRID (CLICKABLE TO OPEN OVERVIEW MODAL) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link href="/" className="block group cursor-pointer">
+            <button
+              onClick={() => setActiveStatModal("modules")}
+              className="block text-left w-full group cursor-pointer"
+            >
               <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">TMS Modules</span>
-                  <ArrowUpRight className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
+                  <Eye className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
                 </div>
                 <p className="text-2xl font-black text-ink group-hover:text-brand transition-colors">7 Core Modules</p>
-                <p className="text-[10px] text-brand font-semibold">End-to-End Freight Execution ➔</p>
+                <p className="text-[10px] text-brand font-semibold">Click to View All 7 Modules ➔</p>
               </Card>
-            </Link>
+            </button>
 
-            <Link href="/admin" className="block group cursor-pointer">
+            <button
+              onClick={() => setActiveStatModal("agents")}
+              className="block text-left w-full group cursor-pointer"
+            >
               <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">AI Autonomous Agents</span>
-                  <ArrowUpRight className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
+                  <Eye className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
                 </div>
                 <p className="text-2xl font-black text-ink group-hover:text-brand transition-colors">8 Deployed Agents</p>
-                <p className="text-[10px] text-emerald-600 font-semibold">Policy Verified Executions ➔</p>
+                <p className="text-[10px] text-emerald-600 font-semibold">View Agent Roster ➔</p>
               </Card>
-            </Link>
+            </button>
 
-            <Link href="/tenders" className="block group cursor-pointer">
+            <button
+              onClick={() => setActiveStatModal("sla")}
+              className="block text-left w-full group cursor-pointer"
+            >
               <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">SLA Governance</span>
-                  <ArrowUpRight className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
+                  <Eye className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
                 </div>
                 <p className="text-2xl font-black text-ink group-hover:text-brand transition-colors">60-Min SLA</p>
-                <p className="text-[10px] text-brand font-semibold">Waterfall Carrier Dispatch ➔</p>
+                <p className="text-[10px] text-brand font-semibold">Waterfall Rules ➔</p>
               </Card>
-            </Link>
+            </button>
 
-            <Link href="/shipments" className="block group cursor-pointer">
+            <button
+              onClick={() => setActiveStatModal("demurrage")}
+              className="block text-left w-full group cursor-pointer"
+            >
               <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Demurrage Shield</span>
-                  <ArrowUpRight className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
+                  <Eye className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
                 </div>
                 <p className="text-2xl font-black text-emerald-600 group-hover:text-emerald-700 transition-colors">$350/Day Exposure</p>
-                <p className="text-[10px] text-ink-muted font-semibold">Last Free Day Risk Alerts ➔</p>
+                <p className="text-[10px] text-ink-muted font-semibold">LFD Protection Rules ➔</p>
               </Card>
-            </Link>
+            </button>
           </div>
 
           {/* INSTANT ACCESS DIRECTORY CARD */}
@@ -518,6 +532,12 @@ export function GuideClient() {
         isOpen={Boolean(selectedFeature)}
         onClose={() => setSelectedFeature(null)}
         feature={selectedFeature}
+      />
+
+      {/* STAT TILE OVERVIEW MODAL */}
+      <StatTileModal
+        type={activeStatModal}
+        onClose={() => setActiveStatModal(null)}
       />
     </div>
   );
