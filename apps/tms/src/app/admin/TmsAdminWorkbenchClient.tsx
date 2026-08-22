@@ -10,6 +10,8 @@ import {
 import { TmsSidebar } from "@/components/TmsSidebar";
 import { TmsHeader } from "@/components/TmsHeader";
 import { Card, Button } from "@/components/ui";
+import { TmsAiAnalyticsPanel } from "@/components/TmsAiAnalyticsPanel";
+import type { TmsAiAnalyticsData } from "@/lib/tmsAiAnalytics";
 
 interface AccountItem {
   id: string;
@@ -53,6 +55,7 @@ interface TmsAdminWorkbenchClientProps {
     dataMode: "PRODUCTION" | "SANDBOX" | "DEMO";
   };
   initialAccounts: AccountItem[];
+  aiAnalytics?: TmsAiAnalyticsData;
   telemetry?: {
     agentDecisionCount: number;
     openExceptionCount: number;
@@ -148,6 +151,7 @@ const REAL_TMS_AUTONOMOUS_AGENTS = [
 export function TmsAdminWorkbenchClient({
   currentAccount,
   initialAccounts,
+  aiAnalytics,
   telemetry,
 }: TmsAdminWorkbenchClientProps) {
   const [activeTab, setActiveTab] = useState<
@@ -588,168 +592,11 @@ export function TmsAdminWorkbenchClient({
           {/* TAB 2: AI Freight Agents & Telemetry */}
           {activeTab === "agents" && (
             <div className="space-y-6">
-              {/* Stat Card Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="p-5 bg-white border border-border space-y-2">
-                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Total Agent Decisions</span>
-                  <p className="text-2xl font-black text-ink">{telemetry?.agentDecisionCount ?? 0}</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold">Policy Verified Executions</p>
-                </Card>
-                <Card className="p-5 bg-white border border-border space-y-2">
-                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">LLM Tokens Burnt</span>
-                  <p className="text-2xl font-black text-ink">
-                    {telemetry?.totalTokensSpent
-                      ? telemetry.totalTokensSpent >= 1000
-                        ? `${(telemetry.totalTokensSpent / 1000).toFixed(1)}k`
-                        : telemetry.totalTokensSpent.toLocaleString()
-                      : "0"}
-                  </p>
-                  <p className="text-[10px] text-brand font-semibold">Input + Output Token Ledger</p>
-                </Card>
-                <Card className="p-5 bg-white border border-border space-y-2">
-                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Open Exceptions</span>
-                  <p className="text-2xl font-black text-ink">{telemetry?.openExceptionCount ?? 0}</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold">Active Monitoring</p>
-                </Card>
-                <Card className="p-5 bg-white border border-border space-y-2">
-                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Policy Gate</span>
-                  <p className="text-2xl font-black text-emerald-600">Active</p>
-                  <p className="text-[10px] text-ink-muted">Threshold &gt;= 80%</p>
-                </Card>
-              </div>
-
-              {/* Agent Directory Grid */}
-              <Card className="p-6 bg-white border border-border space-y-4">
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-ink">Active Autonomous TMS Freight Agents</h3>
-                    <p className="text-xs text-ink-muted mt-0.5">
-                      The 8 production-deployed AI agents powering TMS intake, stop planning, carrier rating, tender dispatch, telematics, demurrage risk, 3-way freight audit, and exception resolution.
-                    </p>
-                  </div>
-                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
-                    8 Deployed TMS Agents
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                  {REAL_TMS_AUTONOMOUS_AGENTS.map((agent) => {
-                    const IconComponent = agent.icon;
-                    // Find invocation count from database groupBy if available
-                    const matchedInvocation = telemetry?.invocationsByAgent?.find((inv) =>
-                      inv.agentName.toLowerCase().includes(agent.name.toLowerCase().split(" ")[0]) ||
-                      agent.name.toLowerCase().includes(inv.agentName.toLowerCase().split(" ")[0])
-                    );
-                    const invocationCount = matchedInvocation?.invocations;
-
-                    return (
-                      <div
-                        key={agent.id}
-                        className="p-4 rounded-2xl bg-surface-muted/60 border border-border hover:border-brand/40 transition-all space-y-2"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2.5">
-                            <div className="w-7 h-7 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0">
-                              <IconComponent className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <span className="font-bold text-xs text-ink block">{agent.name}</span>
-                              <span className="text-[10px] text-ink-muted font-mono">{agent.category}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            {invocationCount !== undefined && (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-brand/10 text-brand">
-                                {invocationCount} calls
-                              </span>
-                            )}
-                            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white border border-border text-ink-muted">
-                              {agent.scope}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                              {agent.status}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-xs text-ink-muted leading-relaxed pl-9">{agent.description}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-
-              {/* Agent Invocations & Token Burn Ledger Table */}
-              <Card className="p-6 bg-white border border-border space-y-4">
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-ink">Agent Token Burn & Invocation Analytics</h3>
-                    <p className="text-xs text-ink-muted mt-0.5">
-                      Live metered execution tally and LLM token consumption breakdown across operational agent surfaces.
-                    </p>
-                  </div>
-                  <span className="px-3 py-1 rounded-full bg-brand/10 text-brand font-mono font-bold text-xs">
-                    Metered Usage
-                  </span>
-                </div>
-
-                {!telemetry?.usageBySurface || telemetry.usageBySurface.length === 0 ? (
-                  <div className="p-6 rounded-2xl bg-surface-muted/40 text-center text-ink-muted text-xs space-y-1">
-                    <p className="font-bold text-ink">No agent token burn recorded yet in this window.</p>
-                    <p>Agent executions are automatically tracked in the <code className="font-mono text-[11px] bg-white px-1.5 py-0.5 rounded border border-border">AiUsageWindow</code> ledger.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-border text-ink-muted font-mono uppercase text-[10px] tracking-wider">
-                          <th className="pb-2.5 font-bold">Agent / Surface</th>
-                          <th className="pb-2.5 font-bold text-right">Invocations</th>
-                          <th className="pb-2.5 font-bold text-right">Input Tokens</th>
-                          <th className="pb-2.5 font-bold text-right">Output Tokens</th>
-                          <th className="pb-2.5 font-bold text-right">Total Tokens</th>
-                          <th className="pb-2.5 font-bold text-center">Token Share</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {telemetry.usageBySurface.map((row) => {
-                          const totalAll = telemetry.totalTokensSpent ?? 1;
-                          const pct = Math.min(100, Math.round((row.totalTokens / totalAll) * 100));
-                          return (
-                            <tr key={row.surface} className="hover:bg-surface-muted/30 transition-colors">
-                              <td className="py-3 font-bold text-ink capitalize">
-                                {row.surface.replace(/-/g, " ")}
-                              </td>
-                              <td className="py-3 text-right font-mono font-bold text-ink">
-                                {row.requests.toLocaleString()}
-                              </td>
-                              <td className="py-3 text-right font-mono text-ink-muted">
-                                {row.inputTokens.toLocaleString()}
-                              </td>
-                              <td className="py-3 text-right font-mono text-ink-muted">
-                                {row.outputTokens.toLocaleString()}
-                              </td>
-                              <td className="py-3 text-right font-mono font-black text-brand">
-                                {row.totalTokens.toLocaleString()}
-                              </td>
-                              <td className="py-3 text-center">
-                                <div className="flex items-center space-x-2 justify-center">
-                                  <div className="w-16 bg-surface-muted rounded-full h-1.5 overflow-hidden">
-                                    <div
-                                      className="bg-brand h-1.5 rounded-full"
-                                      style={{ width: `${pct}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-[10px] font-mono font-bold text-ink-muted">{pct}%</span>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </Card>
+              {aiAnalytics ? (
+                <TmsAiAnalyticsPanel data={aiAnalytics} />
+              ) : (
+                <div className="p-6 text-center text-xs text-ink-muted">Loading TMS AI Analytics...</div>
+              )}
             </div>
           )}
 
