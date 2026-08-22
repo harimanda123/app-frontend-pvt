@@ -8,7 +8,41 @@ export interface FetchOptions {
   pageSize?: number;
 }
 
+const REQUEST_DELAY_MS = 250;
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 1000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class CbpCrossFetchService {
+  /**
+   * Fetch wrapper with retry/backoff for transient failures (429, 5xx, network
+   * errors). A single dropped request used to abort ingestion for the entire
+   * search term; now it's retried before giving up.
+   */
+  private static async fetchWithRetry(url: string, init?: RequestInit): Promise<Response> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        await delay(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
+      }
+      try {
+        const res = await fetch(url, init);
+        if (res.ok) return res;
+        if (res.status === 429 || res.status >= 500) {
+          lastError = new Error(`HTTP ${res.status}: ${res.statusText}`);
+          continue;
+        }
+        return res;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
   /**
    * Real REST API fetcher for official CBP CROSS Rulings with pagination, date cursors, and revocation tracking.
    * Source: rulings.cbp.gov API
@@ -29,6 +63,9 @@ export class CbpCrossFetchService {
       let termIngested = 0;
 
       while (page <= maxPages) {
+        if (page > 1) {
+          await delay(REQUEST_DELAY_MS);
+        }
         const url = new URL(baseUrl);
         url.searchParams.set("term", term);
         url.searchParams.set("page", String(page));
@@ -41,7 +78,7 @@ export class CbpCrossFetchService {
           url.searchParams.set("toDate", optionsOrTerm.endDate.toISOString().slice(0, 10));
         }
 
-        const res = await fetch(url.toString(), {
+        const res = await this.fetchWithRetry(url.toString(), {
           headers: {
             Accept: "application/json",
             "User-Agent": "Qubere-Compliance-Ingestion-Engine/1.0",
@@ -85,7 +122,8 @@ export class CbpCrossFetchService {
           // Full-body acquisition if text snippet is brief and full endpoint URL is available
           if (textBody.length < 500) {
             try {
-              const fullRes = await fetch(`https://rulings.cbp.gov/api/ruling/${encodeURIComponent(rulingNumber)}`);
+              await delay(REQUEST_DELAY_MS);
+              const fullRes = await this.fetchWithRetry(`https://rulings.cbp.gov/api/ruling/${encodeURIComponent(rulingNumber)}`);
               if (fullRes.ok) {
                 const fullJson = await fullRes.json();
                 if (fullJson.rulingText || fullJson.text) {
