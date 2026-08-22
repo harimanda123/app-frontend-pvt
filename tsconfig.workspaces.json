@@ -5,6 +5,8 @@
     "incremental": false,
     "jsx": "react-jsx"
   },
+  "files": [],
   "include": ["packages/**/*.ts", "apps/**/*.ts"],
-  "exclude": ["node_modules", "infrastructure"]
+  "exclude": ["node_modules", "infrastructure"],
+  "references": []
 }
