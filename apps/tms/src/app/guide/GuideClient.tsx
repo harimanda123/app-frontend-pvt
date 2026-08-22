@@ -5,11 +5,12 @@ import Link from "next/link";
 import {
   BookOpen, Search, ArrowRight, ExternalLink, Bot, Truck, FileText, Receipt,
   ShieldCheck, ArrowUpRight, Cpu, Layers, Sparkles, CheckCircle2, HelpCircle,
-  BarChart3, Scale, Clock, AlertTriangle, Zap, Terminal, Command, Globe, Check
+  BarChart3, Scale, Clock, AlertTriangle, Zap, Terminal, Command, Globe, Check, Eye
 } from "lucide-react";
 import { TmsSidebar } from "@/components/TmsSidebar";
 import { TmsHeader } from "@/components/TmsHeader";
 import { Card, Badge, Button } from "@/components/ui";
+import { FeatureDetailModal } from "./FeatureDetailModal";
 
 interface FeatureGuideItem {
   id: string;
@@ -184,6 +185,7 @@ const FEATURE_GUIDE_DATA: FeatureGuideItem[] = [
 export function GuideClient() {
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedFeature, setSelectedFeature] = useState<FeatureGuideItem | null>(null);
 
   const categories = ["All", "Intake & Orders", "Tenders & Rating", "Shipments & Tracking", "Freight Audit", "AI Supervisor & Admin"];
 
@@ -224,7 +226,7 @@ export function GuideClient() {
                   </span>
                 </div>
                 <p className="text-xs text-ink-muted mt-0.5 font-medium">
-                  Interactive reference manual and step-by-step instructions. Click any box below to jump into the product feature.
+                  Interactive reference manual and step-by-step instructions. Click any box for blueprint popups or direct product access.
                 </p>
               </div>
             </div>
@@ -244,7 +246,7 @@ export function GuideClient() {
             </div>
           </div>
 
-          {/* OVERVIEW STAT CARDS GRID (CLICKABLE TO DIRECT ROUTES) */}
+          {/* OVERVIEW STAT CARDS GRID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link href="/" className="block group cursor-pointer">
               <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
@@ -291,7 +293,7 @@ export function GuideClient() {
             </Link>
           </div>
 
-          {/* INSTANT ACCESS DIRECTORY CARD (ALL CLICKABLE BOXES) */}
+          {/* INSTANT ACCESS DIRECTORY CARD */}
           <Card className="p-6 bg-white border border-border shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
@@ -357,14 +359,14 @@ export function GuideClient() {
             ))}
           </div>
 
-          {/* FEATURE CARDS LIST (ENTIRE CARD CLICKABLE TO PRODUCT ROUTE) */}
+          {/* FEATURE CARDS LIST (CLICKABLE FOR DETAIL MODAL + DIRECT PRODUCT BTN) */}
           <div className="space-y-5">
             {filteredFeatures.map((feature) => {
               const IconComponent = feature.icon;
               return (
-                <Link
+                <div
                   key={feature.id}
-                  href={feature.route}
+                  onClick={() => setSelectedFeature(feature)}
                   className="block group cursor-pointer transition-all"
                 >
                   <Card className="p-6 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-5">
@@ -387,9 +389,26 @@ export function GuideClient() {
                         </div>
                       </div>
 
-                      <div className="px-4 py-2 rounded-xl bg-surface-muted border border-border text-xs font-bold text-brand group-hover:bg-brand group-hover:text-white transition-all inline-flex items-center justify-center space-x-1.5 self-start sm:self-auto shrink-0">
-                        <span>Open Feature Workspace</span>
-                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      <div className="flex items-center space-x-2 self-start sm:self-auto shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFeature(feature);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-surface-muted border border-border text-xs font-bold text-ink hover:bg-white transition-all inline-flex items-center space-x-1.5 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-brand" />
+                          <span>View Blueprint</span>
+                        </button>
+
+                        <Link
+                          href={feature.route}
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-4 py-2 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand-hover transition-all inline-flex items-center justify-center space-x-1.5 cursor-pointer shadow-2xs"
+                        >
+                          <span>Launch Live Route</span>
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </Link>
                       </div>
                     </div>
 
@@ -445,12 +464,12 @@ export function GuideClient() {
                       </div>
                     )}
                   </Card>
-                </Link>
+                </div>
               );
             })}
           </div>
 
-          {/* KEYBOARD SHORTCUTS CHEAT SHEET (CLICKABLE BOXES) */}
+          {/* KEYBOARD SHORTCUTS CHEAT SHEET */}
           <Card className="p-6 bg-white border border-border shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
@@ -493,6 +512,13 @@ export function GuideClient() {
           </Card>
         </main>
       </div>
+
+      {/* FEATURE DETAIL BLUEPRINT MODAL */}
+      <FeatureDetailModal
+        isOpen={Boolean(selectedFeature)}
+        onClose={() => setSelectedFeature(null)}
+        feature={selectedFeature}
+      />
     </div>
   );
 }
