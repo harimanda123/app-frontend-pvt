@@ -8,6 +8,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const fetchAndIngestMock = vi.fn();
 
+vi.mock("@/lib/db", () => ({
+  db: {
+    datasetRefreshLog: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: "log_1" }),
+      update: vi.fn().mockResolvedValue({}),
+    },
+  },
+}));
 vi.mock("@/lib/api/auth-guards", () => ({
   withCronRoute: (handler: any) => (req: any) => handler({ req, requestId: "test-req-1" }),
 }));

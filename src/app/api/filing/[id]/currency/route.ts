@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { withAuthenticatedRoute } from "@/lib/api/auth-guards";
 import { validatePathParams } from "@/lib/api/validation";
+import { checkIdempotency, persistIdempotency } from "@/lib/api/idempotency";
 import { db } from "@/lib/db";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 import { extractedCurrencies } from "@/modules/documents/extractedCurrency";
@@ -84,6 +85,10 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
   const paramsVal = validatePathParams(params, paramsSchema, requestId);
   if ("response" in paramsVal) return paramsVal.response;
 
+  const { idempotencyKey, requestHash, cachedResponse, errorResponse: idempError } = await checkIdempotency(req, ctx.accountId, requestId);
+  if (cachedResponse) return cachedResponse;
+  if (idempError) return idempError;
+
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid currency configuration", details: parsed.error.flatten() }, { status: 400 });
@@ -138,5 +143,10 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
     metadata: { fields: ["currencyContext"], currencyContext },
   });
 
-  return NextResponse.json({ success: true, currencyContext });
+  const responsePayload = { success: true, currencyContext };
+  if (idempotencyKey) {
+    await persistIdempotency(ctx.accountId, idempotencyKey, requestHash ?? "", 200, responsePayload);
+  }
+
+  return NextResponse.json(responsePayload);
 }, { permission: "filings.create", write: true });

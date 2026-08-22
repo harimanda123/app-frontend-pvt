@@ -1,20 +1,21 @@
 import { authorizeWrite } from "@/lib/api/auth-guards";
 import { buildErrorResponse, generateRequestId, handleApiError } from "@/lib/api/error";
+import { checkIdempotency, persistIdempotency } from "@/lib/api/idempotency";
 import { createAuditLog } from "@/lib/audit";
 import { db, withAccountIdContext } from "@/lib/db";
+import { PipelineOrchestrator } from "@/modules/agents/pipelineOrchestrator";
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 
 /**
- * Re-queue a failed pipeline job.
+ * Re-queue a failed or stalled pipeline job.
  *
- * The queue reclaims jobs that stall mid-run (PROCESSING with a lock older than
- * five minutes), but a job that reached FAILED is terminal: nothing picks it up
- * again. Without this endpoint the workspace could only tell an operator that
- * processing had failed and leave them with no way forward, so the retry is a
- * real state change rather than a button that reloads the page.
+ * Jobs can fail or stall mid-run (lockedAt older than 5 minutes). This endpoint
+ * unlocks and re-queues the job so background workers or in-process execution
+ * can resume the pipeline run from where it left off.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   const requestId = generateRequestId();
@@ -25,6 +26,10 @@ export async function POST(
     if (!ctx) {
       return buildErrorResponse(401, "UNAUTHENTICATED", "Authentication required", requestId);
     }
+
+    const { idempotencyKey, requestHash, cachedResponse, errorResponse: idempError } = await checkIdempotency(req, ctx.accountId, requestId);
+    if (cachedResponse) return cachedResponse;
+    if (idempError) return idempError;
 
     const { id } = await context.params;
 
@@ -40,7 +45,7 @@ export async function POST(
       const job = await db.pipelineJob.findFirst({
         where: { shipmentId: shipment.id, accountId: ctx.accountId },
         orderBy: { createdAt: "desc" },
-        select: { id: true, status: true },
+        select: { id: true, status: true, lockedAt: true },
       });
       if (!job) {
         return buildErrorResponse(
@@ -51,19 +56,33 @@ export async function POST(
         );
       }
 
-      if (job.status !== "FAILED") {
-        // Re-queueing a running job would let two workers hold the same state.
+      const STALL_THRESHOLD_MS = 5 * 60 * 1000;
+      const isStalled =
+        job.status === "PROCESSING" &&
+        job.lockedAt !== null &&
+        Date.now() - new Date(job.lockedAt).getTime() > STALL_THRESHOLD_MS;
+
+      if (job.status !== "FAILED" && !isStalled) {
         return buildErrorResponse(
           409,
           "JOB_NOT_FAILED",
-          `The latest pipeline run is ${job.status}. Only a failed run can be retried.`,
+          `The latest pipeline run is ${job.status}. Only a failed or stalled run can be retried.`,
           requestId
         );
       }
 
-      // Claim on the status we read, so two reviewers pressing retry produce one re-queue.
       const applied = await db.pipelineJob.updateMany({
-        where: { id: job.id, accountId: ctx.accountId, status: "FAILED" },
+        where: {
+          id: job.id,
+          accountId: ctx.accountId,
+          OR: [
+            { status: "FAILED" },
+            {
+              status: "PROCESSING",
+              lockedAt: { lt: new Date(Date.now() - STALL_THRESHOLD_MS) },
+            },
+          ],
+        },
         data: {
           status: "PENDING",
           errorMessage: null,
@@ -89,11 +108,34 @@ export async function POST(
         entity: "PipelineJob",
         entityId: job.id,
         source: "UI",
-        metadata: { shipmentId: shipment.id },
+        metadata: { shipmentId: shipment.id, wasStalled: isStalled },
         requestId,
       });
 
-      return NextResponse.json({ jobId: job.id, status: "PENDING", requestId });
+      try {
+        after(async () => {
+          try {
+            await PipelineOrchestrator.processEvent({
+              shipmentId: shipment.id,
+              accountId: ctx.accountId,
+              userId: ctx.userId,
+              triggerEvent: "DOCUMENT_UPLOADED",
+              jobId: job.id,
+            });
+          } catch (err) {
+            console.error("[pipeline retry] PipelineOrchestrator background run error:", err);
+          }
+        });
+      } catch {
+        // next/server after() called outside Next.js request context in unit test environment
+      }
+
+      const responsePayload = { jobId: job.id, status: "PENDING", requestId };
+      if (idempotencyKey) {
+        await persistIdempotency(ctx.accountId, idempotencyKey, requestHash ?? "", 200, responsePayload);
+      }
+
+      return NextResponse.json(responsePayload);
     });
   } catch (error) {
     return handleApiError(error, requestId);

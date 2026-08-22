@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withAuthenticatedRoute } from "@/lib/api/auth-guards";
 import { buildErrorResponse } from "@/lib/api/error";
 import { validatePathParams } from "@/lib/api/validation";
+import { checkIdempotency, persistIdempotency } from "@/lib/api/idempotency";
 import { db } from "@/lib/db";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 import { wrapDeclarationData } from "@/lib/canonicalMessaging/declarationBuilder";
@@ -44,6 +45,10 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
   const paramsVal = validatePathParams(params, paramsSchema, requestId);
   if ("response" in paramsVal) return paramsVal.response;
   const { id } = paramsVal.data;
+
+  const { idempotencyKey, requestHash, cachedResponse, errorResponse: idempError } = await checkIdempotency(req, ctx.accountId, requestId);
+  if (cachedResponse) return cachedResponse;
+  if (idempError) return idempError;
 
   const body = await req.json().catch(() => null);
   if (!body || !body.declarationData) {
@@ -93,5 +98,10 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
     },
   });
 
-  return NextResponse.json({ success: true, declarationData: wrappedDeclaration });
+  const responsePayload = { success: true, declarationData: wrappedDeclaration };
+  if (idempotencyKey) {
+    await persistIdempotency(ctx.accountId, idempotencyKey, requestHash ?? "", 200, responsePayload);
+  }
+
+  return NextResponse.json(responsePayload);
 });

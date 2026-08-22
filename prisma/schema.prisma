@@ -198,6 +198,7 @@ model Account {
   assistantChatSessions       AssistantChatSession[]
   filingMessages              FilingMessage[]
   agentPolicyConfigs          AgentPolicyConfig[]
+  abiFilerCredential          AbiFilerCredential?
   inBondRecords               InBondRecord[]
   manifestRecords             ManifestRecord[]
   statementRecords            StatementRecord[]
@@ -6403,3 +6404,29 @@ model StatementFeeLine {
   @@index([statementId])
 }
 
+enum FilerCredentialStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum AceEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+model AbiFilerCredential {
+  id          String                @id @default(cuid())
+  accountId   String                @unique
+  account     Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  filerCode   String
+  secretRef   String
+  baseUrl     String                @default("https://ace.cbp.dhs.gov/abi")
+  environment AceEnvironment        @default(SANDBOX)
+  status      FilerCredentialStatus @default(ACTIVE)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([accountId])
+  @@index([filerCode])
+}

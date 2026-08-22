@@ -32,6 +32,7 @@ import {
   buildOtherRevenue,
   buildLineUserFee,
   buildPscLineReasons,
+  buildCensusWarningOverride,
   buildAdcvdDutyTotals,
   buildFeeTotal,
   buildGrandTotals,
@@ -337,6 +338,11 @@ export function assembleTransaction(input: EntrySummaryTransactionInput): string
     // PSC Line Reasons (63)
     if (lineItem.pscLineReasons) {
       records.push(buildPscLineReasons(lineItem.pscLineReasons));
+    }
+
+    // Census Warning Condition Override (CW02)
+    if (lineItem.censusWarningOverride) {
+      records.push(buildCensusWarningOverride(lineItem.censusWarningOverride));
     }
   }
 

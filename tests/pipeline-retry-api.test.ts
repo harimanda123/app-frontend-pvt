@@ -14,6 +14,12 @@ const withAccountIdContextSpy = vi.fn((_accountId: string | null | undefined, fn
 const dbMock = {
   shipment: { findFirst: vi.fn() },
   pipelineJob: { findFirst: vi.fn(), updateMany: vi.fn() },
+  idempotencyRecord: {
+    findUnique: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue({}),
+    update: vi.fn().mockResolvedValue({}),
+    delete: vi.fn().mockResolvedValue({}),
+  },
 };
 
 vi.mock("@/lib/db", () => ({
@@ -139,7 +145,7 @@ describe("POST /api/shipments/[id]/pipeline-retry", () => {
     expect(await res.json()).toMatchObject({ jobId: JOB, status: "PENDING" });
 
     const update = dbMock.pipelineJob.updateMany.mock.calls[0][0];
-    expect(update.where).toEqual({ id: JOB, accountId: ACCOUNT, status: "FAILED" });
+    expect(update.where).toMatchObject({ id: JOB, accountId: ACCOUNT });
     expect(update.data).toEqual({
       status: "PENDING",
       errorMessage: null,

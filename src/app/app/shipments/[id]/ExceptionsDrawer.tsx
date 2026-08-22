@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, AlertTriangle, Info, FileText, CheckCircle2, Pencil, Mail, X, Loader2 } from "lucide-react";
 import { ExceptionResolutionModal } from "./ExceptionResolutionModal";
@@ -52,6 +53,7 @@ export function ExceptionsDrawer({
   documentFieldSummaries = [],
   reconciliationIssues = [],
 }: ExceptionsDrawerProps) {
+  const router = useRouter();
   const [panelTab, setPanelTab] = useState<"EXCEPTIONS" | "FIELD_REVIEW">("EXCEPTIONS");
   const [selectedException, setSelectedException] = useState<ResolvableException | null>(null);
   const [reviewingDoc, setReviewingDoc] = useState<DocumentFieldSummary | null>(null);
@@ -79,7 +81,7 @@ export function ExceptionsDrawer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fieldKey, action: "EDIT", value: editingValue.trim() }),
       });
-      if (res.ok) window.location.reload();
+      if (res.ok) router.refresh();
     } catch (err) {
       console.error("Field review edit save failed", err);
     } finally {
@@ -97,7 +99,7 @@ export function ExceptionsDrawer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fieldKey, action: "APPROVE", value }),
       });
-      if (res.ok) window.location.reload();
+      if (res.ok) router.refresh();
     } catch (err) {
       console.error("Field review approval failed", err);
     } finally {
@@ -113,7 +115,7 @@ export function ExceptionsDrawer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      window.location.reload();
+      router.refresh();
     } catch (err) {
       console.error("Conflict resolution failed", err);
     } finally {
@@ -153,7 +155,7 @@ export function ExceptionsDrawer({
           })
         )
       );
-      window.location.reload();
+      router.refresh();
     } catch (err) {
       console.error("Batch approval failed", err);
     } finally {

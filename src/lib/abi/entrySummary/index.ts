@@ -43,4 +43,5 @@ export {
 export * from "./build";
 export * from "./assembleTransaction";
 export * from "./parse";
+export * from "./interpretResponse";
 export * from "./validate";

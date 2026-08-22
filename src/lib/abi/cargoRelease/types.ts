@@ -154,3 +154,115 @@ export interface FtzPfHtsInput {
   /** Full 10-digit current HTS number for Privileged Foreign status merchandise (the SE60 HTS number is no longer active). */
   currentHtsNumberForPfStatusMerchandise: string;
 }
+
+export interface BillOfLadingGroupInput {
+  /** 1 to 3 SE15 records per Bill of Lading grouping (e.g. for split shipment parts). */
+  billsOfLading: [BillOfLadingInput, ...BillOfLadingInput[]] | BillOfLadingInput[];
+  conveyances?: ConveyanceInput[];
+  equipment?: EquipmentInput[];
+}
+
+export interface HeaderEntityGroupInput {
+  entity: EntityInput;
+  gbiIdentifiers?: EntityGbiInput[];
+  streetAddresses?: EntityAddressInput[];
+  geographicArea?: EntityGeoInput;
+}
+
+export interface LineEntityGroupInput {
+  entity: EntityInput;
+  gbiIdentifiers?: EntityGbiInput[];
+  streetAddresses?: EntityAddressInput[];
+  geographicArea?: EntityGeoInput;
+}
+
+export interface HtsLineGroupInput {
+  htsLine: HtsLineInput;
+  ftzPfHts?: FtzPfHtsInput;
+}
+
+export interface LineItemGroupInput {
+  lineItem: LineItemInput;
+  ftzStatus?: FtzDetailInput;
+  entities?: LineEntityGroupInput[];
+  htsLines: [HtsLineGroupInput, ...HtsLineGroupInput[]] | HtsLineGroupInput[];
+  pgaLines?: string[];
+}
+
+export interface CargoReleaseTransactionInput {
+  header: HeaderInput;
+  additionalHeader?: AdditionalHeaderInput;
+  contactCancellation: ContactCancellationInput;
+  bills?: BillOfLadingGroupInput[];
+  references?: ReferenceInput[];
+  headerEntities?: HeaderEntityGroupInput[];
+  lines?: LineItemGroupInput[];
+}
+
+// ── Output Response Types ──
+
+export type CargoReleaseResponseScenario =
+  | "ACCEPTED"
+  | "REJECTED"
+  | "ACCEPTED_WITH_WARNINGS"
+  | "REFERRED_TO_HUMAN_REVIEW";
+
+/** Wrapper associating a decoded record with its own SE90 error records (if any). */
+export interface ParsedSeRecord<T> {
+  record: T;
+  errors: OutputDispositionInput[];
+}
+
+export interface ParsedBillOfLadingGroup {
+  bill: ParsedSeRecord<BillOfLadingInput>;
+  conveyances: ParsedSeRecord<ConveyanceInput>[];
+  equipment: ParsedSeRecord<EquipmentInput>[];
+}
+
+export interface ParsedHeaderEntityGroup {
+  entity: ParsedSeRecord<EntityInput>;
+  gbiIdentifiers: ParsedSeRecord<EntityGbiInput>[];
+  streetAddresses: ParsedSeRecord<EntityAddressInput>[];
+  geographicArea?: ParsedSeRecord<EntityGeoInput>;
+}
+
+export interface ParsedLineEntityGroup {
+  entity: ParsedSeRecord<EntityInput>;
+  gbiIdentifiers: ParsedSeRecord<EntityGbiInput>[];
+  streetAddresses: ParsedSeRecord<EntityAddressInput>[];
+  geographicArea?: ParsedSeRecord<EntityGeoInput>;
+}
+
+export interface ParsedHtsLineGroup {
+  htsLine: ParsedSeRecord<HtsLineInput>;
+  ftzPfHts?: ParsedSeRecord<FtzPfHtsInput>;
+}
+
+export interface ParsedLineItemGroup {
+  lineItem: ParsedSeRecord<LineItemInput>;
+  ftzStatus?: ParsedSeRecord<FtzDetailInput>;
+  entities: ParsedLineEntityGroup[];
+  htsLines: ParsedHtsLineGroup[];
+  pgaLines: string[];
+}
+
+export interface ParsedCargoReleaseHeaderGroup {
+  scenario: CargoReleaseResponseScenario;
+  header: ParsedSeRecord<HeaderInput>;
+  additionalHeader?: ParsedSeRecord<AdditionalHeaderInput>;
+  contactCancellation?: ParsedSeRecord<ContactCancellationInput>;
+  bills: ParsedBillOfLadingGroup[];
+  references: ParsedSeRecord<ReferenceInput>[];
+  headerEntities: ParsedHeaderEntityGroup[];
+  lines: ParsedLineItemGroup[];
+  disposition?: OutputDispositionInput;
+}
+
+export interface ParsedCargoReleaseResponse {
+  scenario: CargoReleaseResponseScenario;
+  headerGroups: ParsedCargoReleaseHeaderGroup[];
+  unrecognizedLines: string[];
+}
+
+
+

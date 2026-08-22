@@ -152,3 +152,70 @@ export interface Q6PeriodicInput {
   totalCountervailingDuty?: Decimal;
   totalAmountPaid?: Decimal;
 }
+
+// ── Daily Statement Output Parsing Types (CATAIR 05-daily-statement.pdf Page 9) ──
+
+export interface DailyStatementDetailGroup {
+  q1: Q1DailyInput;
+  q2: Q2DailyInput;
+  fees: StatementFeeInput[];
+}
+
+export interface PreliminaryOrFinalDailyPaymentGroup {
+  q3: Q3DailyInput;
+  q4: Q4DailyInput;
+  feeTotals: StatementFeeInput[];
+}
+
+export interface FinalDailyStatementPaymentGroup {
+  q5: Q5DailyInput;
+  q6: Q6DailyInput;
+  feeTotals: StatementFeeInput[];
+}
+
+export interface ParsedDailyStatementResponse {
+  details: DailyStatementDetailGroup[];
+  preliminaryOrFinalPayment?: PreliminaryOrFinalDailyPaymentGroup;
+  finalStatement?: FinalDailyStatementPaymentGroup;
+  deletedEntrySummaries: Q7DeletedInput[];
+  unrecognizedLines: string[];
+}
+
+// ── Periodic Monthly Statement Output Parsing Types (CATAIR 05b-periodic-monthly-statement.pdf Page 6) ──
+
+export interface PeriodicStatementParseOptions {
+  /**
+   * If true, fee records (QA/QE/QJ) are not strictly required to be present.
+   * By default (false), because CATAIR Periodic Monthly Statement Output Record
+   * Structure Map (PDF page 6) designates QA/QE/QJ as Mandatory ("M"), the parser
+   * throws an AbiFixedWidthError if a group is missing its fee record(s).
+   */
+  allowMissingFees?: boolean;
+}
+
+export interface PeriodicDailyStatementDetailGroup {
+  q1: Q1PeriodicInput;
+  q2: Q2PeriodicInput;
+  fees: StatementFeeInput[];
+}
+
+export interface PreliminaryOrFinalPeriodicPaymentGroup {
+  q3: Q3PeriodicInput;
+  q4: Q4PeriodicInput;
+  feeTotals: StatementFeeInput[];
+}
+
+export interface FinalPeriodicStatementPaymentGroup {
+  q5: Q5PeriodicInput;
+  q6: Q6PeriodicInput;
+  feeTotals: StatementFeeInput[];
+}
+
+export interface ParsedPeriodicStatementResponse {
+  details: PeriodicDailyStatementDetailGroup[];
+  preliminaryOrFinalPayment?: PreliminaryOrFinalPeriodicPaymentGroup;
+  finalStatement?: FinalPeriodicStatementPaymentGroup;
+  deletedEntrySummaries: Q7DeletedInput[];
+  unrecognizedLines: string[];
+}
+

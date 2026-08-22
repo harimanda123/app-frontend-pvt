@@ -6,6 +6,7 @@
 import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
 import { assertDemoSeedingAllowed } from "@/lib/environment";
+import { seedTradeRemedyReferenceData } from "../scripts/seed-trade-remedy-reference-data";
 
 const db = new PrismaClient({ log: ["warn", "error"] });
 
@@ -335,58 +336,12 @@ async function main() {
   console.log(`  ✅ Seeded ${embargoRulesCreated} embargo/sanctions rules`);
 
   // ─────────────────────────────────────────────
-  // Step 5: Seed sample PENDING trade-rate rows
-  // Nothing ingests these yet (roadmap pipelines aren't built), so without
-  // this the platform-admin Rate Review queue would have nothing to show.
-  // Case numbers / HTS codes below are illustrative, not real filings.
+  // Step 5: Seed real PENDING trade-rate rows (Section 301, Section 232, AD/CVD)
+  // All AD/CVD company rates, Section 301 rates, and exclusions are inserted with
+  // reviewStatus: "PENDING", requiring platform admin review before affecting duty calculations.
   // ─────────────────────────────────────────────
-  await db.section301Rate.upsert({
-    where: { htsNumber_tranche_effectiveDate: { htsNumber: "8481.80.9020", tranche: "LIST_3", effectiveDate: new Date("2026-07-01") } },
-    update: {},
-    create: {
-      htsNumber: "8481.80.9020",
-      tranche: "LIST_3",
-      dutyRatePct: 25.0,
-      effectiveDate: new Date("2026-07-01"),
-      federalRegisterCitation: "91 Fed. Reg. 41000 (Jul. 1, 2026)",
-      reviewStatus: "PENDING",
-    },
-  });
-
-  const sampleExclusion = await db.section301Exclusion.findFirst({ where: { htsNumber: "8481.20.0000", reviewStatus: "PENDING" } });
-  if (!sampleExclusion) {
-    await db.section301Exclusion.create({
-      data: {
-        htsNumber: "8481.20.0000",
-        productDescriptionRaw:
-          "Oleohydraulic or pneumatic valves for transmissions, having a maximum operating pressure not exceeding 300 bar, as described in USTR Notice of Product Exclusion, 91 Fed. Reg. 41010.",
-        tranche: "LIST_3",
-        effectiveDate: new Date("2026-06-15"),
-        expirationDate: new Date("2027-06-15"),
-        federalRegisterCitation: "91 Fed. Reg. 41010 (Jun. 15, 2026)",
-        reviewStatus: "PENDING",
-      },
-    });
-  }
-
-  const sampleCompanyRate = await db.adCvdCompanyRate.findFirst({ where: { caseNumber: "A-570-601", reviewStatus: "PENDING" } });
-  if (!sampleCompanyRate) {
-    await db.adCvdCompanyRate.create({
-      data: {
-        caseNumber: "A-570-601",
-        periodOfReview: "POR 2025",
-        manufacturerName: "Acme Fabrication Co.",
-        exporterName: "Acme Fabrication Co.",
-        countryOfOrigin: "CN",
-        depositRatePct: 12.4,
-        isSeparateRate: true,
-        federalRegisterCitation: "91 Fed. Reg. 40890 (Jun. 1, 2026)",
-        reviewStatus: "PENDING",
-      },
-    });
-  }
-
-  console.log("  ✅ Seeded sample PENDING trade-rate rows for Rate Review queue");
+  await seedTradeRemedyReferenceData();
+  console.log("  ✅ Seeded real PENDING trade-rate rows for Rate Review queue");
 
   console.log("\n✅ Seed complete! HTS Master & CROSS Rulings are ready.");
   console.log("   Try searching for: 'steel valves', '8481', 'cotton', 'battery'");

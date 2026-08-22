@@ -19,4 +19,10 @@ export {
 } from "./recordSpecs";
 export * from "./build";
 export * from "./parse";
+export * from "./parseDailyStatement";
+export * from "./parsePeriodicStatement";
+export * from "./interpretDailyStatement";
+export * from "./interpretPeriodicStatement";
 export * from "./validate";
+
+

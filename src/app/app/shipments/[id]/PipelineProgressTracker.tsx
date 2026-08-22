@@ -134,7 +134,20 @@ export function PipelineProgressTracker({ shipmentId }: { shipmentId: string }) 
             </p>
           </div>
         </div>
-        <span className="text-sm font-bold text-brand">{progressPercent}%</span>
+        <div className="flex items-center space-x-3">
+          {status.stalled && (
+            <button
+              type="button"
+              disabled={retrying}
+              onClick={handleRetry}
+              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${retrying ? "animate-spin" : ""}`} />
+              <span>{retrying ? "Reclaiming..." : "Reclaim & Resume"}</span>
+            </button>
+          )}
+          <span className="text-sm font-bold text-brand">{progressPercent}%</span>
+        </div>
       </div>
 
       <div className="w-full bg-blue-200/50 rounded-full h-1.5">

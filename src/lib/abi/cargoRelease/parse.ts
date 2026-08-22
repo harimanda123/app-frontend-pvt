@@ -37,3 +37,6 @@ export function classifyCargoReleaseLine(line: string): CargoReleaseLineType {
   const code = line.slice(0, 4);
   return KNOWN_CODES.has(code) ? (code as CargoReleaseLineType) : "UNKNOWN";
 }
+
+export * from "./parseResponse";
+

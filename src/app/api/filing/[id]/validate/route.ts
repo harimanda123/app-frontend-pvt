@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuthenticatedRoute } from "@/lib/api/auth-guards";
 import { validatePathParams } from "@/lib/api/validation";
+import { checkIdempotency, persistIdempotency } from "@/lib/api/idempotency";
 import { db } from "@/lib/db";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 import { applyTransition, canTransition } from "@/modules/filings/filingStateMachine";
@@ -11,10 +12,14 @@ const paramsSchema = z.object({ id: z.string().min(1) });
 
 const DEFAULT_READINESS_THRESHOLD = 80;
 
-export const POST = withAuthenticatedRoute<{ id: string }>(async ({ ctx, requestId, params }) => {
+export const POST = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, requestId, params }) => {
   const paramsVal = validatePathParams(params, paramsSchema, requestId);
   if ("response" in paramsVal) return paramsVal.response;
   const { id } = paramsVal.data;
+
+  const { idempotencyKey, requestHash, cachedResponse, errorResponse: idempError } = await checkIdempotency(req, ctx.accountId, requestId);
+  if (cachedResponse) return cachedResponse;
+  if (idempError) return idempError;
 
   const filing = await db.customsFiling.findFirst({
     where: { id, accountId: ctx.accountId },
@@ -53,7 +58,7 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ ctx, request
       });
     }
     
-    return NextResponse.json({
+    const responsePayload = {
       validation: {
         filingId: filing.id,
         valid: true,
@@ -66,7 +71,11 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ ctx, request
         previousFilingStatus: filing.filingStatus,
         filingStatus: newStatus,
       },
-    });
+    };
+    if (idempotencyKey) {
+      await persistIdempotency(ctx.accountId, idempotencyKey, requestHash ?? "", 200, responsePayload);
+    }
+    return NextResponse.json(responsePayload);
   }
 
   // Shipment-based filing validation (existing logic)
@@ -147,7 +156,7 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ ctx, request
     },
   });
 
-  return NextResponse.json({
+  const responsePayload = {
     validation: {
       filingId: filing.id,
       valid: outcome.valid,
@@ -156,6 +165,10 @@ export const POST = withAuthenticatedRoute<{ id: string }>(async ({ ctx, request
       previousFilingStatus: filing.filingStatus,
       filingStatus: newStatus ?? filing.filingStatus,
     },
-  });
+  };
+  if (idempotencyKey) {
+    await persistIdempotency(ctx.accountId, idempotencyKey, requestHash ?? "", 200, responsePayload);
+  }
+  return NextResponse.json(responsePayload);
 
 }, { permission: "filings.create", write: true });

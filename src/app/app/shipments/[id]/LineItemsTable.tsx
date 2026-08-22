@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Edit2, Check, X } from "lucide-react";
 import { caughtMessage } from "@/lib/utils";
 import { displayCurrency } from "@/lib/honest";
@@ -23,6 +24,7 @@ interface LineItemsTableProps {
 }
 
 export function LineItemsTable({ shipmentId, initialLineItems, currency }: LineItemsTableProps) {
+  const router = useRouter();
   const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [selectedDetailItem, setSelectedDetailItem] = useState<LineItem | null>(null);
@@ -94,8 +96,8 @@ export function LineItemsTable({ shipmentId, initialLineItems, currency }: LineI
       );
       setEditingItemId(null);
       
-      // Highlight update to other parent lists
-      window.location.reload();
+      // Refresh server state without full page reload
+      router.refresh();
     } catch (err) {
       alert(caughtMessage(err, "Failed to save changes"));
     } finally {

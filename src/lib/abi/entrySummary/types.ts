@@ -272,6 +272,7 @@ export interface LineItemInput {
   otherRevenue?: OtherRevenueInput;
   userFees?: LineUserFeeInput[];
   pscLineReasons?: PscLineReasonsInput;
+  censusWarningOverride?: CensusWarningOverrideInput;
 }
 
 /** One full Entry Summary TRANSACTION grouping: 10(+11), optional header records, N line items, optional totals. */

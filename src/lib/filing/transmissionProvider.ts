@@ -76,57 +76,223 @@ export interface CustomsFilingTransmissionProvider {
   parseAcknowledgment(raw: string): AcknowledgmentResult;
 }
 
+import { SecretStoreResolver, NotImplSecretStoreResolver } from "./abiCredentialResolver";
+import { classifyLine, parseOutputBatch } from "@/lib/abi/batchBlockControl/parse";
+import { splitFixedWidthLines } from "@/lib/abi/fixedWidth";
+import { parseEntrySummaryResponse, parseE0Record, classifyResponseLine } from "@/lib/abi/entrySummary/parse";
+import { interpretEntrySummaryResponse } from "@/lib/abi/entrySummary/interpretResponse";
+import { getAllAbiErrors } from "@/lib/abi/errorDictionary";
+
+// ── Per-Customer Filer Credential Config ──────────────────────────────────────
+
+export interface RealAceProviderConfig {
+  credential: {
+    filerCode: string;
+    secretRef: string;
+    baseUrl?: string;
+    environment?: "SANDBOX" | "PRODUCTION";
+    status?: "ACTIVE" | "INACTIVE" | "SUSPENDED";
+  };
+  secretResolver?: SecretStoreResolver;
+}
+
 // ── Real ACE provider stub ─────────────────────────────────────────────────────
 
 /**
- * Stub for the real CBP ACE/ABI provider.
+ * CBP ACE/ABI provider using per-customer credentials (`AbiFilerCredential`).
  *
- * Structure: credentials are read from process.env.CBP_ABI_*. Adding real
- * HTTP calls to the CBP ABI endpoint is the only remaining step once
- * credentials are available. Do not activate in production until that step
- * is complete and tested against the CBP ABI sandbox.
- *
- * Not instantiated anywhere in the active code path — the health check will
- * surface the mock provider as active until this is wired up.
+ * Structure: Credentials and secret references are provided per Account.
+ * Real HTTP transmission calls will be added once CBP transport option and test
+ * environment access are established.
  */
 export class RealAceProvider implements CustomsFilingTransmissionProvider {
   private readonly filerCode: string;
-  private readonly filerPassword: string;
+  private readonly secretRef: string;
   private readonly baseUrl: string;
+  private readonly environment: string;
+  private readonly status: string;
+  private readonly secretResolver: SecretStoreResolver;
 
-  constructor() {
-    this.filerCode = process.env.CBP_ABI_FILER_CODE ?? "";
-    this.filerPassword = process.env.CBP_ABI_FILER_PASSWORD ?? "";
-    this.baseUrl = process.env.CBP_ABI_BASE_URL ?? "https://ace.cbp.dhs.gov/abi";
+  constructor(config: RealAceProviderConfig) {
+    this.filerCode = config.credential.filerCode;
+    this.secretRef = config.credential.secretRef;
+    this.baseUrl = config.credential.baseUrl ?? "https://ace.cbp.dhs.gov/abi";
+    this.environment = config.credential.environment ?? "SANDBOX";
+    this.status = config.credential.status ?? "ACTIVE";
+    this.secretResolver = config.secretResolver ?? new NotImplSecretStoreResolver();
+  }
+
+  public getFilerCode(): string {
+    return this.filerCode;
+  }
+
+  public getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  public getEnvironment(): string {
+    return this.environment;
+  }
+
+  public getStatusValue(): string {
+    return this.status;
+  }
+
+  public async getSecret(): Promise<string> {
+    if (this.status !== "ACTIVE") {
+      throw new Error(`RealAceProvider: Filer credential status is ${this.status}.`);
+    }
+    return this.secretResolver.resolveSecret(this.secretRef);
   }
 
   private assertCredentials(): void {
-    if (!this.filerCode || !this.filerPassword) {
-      throw new Error(
-        "CBP_ABI_FILER_CODE and CBP_ABI_FILER_PASSWORD must be set to use RealAceProvider."
-      );
+    if (!this.filerCode || !this.secretRef) {
+      throw new Error("filerCode and secretRef must be provided for RealAceProvider.");
+    }
+    if (this.status !== "ACTIVE") {
+      throw new Error(`RealAceProvider: Credential status is ${this.status}.`);
     }
   }
 
   async transmit(_payload: AbiPayload): Promise<TransmissionResult> {
     this.assertCredentials();
-    // TODO: POST to this.baseUrl using CBP ABI CATAIR format with this.filerCode + this.filerPassword
     throw new Error(
       "RealAceProvider.transmit is not yet implemented. " +
-        `Base URL: ${this.baseUrl}. Add CBP ABI HTTP calls here once filer credentials are on file.`
+        `Base URL: ${this.baseUrl}. Filer Code: ${this.filerCode}.`
     );
   }
 
   async getStatus(_referenceNumber: string): Promise<FilingStatusUpdate> {
     this.assertCredentials();
-    // TODO: GET /status/{referenceNumber} from CBP ABI
     throw new Error("RealAceProvider.getStatus is not yet implemented.");
   }
 
   parseAcknowledgment(raw: string): AcknowledgmentResult {
-    // TODO: parse CATAIR 999 functional acknowledgment or proprietary CBP response format
-    throw new Error(
-      `RealAceProvider.parseAcknowledgment is not yet implemented. Raw input length: ${raw.length}.`
+    const lines = splitFixedWidthLines(raw);
+    if (lines.length === 0) {
+      return {
+        referenceNumber: "UNKNOWN",
+        accepted: false,
+        responseCode: "EMPTY_PAYLOAD",
+        rejectionReasons: ["Raw acknowledgment payload is empty"],
+        raw,
+      };
+    }
+
+    const hasEnvelope = classifyLine(lines[0]) === "A" && classifyLine(lines[lines.length - 1]) === "Z";
+    const hasXRecords = lines.some((l) => {
+      const type = classifyLine(l);
+      return type === "X0" || type === "X1";
+    });
+
+    if (hasEnvelope && hasXRecords) {
+      const parsedBatch = parseOutputBatch(raw);
+      if (parsedBatch.scenario === "REJECTED") {
+        const rejectionReasons: string[] = [];
+        const allConditions = [...parsedBatch.conditions, parsedBatch.finalDisposition];
+        for (const c of allConditions) {
+          const matched = getAllAbiErrors(c.conditionCode);
+          if (matched.length > 0) {
+            for (const m of matched) {
+              rejectionReasons.push(`[Code ${c.conditionCode}] ${m.narrativeText}: ${m.explanation}`);
+            }
+          } else {
+            rejectionReasons.push(`[Code ${c.conditionCode}] ${c.narrativeText}`);
+          }
+        }
+
+        const ref =
+          (parsedBatch.aRecord.transmitterUserDataText ?? "").trim() ||
+          `${parsedBatch.aRecord.senderReceiverSiteCode}${parsedBatch.aRecord.senderReceiverIdCode}` ||
+          "BATCH_REJECT";
+
+        return {
+          referenceNumber: ref,
+          accepted: false,
+          responseCode: parsedBatch.finalDisposition.conditionCode || "BATCH_REJECTED",
+          rejectionReasons,
+          raw,
+        };
+      }
+    } else if (hasXRecords) {
+      // Standalone X0/X1 diagnostic lines without full A/Z batch header
+      const rejectionReasons: string[] = [];
+      for (const line of lines) {
+        if (classifyLine(line) === "X1") {
+          const code = line.slice(4, 7).trim();
+          const narrative = line.slice(10, 50).trim();
+          const matched = getAllAbiErrors(code);
+          if (matched.length > 0) {
+            for (const m of matched) {
+              rejectionReasons.push(`[Code ${code}] ${m.narrativeText}: ${m.explanation}`);
+            }
+          } else {
+            rejectionReasons.push(`[Code ${code}] ${narrative || "Batch/Block Diagnostic Rejection"}`);
+          }
+        }
+      }
+
+      return {
+        referenceNumber: "DIAGNOSTIC_REJECT",
+        accepted: false,
+        responseCode: "X1_REJECT",
+        rejectionReasons,
+        raw,
+      };
+    }
+
+    // Process Entry Summary payload (either inside an accepted A...Z envelope or raw E0/E1 lines)
+    let esLines = lines;
+    if (hasEnvelope) {
+      const parsedBatch = parseOutputBatch(raw);
+      if (parsedBatch.scenario === "ACCEPTED") {
+        esLines = parsedBatch.blocks.flatMap((b) => b.transactionRecords);
+      }
+    }
+
+    const parsedES = parseEntrySummaryResponse(esLines);
+    const interpreted = interpretEntrySummaryResponse(parsedES);
+
+    const accepted = interpreted.scenario === "ACCEPTED" && !interpreted.hasFatalErrors;
+    const finalCode =
+      (interpreted.finalDisposition.conditionCode ?? "").trim() ||
+      (interpreted.finalDisposition.reasonCode ?? "").trim() ||
+      (accepted ? "000" : "REJECTED");
+
+    const rejectionReasons = interpreted.conditions.map(
+      (c) => `[Code ${c.lookupCode}] ${c.title}: ${c.description}`
     );
+
+    // Extract reference from E0 lines if present or default
+    let referenceNumber = "ENTRY_SUMMARY";
+    for (const line of esLines) {
+      if (classifyResponseLine(line) === "E0") {
+        try {
+          const parsedE0 = parseE0Record(line);
+          if ("entryNumber" in parsedE0 && parsedE0.entryNumber) {
+            const filer = parsedE0.entryFilerCode ? parsedE0.entryFilerCode.trim() : "";
+            const num = parsedE0.entryNumber.trim();
+            referenceNumber = filer ? `${filer}-${num}` : num;
+            break;
+          } else if ("brokerReferenceNumber" in parsedE0 && parsedE0.brokerReferenceNumber) {
+            referenceNumber = parsedE0.brokerReferenceNumber.trim();
+            break;
+          } else if ("referenceDataText" in parsedE0 && parsedE0.referenceDataText) {
+            referenceNumber = parsedE0.referenceDataText.trim();
+            break;
+          }
+        } catch {
+          // ignore parsing error on reference extraction
+        }
+      }
+    }
+
+    return {
+      referenceNumber,
+      accepted,
+      responseCode: finalCode,
+      rejectionReasons: rejectionReasons.length > 0 ? rejectionReasons : undefined,
+      raw,
+    };
   }
 }

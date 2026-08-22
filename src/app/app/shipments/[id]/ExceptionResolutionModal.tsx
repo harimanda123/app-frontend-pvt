@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ShieldAlert, Sparkles, Upload } from "lucide-react";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -37,6 +38,7 @@ export function ExceptionResolutionModal({
   shipmentId,
   lineItems,
 }: ExceptionResolutionModalProps) {
+  const router = useRouter();
   const [saveLoading, setSaveLoading] = useState(false);
 
   // HTS resolution state
@@ -204,8 +206,8 @@ export function ExceptionResolutionModal({
       }
 
       onClose();
-      // Refresh page instantly
-      window.location.reload();
+      // Refresh Next.js server components smoothly without full page refresh
+      router.refresh();
     } catch (err) {
       alert(caughtMessage(err, "Failed to resolve exception"));
     } finally {

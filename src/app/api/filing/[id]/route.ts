@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { withAuthenticatedRoute } from "@/lib/api/auth-guards";
 import { validatePathParams } from "@/lib/api/validation";
+import { checkIdempotency, persistIdempotency } from "@/lib/api/idempotency";
 import { db } from "@/lib/db";
 import { createAuditLog, AuditAction } from "@/lib/audit";
 import { computeFilingTariff, loadHtsCodesMap } from "@/lib/tariff/dutyEngine";
@@ -233,6 +234,10 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
   if ("response" in paramsVal) return paramsVal.response;
   const { id } = paramsVal.data;
 
+  const { idempotencyKey, requestHash, cachedResponse, errorResponse: idempError } = await checkIdempotency(req, ctx.accountId, requestId);
+  if (cachedResponse) return cachedResponse;
+  if (idempError) return idempError;
+
   const body = await req.json();
   const { filingStatus, paymentStatus, dutyBreakdown, localReferenceNumber, registrationNumber } = body;
 
@@ -289,5 +294,10 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
     },
   });
 
-  return NextResponse.json({ filing: updatedFiling });
+  const responsePayload = { filing: updatedFiling };
+  if (idempotencyKey) {
+    await persistIdempotency(ctx.accountId, idempotencyKey, requestHash ?? "", 200, responsePayload);
+  }
+
+  return NextResponse.json(responsePayload);
 }, { permission: "filings.create", write: true });

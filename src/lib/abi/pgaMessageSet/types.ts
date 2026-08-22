@@ -354,3 +354,61 @@ export interface Pg35ConformanceBondInput {
    * `pgaLineValue`. */
   dotBondAmount?: Decimal;
 }
+
+/** Structured payload shape for `PgaRequirement.agencyData Json?` */
+export interface PgaAgencyDataPayload {
+  fda?: {
+    priorNoticeConfirmationNumber?: string;
+    affirmationCodes?: string[];
+    canDimensions?: {
+      diameterInches?: string;
+      diameterSixteenths?: string;
+      heightInches?: string;
+      heightSixteenths?: string;
+    };
+    temperatureControl?: {
+      minTemperature?: number;
+      maxTemperature?: number;
+      unit?: string;
+    };
+    lotNumber?: string;
+    expirationDate?: string;
+  };
+  epa?: {
+    vehicleEngineClass?: string;
+    modelYear?: string;
+    engineFamilyName?: string;
+    fuelType?: string;
+    emissionsStandardCode?: string;
+  };
+  fws?: {
+    genusName?: string;
+    speciesName?: string;
+    commonName?: string;
+    wildlifeDescriptionCode?: string;
+    quantityInPcs?: number;
+    countryOfOriginOrHarvest?: string;
+  };
+  noaa?: {
+    vesselName?: string;
+    vesselFlagState?: string;
+    gearCode?: string;
+    catchAreaCode?: string;
+    catchAreaName?: string;
+    harvestStartDate?: string;
+    harvestEndDate?: string;
+  };
+  usda?: {
+    phytosanitaryCertificateNumber?: string;
+    permitNumber?: string;
+    treatmentCode?: string;
+    treatmentMethod?: string;
+  };
+  cpsc?: {
+    labIdCode?: string;
+    labName?: string;
+    testDate?: string;
+    certificationContactName?: string;
+  };
+  additionalAttributes?: Record<string, unknown>;
+}

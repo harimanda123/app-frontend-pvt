@@ -205,11 +205,13 @@ export function ShipmentAuditTrail({ entries }: { entries: ShipmentAuditEntry[] 
                           {getCategoryIcon(entry.category)}
                           <span className="font-bold text-ink text-xs">{entry.title}</span>
                         </div>
-                        <div>
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${sourceInfo.badge}`}>
-                            {sourceInfo.label}
-                          </span>
-                        </div>
+                        {entry.source !== "UI" && (
+                          <div>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${sourceInfo.badge}`}>
+                              {sourceInfo.label}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </td>
 

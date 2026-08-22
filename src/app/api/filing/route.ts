@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import { FactAuditService } from "@/modules/audit/factAuditService";
 import { deliverWebhookEvent } from "@/lib/webhooks/deliver";
+import { checkIdempotency, persistIdempotency } from "@/lib/api/idempotency";
 
 export const GET = withAuthenticatedRoute(async ({ req, ctx }) => {
   const { searchParams } = new URL(req.url);
@@ -265,7 +266,11 @@ function generateInternalReference(shipmentNumber: string): string {
   return `DFT-${shipmentNumber}-${randomUUID().slice(0, 8).toUpperCase()}`;
 }
 
-export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
+export const POST = withAuthenticatedRoute(async ({ req, ctx, requestId }) => {
+  const { idempotencyKey, requestHash, cachedResponse, errorResponse: idempError } = await checkIdempotency(req, ctx.accountId, requestId);
+  if (cachedResponse) return cachedResponse;
+  if (idempError) return idempError;
+
   const body = await req.json();
   const {
     shipmentId,
@@ -352,6 +357,10 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
         messageName,
       },
     });
+
+    if (idempotencyKey) {
+      await persistIdempotency(ctx.accountId, idempotencyKey, requestHash ?? "", 200, { filing });
+    }
 
     return NextResponse.json({ filing });
   }
@@ -507,12 +516,15 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     metadata: { entryNumber: filing.entryNumber, shipmentId, filingStatus: "Draft", destinationCountry },
   });
 
-  return NextResponse.json(
-    {
-      filing,
-      unratedLineCount: tariffResult.unratedLineCount,
-    },
-    { status: 201 }
-  );
+  const responsePayload = {
+    filing,
+    unratedLineCount: tariffResult.unratedLineCount,
+  };
+
+  if (idempotencyKey) {
+    await persistIdempotency(ctx.accountId, idempotencyKey, requestHash ?? "", 201, responsePayload);
+  }
+
+  return NextResponse.json(responsePayload, { status: 201 });
 
 }, { permission: "filings.create", write: true });
