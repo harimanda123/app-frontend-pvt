@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   BookOpen, Search, ArrowRight, ExternalLink, Bot, Truck, FileText, Receipt,
   ShieldCheck, ArrowUpRight, Cpu, Layers, Sparkles, CheckCircle2, HelpCircle,
-  BarChart3, Scale, Clock, AlertTriangle, Zap, Terminal, Command
+  BarChart3, Scale, Clock, AlertTriangle, Zap, Terminal, Command, Globe, Check
 } from "lucide-react";
 import { TmsSidebar } from "@/components/TmsSidebar";
 import { TmsHeader } from "@/components/TmsHeader";
@@ -32,7 +32,7 @@ const FEATURE_GUIDE_DATA: FeatureGuideItem[] = [
     icon: AlertTriangle,
     route: "/",
     badge: "Command Center",
-    summary: "Real-time exception queue prioritizing high-risk freight shipments requiring human dispatcher review or approval.",
+    summary: "Real-time operational exception queue prioritizing high-risk freight shipments requiring human dispatcher review or approval.",
     keyCapabilities: [
       "Automated risk scoring (Critical, High, Warning)",
       "Carrier tender dispatch SLA timeout detection",
@@ -40,7 +40,7 @@ const FEATURE_GUIDE_DATA: FeatureGuideItem[] = [
       "One-click action resolution with signed audit trail",
     ],
     howToSteps: [
-      { stepNumber: 1, title: "Navigate to Command Center", instruction: "Click Home or Action Workbench from the sidebar menu." },
+      { stepNumber: 1, title: "Navigate to Action Workbench", instruction: "Click Home or Action Workbench from the sidebar menu." },
       { stepNumber: 2, title: "Select High-Risk Shipment", instruction: "Click any blocked shipment card on the left panel (sorted by urgency)." },
       { stepNumber: 3, title: "Review AI Recommendation", instruction: "Inspect what happened, why it matters, and Qubere AI's recommended action." },
       { stepNumber: 4, title: "Execute Resolution", instruction: "Click 'Re-Tender Carrier' or 'Approve Action' to automatically sign and dispatch." },
@@ -210,87 +210,77 @@ export function GuideClient() {
         <TmsHeader tenantName="Enterprise Freight" userName="Operations Lead" />
 
         <main className="flex-1 p-6 md:p-8 overflow-y-auto space-y-6 max-w-[1600px] mx-auto w-full">
-          {/* HERO BANNER */}
-          <div className="relative overflow-hidden bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-md border border-slate-800 space-y-6">
-            <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-brand/20 rounded-full blur-3xl pointer-events-none" />
-
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-3 max-w-3xl">
+          {/* HEADER TOOLBAR (Matching standard Qubere TMS page headers) */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-border shadow-2xs">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0">
+                <BookOpen className="w-5 h-5 text-brand" />
+              </div>
+              <div>
                 <div className="flex items-center space-x-2">
-                  <span className="px-3 py-1 rounded-full bg-brand/20 text-brand border border-brand/30 font-mono font-bold text-xs">
-                    Qubere TMS • Platform User Guide v2.5
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
-                    Production Ready
+                  <h1 className="text-xl font-black text-ink tracking-tight">Qubere TMS User Guide & Feature Index</h1>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-100 text-emerald-800">
+                    Production Guide v2.5
                   </span>
                 </div>
-                <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white">
-                  Welcome to Qubere Autonomous TMS
-                </h1>
-                <p className="text-sm md:text-base text-slate-300 leading-relaxed font-normal">
-                  Everything you need to master autonomous freight intake, waterfall carrier tendering, real-time telematics tracking, Last Free Day demurrage prevention, and 3-way invoice auditing.
+                <p className="text-xs text-ink-muted mt-0.5 font-medium">
+                  Interactive reference manual and step-by-step instructions for all autonomous freight modules.
                 </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
-                <Link
-                  href="/"
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-brand text-white font-bold text-xs hover:bg-brand-hover transition-all flex items-center justify-center space-x-2 shadow-sm"
-                >
-                  <span>Go to Workbench</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link
-                  href="/chat"
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white/10 text-white border border-white/20 font-bold text-xs hover:bg-white/20 transition-all flex items-center justify-center space-x-2"
-                >
-                  <Bot className="w-4 h-4 text-brand" />
-                  <span>Launch AI Supervisor</span>
-                </Link>
               </div>
             </div>
 
-            {/* SEARCH AND FILTER BAR */}
-            <div className="relative z-10 pt-4 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              {/* Category Tabs */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                      activeCategory === cat
-                        ? "bg-white text-slate-950 shadow-sm"
-                        : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Search Box */}
-              <div className="relative shrink-0">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            {/* Filter Search Input */}
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-ink-muted absolute left-3 top-3" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search features, workflows, or tools…"
-                  className="pl-10 pr-4 py-2 text-xs bg-slate-800/80 border border-slate-700 rounded-xl focus:outline-none focus:border-brand focus:bg-slate-900 text-white placeholder-slate-400 w-full md:w-72 transition-all font-medium"
+                  className="pl-8 pr-4 py-2 text-xs bg-surface-muted border border-border rounded-xl focus:outline-none focus:border-brand focus:bg-white text-ink w-64 md:w-72 transition-all font-medium"
                 />
               </div>
             </div>
           </div>
 
-          {/* QUICK ROUTE DIRECTORY */}
+          {/* OVERVIEW STAT CARDS GRID (Standard Qubere Stat Tile Pattern) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="p-5 bg-white border border-border space-y-2">
+              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">TMS Modules</span>
+              <p className="text-2xl font-black text-ink">7 Core Modules</p>
+              <p className="text-[10px] text-brand font-semibold">End-to-End Freight Execution</p>
+            </Card>
+            <Card className="p-5 bg-white border border-border space-y-2">
+              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">AI Autonomous Agents</span>
+              <p className="text-2xl font-black text-ink">8 Deployed Agents</p>
+              <p className="text-[10px] text-emerald-600 font-semibold">Policy Verified Executions</p>
+            </Card>
+            <Card className="p-5 bg-white border border-border space-y-2">
+              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">SLA Governance</span>
+              <p className="text-2xl font-black text-ink">60-Min SLA</p>
+              <p className="text-[10px] text-brand font-semibold">Waterfall Carrier Dispatch</p>
+            </Card>
+            <Card className="p-5 bg-white border border-border space-y-2">
+              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Demurrage Shield</span>
+              <p className="text-2xl font-black text-emerald-600">$350/Day Exposure</p>
+              <p className="text-[10px] text-ink-muted">Last Free Day Risk Alerts</p>
+            </Card>
+          </div>
+
+          {/* INSTANT ACCESS DIRECTORY CARD */}
           <Card className="p-6 bg-white border border-border shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h2 className="text-sm font-bold text-ink flex items-center space-x-2">
-                <Command className="w-4 h-4 text-brand" />
-                <span>Instant Route Directory</span>
-              </h2>
-              <span className="text-xs text-ink-muted font-mono font-semibold">6 Core Access Points</span>
+              <div>
+                <h2 className="text-sm font-bold text-ink flex items-center space-x-2">
+                  <Command className="w-4 h-4 text-brand" />
+                  <span>Instant Access Directory</span>
+                </h2>
+                <p className="text-xs text-ink-muted mt-0.5">Click any module card below to open its live workspace in your app.</p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-brand/10 text-brand font-mono font-bold text-xs">
+                6 Access Points
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -307,10 +297,10 @@ export function GuideClient() {
                   <Link
                     key={routeItem.path}
                     href={routeItem.path}
-                    className="p-3.5 rounded-2xl bg-surface-muted/50 border border-border hover:border-brand/40 hover:bg-white transition-all group space-y-1 block"
+                    className="p-4 rounded-2xl bg-surface-muted/60 border border-border hover:border-brand/40 hover:bg-white transition-all group space-y-1.5 block"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2.5">
                         <div className="w-7 h-7 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
                           <IconComponent className="w-4 h-4" />
                         </div>
@@ -327,130 +317,140 @@ export function GuideClient() {
             </div>
           </Card>
 
+          {/* CATEGORY TABBED NAVIGATION BAR */}
+          <div className="flex bg-white p-1.5 rounded-2xl border border-border shadow-2xs space-x-2 overflow-x-auto">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  activeCategory === cat
+                    ? "bg-brand text-white shadow-2xs"
+                    : "text-ink-muted hover:text-ink hover:bg-surface-muted/60"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
           {/* FEATURE CARDS LIST */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-ink tracking-tight flex items-center space-x-2">
-                <BookOpen className="w-5 h-5 text-brand" />
-                <span>TMS Core Features & Step-by-Step How-To</span>
-              </h2>
-              <span className="text-xs font-mono text-ink-muted font-semibold">
-                Showing {filteredFeatures.length} of {FEATURE_GUIDE_DATA.length} Features
-              </span>
-            </div>
-
-            <div className="space-y-6">
-              {filteredFeatures.map((feature) => {
-                const IconComponent = feature.icon;
-                return (
-                  <Card key={feature.id} className="p-6 bg-white border border-border shadow-2xs space-y-5">
-                    {/* Feature Title Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0">
-                          <IconComponent className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <h3 className="text-base font-black text-ink">{feature.title}</h3>
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-brand/10 text-brand">
-                              {feature.badge}
-                            </span>
-                          </div>
-                          <p className="text-xs text-ink-muted mt-0.5">{feature.summary}</p>
-                        </div>
+          <div className="space-y-5">
+            {filteredFeatures.map((feature) => {
+              const IconComponent = feature.icon;
+              return (
+                <Card key={feature.id} className="p-6 bg-white border border-border shadow-2xs space-y-5">
+                  {/* Feature Title Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0">
+                        <IconComponent className="w-5 h-5" />
                       </div>
-
-                      <Link
-                        href={feature.route}
-                        className="px-4 py-2 rounded-xl bg-surface-muted border border-border text-xs font-bold text-brand hover:bg-brand hover:text-white transition-all inline-flex items-center justify-center space-x-1.5 self-start sm:self-auto shrink-0"
-                      >
-                        <span>Open Feature</span>
-                        <ArrowUpRight className="w-3.5 h-3.5" />
-                      </Link>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-base font-black text-ink">{feature.title}</h3>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-brand/10 text-brand">
+                            {feature.badge}
+                          </span>
+                        </div>
+                        <p className="text-xs text-ink-muted mt-0.5">{feature.summary}</p>
+                      </div>
                     </div>
 
-                    {/* Capabilities & Step-by-step How-to Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                      {/* Left: Key Capabilities (5 cols) */}
-                      <div className="lg:col-span-5 space-y-3 bg-surface-muted/40 p-4 rounded-2xl border border-border">
-                        <h4 className="text-xs font-black uppercase tracking-wider text-ink flex items-center space-x-1.5">
-                          <Zap className="w-3.5 h-3.5 text-brand" />
-                          <span>Key Capabilities</span>
-                        </h4>
-                        <ul className="space-y-2">
-                          {feature.keyCapabilities.map((cap, idx) => (
-                            <li key={idx} className="flex items-start space-x-2 text-xs text-ink-muted">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                              <span className="leading-relaxed">{cap}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                    <Link
+                      href={feature.route}
+                      className="px-4 py-2 rounded-xl bg-surface-muted border border-border text-xs font-bold text-brand hover:bg-brand hover:text-white transition-all inline-flex items-center justify-center space-x-1.5 self-start sm:self-auto shrink-0"
+                    >
+                      <span>Open Feature</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
 
-                      {/* Right: How to Use (7 cols) */}
-                      <div className="lg:col-span-7 space-y-3">
-                        <h4 className="text-xs font-black uppercase tracking-wider text-ink flex items-center space-x-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>How to Use (Step-by-Step)</span>
-                        </h4>
+                  {/* Capabilities & Step-by-step How-to Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    {/* Left: Key Capabilities (5 cols) */}
+                    <div className="lg:col-span-5 space-y-3 bg-surface-muted/60 p-4 rounded-2xl border border-border">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-ink flex items-center space-x-1.5">
+                        <Zap className="w-3.5 h-3.5 text-brand" />
+                        <span>Key Capabilities</span>
+                      </h4>
+                      <ul className="space-y-2">
+                        {feature.keyCapabilities.map((cap, idx) => (
+                          <li key={idx} className="flex items-start space-x-2 text-xs text-ink-muted">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                            <span className="leading-relaxed font-medium">{cap}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {feature.howToSteps.map((step) => (
-                            <div key={step.stepNumber} className="p-3.5 rounded-xl bg-white border border-border space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <span className="w-5 h-5 rounded-full bg-brand text-white font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
-                                  {step.stepNumber}
-                                </span>
-                                <span className="font-bold text-xs text-ink">{step.title}</span>
-                              </div>
-                              <p className="text-[11px] text-ink-muted leading-relaxed pl-7">{step.instruction}</p>
+                    {/* Right: How to Use (7 cols) */}
+                    <div className="lg:col-span-7 space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-ink flex items-center space-x-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>How to Use (Step-by-Step)</span>
+                      </h4>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {feature.howToSteps.map((step) => (
+                          <div key={step.stepNumber} className="p-3.5 rounded-xl bg-surface-muted/40 border border-border space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="w-5 h-5 rounded-full bg-brand text-white font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
+                                {step.stepNumber}
+                              </span>
+                              <span className="font-bold text-xs text-ink">{step.title}</span>
                             </div>
-                          ))}
-                        </div>
+                            <p className="text-[11px] text-ink-muted leading-relaxed pl-7">{step.instruction}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
+                  </div>
 
-                    {/* Pro Tip Callout Banner */}
-                    {feature.proTip && (
-                      <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start space-x-2.5">
-                        <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <strong className="font-bold text-amber-950">Pro Tip: </strong>
-                          <span className="text-amber-900 leading-relaxed">{feature.proTip}</span>
-                        </div>
+                  {/* Pro Tip Callout Banner */}
+                  {feature.proTip && (
+                    <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start space-x-2.5">
+                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-bold text-amber-950">Pro Tip: </strong>
+                        <span className="text-amber-900 leading-relaxed font-medium">{feature.proTip}</span>
                       </div>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
           </div>
 
           {/* KEYBOARD SHORTCUTS CHEAT SHEET */}
-          <Card className="p-6 bg-slate-900 text-white border border-slate-800 shadow-md space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-sm font-bold text-white flex items-center space-x-2">
-                <Command className="w-4 h-4 text-brand" />
-                <span>Keyboard Shortcuts & Power User Controls</span>
-              </h2>
-              <span className="text-xs text-slate-400 font-mono">Shortcuts</span>
+          <Card className="p-6 bg-white border border-border shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h2 className="text-sm font-bold text-ink flex items-center space-x-2">
+                  <Command className="w-4 h-4 text-brand" />
+                  <span>Keyboard Shortcuts & Power Controls</span>
+                </h2>
+                <p className="text-xs text-ink-muted mt-0.5">Speed up your operational dispatch workflow with global shortcuts.</p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-brand/10 text-brand font-mono font-bold text-xs">
+                Shortcuts
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {[
                 { keyCombo: "⌘ / Ctrl + K", action: "Global Freight Search" },
-                { keyCombo: "Shift + H", action: "Jump to Home Workbench" },
-                { keyCombo: "Shift + O", action: "Open Freight Orders Intake" },
+                { keyCombo: "Shift + H", action: "Jump to Action Workbench" },
+                { keyCombo: "Shift + O", action: "Open Orders & Intake" },
                 { keyCombo: "Shift + T", action: "Open Tenders & Rating" },
                 { keyCombo: "Shift + S", action: "Open Shipments Workbench" },
                 { keyCombo: "Shift + I", action: "Open Freight Invoices Audit" },
                 { keyCombo: "Shift + C", action: "Launch AI Copilot Chat" },
                 { keyCombo: "Shift + A", action: "Open TMS Admin Console" },
               ].map((shortcut) => (
-                <div key={shortcut.keyCombo} className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-between">
-                  <span className="text-xs text-slate-300 font-medium">{shortcut.action}</span>
-                  <kbd className="px-2 py-1 rounded bg-slate-900 text-brand font-mono font-bold text-[10px] border border-slate-700">
+                <div key={shortcut.keyCombo} className="p-3.5 rounded-xl bg-surface-muted/60 border border-border flex items-center justify-between">
+                  <span className="text-xs text-ink font-semibold">{shortcut.action}</span>
+                  <kbd className="px-2.5 py-1 rounded bg-white text-brand font-mono font-bold text-[10px] border border-border shadow-3xs">
                     {shortcut.keyCombo}
                   </kbd>
                 </div>
