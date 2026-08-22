@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { GriRulesEngine, type HtsCandidateLookup } from "../src/modules/classification/griRulesEngine";
-import { HTSClassificationAgent } from "../packages/ai/hts/htsAgent";
+import { HTSClassificationAgent } from "../../../packages/ai/hts/htsAgent";
 
 /** Deterministic stand-in for the tariff repository; keeps tests off the network. */
 const stubLookup: HtsCandidateLookup = {

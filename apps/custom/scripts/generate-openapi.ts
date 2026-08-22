@@ -469,7 +469,10 @@ const doc = generator.generateDocument({
   servers: [{ url: "https://app.qubere.ai", description: "Production" }],
 });
 
-const outPath = path.join(process.cwd(), "docs", "openapi.yaml");
+// Resolved relative to this file (apps/custom/scripts/) rather than cwd, so the
+// spec always lands at the repo-root docs/openapi.yaml that other docs and CI
+// artifacts reference -- regardless of which directory `tsx` is invoked from.
+const outPath = path.resolve(__dirname, "../../../docs/openapi.yaml");
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, yaml.dump(doc, { lineWidth: 120 }), "utf8");
 console.log(`OpenAPI spec written to ${outPath}`);

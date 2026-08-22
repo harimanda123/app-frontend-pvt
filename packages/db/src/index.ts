@@ -2,6 +2,9 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { DataMode } from "./dataMode";
 
+export * from "./dataMode";
+export * from "./environment";
+
 const dataModeStorage = new AsyncLocalStorage<{ mode: DataMode | null }>();
 
 /**
