@@ -124,7 +124,7 @@ export async function resolveMessageContext(
     );
   }
 
-  const transactionType = "IMPORT"; // Default transaction type
+  const transactionType = procedureConfig.transactionType ?? "IMPORT";
 
   const txType = await db.filingTransactionType.findUnique({
     where: { code: transactionType, isActive: true },
@@ -176,5 +176,5 @@ export async function resolveTransactionType(
     },
   });
 
-  return "IMPORT"; // Default transaction type
+  return procedureConfig?.transactionType ?? "IMPORT";
 }
