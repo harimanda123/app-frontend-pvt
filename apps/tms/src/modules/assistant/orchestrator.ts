@@ -1,4 +1,5 @@
-import { availableAssistantTools } from "./tools";
+import type { AccountContext } from "@qubere/auth";
+import { executeAssistantTool } from "./tools";
 
 export interface AssistantEvent {
   type: "text_delta" | "tool_call" | "tool_result" | "status" | "error" | "done";
@@ -12,8 +13,8 @@ export interface AssistantEvent {
 
 export async function* runAssistantTurn(
   accountName: string,
-  turn: { message: string; history?: any[] },
-  ctx?: any
+  turn: { message: string; history?: unknown[] },
+  ctx?: AccountContext
 ): AsyncGenerator<AssistantEvent> {
   yield { type: "status", message: "Analyzing operational query..." };
 
@@ -26,79 +27,58 @@ export async function* runAssistantTurn(
     return;
   }
 
-  // Intent: Email Intake Parsing
+  // The TMS currently has deterministic tools but no configured model-backed
+  // tool-selection loop. Keep chat honest and read-oriented until a durable
+  // proposal/confirmation protocol is available for state-changing tools.
   if (msg.includes("email") || msg.includes("parse email") || msg.includes("intake email")) {
-    yield { type: "tool_call", toolName: "parse_freight_email", args: { rawEmailText: turn.message } };
-    const res = (await availableAssistantTools.parse_freight_email.execute(
-      { rawEmailText: turn.message, modeHint: "OCEAN" },
-      serviceCtx
-    )) as any;
-    yield { type: "tool_result", toolName: "parse_freight_email", result: res };
     yield {
       type: "text_delta",
-      text: `### 📧 Email Intake Parsed\n\n` +
-            `• **Extracted Mode**: ${res.parsedData?.mode ?? "OCEAN"}\n` +
-            `• **Origin / Destination**: ${res.parsedData?.origin?.city ?? "CNSHA"} → ${res.parsedData?.destination?.city ?? "USOAK"}\n` +
-            `• **Confidence**: ${res.parsedData?.confidence ?? 92}%\n\n` +
-            `Draft transportation order has been prepared.`,
+      text:
+        "Email intake requires structured extraction evidence before it can create an order. " +
+        "Use the Orders intake workspace to review the source text and confirm the extracted fields.",
     };
   }
   // Intent: Movement Stop Planning
   else if (msg.includes("plan stop") || msg.includes("movement stops") || msg.includes("plan legs")) {
-    yield { type: "tool_call", toolName: "plan_movement_stops", args: { shipmentId: "shp_sample" } };
-    const res = (await availableAssistantTools.plan_movement_stops.execute(
-      {
-        shipmentId: "shp_sample",
-        legs: [{ sequence: 1, mode: "OCEAN", plannedDeparture: new Date().toISOString() }],
-        stops: [{ sequence: 1, type: "PICKUP", name: "Origin Port" }, { sequence: 2, type: "DELIVERY", name: "Destination Warehouse" }],
-        confidence: 90,
-        evidenceItems: [{ field: "routing", extractedValue: "Ocean + Drayage", sourceSpan: "Booking Doc" }],
-      },
-      serviceCtx
-    )) as any;
-    yield { type: "tool_result", toolName: "plan_movement_stops", result: res };
     yield {
       type: "text_delta",
-      text: `### 🗺️ Movement Legs & Stops Planned\n\n` +
-            `• **Legs Created**: ${res.legs?.length ?? 1}\n` +
-            `• **Stops Created**: ${res.stops?.length ?? 2}\n` +
-            `• **Agent Decision ID**: \`${res.agentDecision?.id ?? "dec_auto"}\``,
+      text:
+        "Movement planning needs a real shipment ID, route, dates, and evidence. " +
+        "Open the shipment workspace to prepare and review a movement plan; no sample route was created.",
     };
   }
   // Intent: Risk Sweep
   else if (msg.includes("sweep risk") || msg.includes("run risk agent") || msg.includes("risk sweep")) {
-    yield { type: "tool_call", toolName: "run_risk_sweep", args: {} };
-    const res = (await availableAssistantTools.run_risk_sweep.execute({}, serviceCtx)) as any;
-    yield { type: "tool_result", toolName: "run_risk_sweep", result: res };
     yield {
       type: "text_delta",
-      text: `### 🛡️ Risk Agent Sweep Complete\n\n` +
-            `• **Shipments Evaluated**: ${res.evaluated}\n` +
-            `• **New Risk Exceptions Flagged**: ${res.exceptionsCreated}\n\n` +
-            `The system is actively monitoring all Last Free Days (LFD) and customer promise states. ` +
-            `High-exposure items have been prioritized in your **Operations Inbox**.`,
+      text:
+        "A risk sweep can create exceptions and update shipment health, so it is not executed from an unconfirmed chat request. " +
+        "Use the operations workbench to review the scope and explicitly start the sweep.",
     };
   }
   // Intent: Freight Audit / Invoice Match
   else if (msg.includes("freight audit") || msg.includes("audit invoice") || msg.includes("audit sweep")) {
-    yield { type: "tool_call", toolName: "run_freight_audit", args: {} };
-    const res = (await availableAssistantTools.run_freight_audit.execute({}, serviceCtx)) as any;
-    yield { type: "tool_result", toolName: "run_freight_audit", result: res };
     yield {
       type: "text_delta",
-      text: `### 📑 Freight Audit Agent Sweep Complete\n\n` +
-            `• **Pending Invoices Evaluated**: ${res.evaluated ?? 0}\n` +
-            `• **Auto-Approved (Within Tolerance & POD Verified)**: ${res.autoApproved ?? 0}\n` +
-            `• **Escalated (Variance Disputed)**: ${res.escalated ?? 0}\n\n` +
-            `3-way matching was performed against expected linehaul costs and POD receipt records. ` +
-            `Auto-approved invoices have updated the shipment actual buy cost cache.`,
+      text:
+        "Freight audit can change invoice and payment-approval state, so it is not executed from an unconfirmed chat request. " +
+        "Use the Invoices workbench to review the invoice scope and explicitly start the audit.",
     };
   }
   // Intent: Shipments & Tracking
   else if (msg.includes("shipment") || msg.includes("status") || msg.includes("tracking") || msg.includes("at risk")) {
     const riskOnly = msg.includes("at risk") || msg.includes("critical") || msg.includes("risk");
     yield { type: "tool_call", toolName: "list_shipments", args: { riskOnly } };
-    const res = (await availableAssistantTools.list_shipments.execute({ riskOnly }, serviceCtx)) as any;
+    const res = (await executeAssistantTool("list_shipments", { riskOnly }, serviceCtx)) as {
+      shipments?: Array<{
+        shipmentNumber: string;
+        mode: string;
+        status: string;
+        promiseState?: string;
+        origin?: string;
+        destination?: string;
+      }>;
+    };
     yield { type: "tool_result", toolName: "list_shipments", result: res };
 
     const items = res.shipments || [];
@@ -114,26 +94,25 @@ export async function* runAssistantTurn(
   }
   // Intent: Carrier Selection & Rates
   else if (msg.includes("carrier") || msg.includes("recommend") || msg.includes("rate")) {
-    yield { type: "tool_call", toolName: "recommend_carrier", args: { mode: "OCEAN" } };
-    const res = (await availableAssistantTools.recommend_carrier.execute({ mode: "OCEAN" }, serviceCtx)) as any;
-    yield { type: "tool_result", toolName: "recommend_carrier", result: res };
-
-    const carriers = res.carriers || res.scoredCarriers || [];
-    let text = `### 🚛 Ranked Carrier Options\n\n`;
-    if (carriers.length === 0) {
-      text += `No active carriers match specified lane and equipment requirements.`;
-    } else {
-      for (const c of carriers.slice(0, 3)) {
-        text += `• **${c.carrierName || c.name || c.scac}** (Score: **${c.score}/100**): OTD: ${c.onTimeDeliveryRate || "95%"} | Acceptance: ${c.tenderAcceptanceRate || "90%"}\n`;
-      }
-      text += `\nWould you like me to auto-dispatch a tender to the top-ranked carrier?`;
-    }
-    yield { type: "text_delta", text };
+    yield {
+      type: "text_delta",
+      text:
+        "Carrier recommendations require a shipment ID and validated lane, equipment, insurance, safety, capacity, and rate data. " +
+        "Open the shipment or tender workspace to run a grounded recommendation; no default ocean carrier was assumed.",
+    };
   }
   // Intent: Exceptions
   else if (msg.includes("exception") || msg.includes("demurrage") || msg.includes("hold")) {
     yield { type: "tool_call", toolName: "list_exceptions", args: {} };
-    const res = (await availableAssistantTools.list_exceptions.execute({}, serviceCtx)) as any;
+    const res = (await executeAssistantTool("list_exceptions", {}, serviceCtx)) as {
+      exceptions?: Array<{
+        shipmentNumber: string;
+        severity: string;
+        type: string;
+        description: string;
+        requiredAction?: string;
+      }>;
+    };
     yield { type: "tool_result", toolName: "list_exceptions", result: res };
 
     const excs = res.exceptions || [];
@@ -151,15 +130,12 @@ export async function* runAssistantTurn(
   else {
     yield {
       type: "text_delta",
-      text: `I am your **Qubere AI Freight & Transportation Supervisor**.\n\n` +
-            `I continuously monitor shipments, execute 3-way invoice audits, run risk sweeps, evaluate rate RFQs, and auto-dispatch tenders.\n\n` +
+      text: `I am the **Qubere Freight Operations Assistant**.\n\n` +
+            `I can summarize tenant-scoped shipment and exception data. State-changing freight actions remain policy- and permission-gated in their operational workspaces.\n\n` +
             `Try asking me:\n` +
             `• *"Sweep for LFD and customer promise risks"*\n` +
-            `• *"Run freight audit on pending carrier invoices"*\n` +
             `• *"Show shipments at risk"*\n` +
-            `• *"Recommend top carriers for ocean lane"*\n` +
-            `• *"Parse intake email"*\n` +
-            `• *"Plan movement stops"*`,
+            `• *"Show active exceptions"*`,
     };
   }
 

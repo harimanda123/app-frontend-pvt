@@ -16,4 +16,4 @@ export const POST = withAuthenticatedRoute(async ({ ctx }) => {
     ...result,
     message: `Risk sweep complete. Evaluated ${result.evaluated} shipments, created ${result.exceptionsCreated} exception(s).`,
   });
-});
+}, { permission: "decisions.reevaluate", write: true });

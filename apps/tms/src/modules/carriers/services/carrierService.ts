@@ -21,6 +21,9 @@ export async function createCarrierProfile(
   ctx: AccountContext,
   input: CreateCarrierProfileInput
 ) {
+  if (!input.partyId && !input.legalName?.trim()) {
+    throw new Error("Carrier legal name is required when no existing party is supplied.");
+  }
   let partyId = input.partyId;
 
   if (!partyId && (db as any).party) {
@@ -33,8 +36,8 @@ export async function createCarrierProfile(
         names: {
           create: {
             accountId: ctx.accountId,
-            rawName: input.legalName ?? "Unknown Carrier",
-            normalizedName: (input.legalName ?? "UNKNOWN CARRIER").toUpperCase(),
+            rawName: input.legalName!,
+            normalizedName: input.legalName!.toUpperCase(),
             nameType: "LEGAL",
             isPrimary: true,
           },
@@ -50,22 +53,18 @@ export async function createCarrierProfile(
     partyId = party.id;
   }
 
-  const model = (db as any).carrierProfile ?? (db as any).carrier;
-  if (!model) return null;
-
-  return model.create({
+  const profile = await db.carrierProfile.create({
     data: {
       accountId: ctx.accountId,
-      partyId,
-      legalName: input.legalName ?? "Unknown Carrier",
+      partyId: partyId!,
       scac: input.scac ?? null,
       dot: input.dot ?? null,
       mc: input.mc ?? null,
       modes: input.modes ? (input.modes as any) : undefined,
       equipmentCapabilities: input.equipmentCapabilities ? (input.equipmentCapabilities as any) : undefined,
-      insuranceStatus: input.insuranceStatus ?? "ACTIVE",
-      safetyStatus: input.safetyStatus ?? "SATISFACTORY",
-      approvedStatus: input.approvedStatus ?? "APPROVED",
+      insuranceStatus: input.insuranceStatus ?? "PENDING",
+      safetyStatus: input.safetyStatus ?? null,
+      approvedStatus: input.approvedStatus ?? "PENDING",
       preferredStatus: input.preferredStatus ?? false,
       serviceAreas: input.serviceAreas ? (input.serviceAreas as any) : undefined,
       trackingCapabilities: input.trackingCapabilities ? (input.trackingCapabilities as any) : undefined,
@@ -79,6 +78,42 @@ export async function createCarrierProfile(
       },
     },
   });
+
+  // Tender has a real FK to Carrier, while domain qualification lives on the
+  // Party/CarrierProfile aggregate. Keep an execution identity synchronized so
+  // recommendations never pass a Party id into Tender.carrierId.
+  const executionLegalName =
+    input.legalName?.trim() ||
+    profile.party?.names?.find((name) => name.isPrimary)?.rawName ||
+    profile.party?.names?.[0]?.rawName;
+  if (executionLegalName) {
+    const existingCarrier = await db.carrier.findFirst({
+      where: {
+        accountId: ctx.accountId,
+        OR: [
+          ...(input.scac ? [{ scac: input.scac }] : []),
+          ...(input.dot ? [{ dotNumber: input.dot }] : []),
+          ...(input.mc ? [{ mcNumber: input.mc }] : []),
+          { legalName: executionLegalName },
+        ],
+      },
+    });
+    if (!existingCarrier) {
+      await db.carrier.create({
+        data: {
+          accountId: ctx.accountId,
+          legalName: executionLegalName,
+          scac: input.scac ?? null,
+          dotNumber: input.dot ?? null,
+          mcNumber: input.mc ?? null,
+          insuranceOnFile: input.insuranceStatus === "ACTIVE",
+          status: input.approvedStatus === "APPROVED" ? "ACTIVE" : "INACTIVE",
+        },
+      });
+    }
+  }
+
+  return profile;
 }
 
 export async function getCarrierProfileByPartyId(ctx: AccountContext, partyId: string) {

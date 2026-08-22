@@ -37,6 +37,11 @@ export const parseFreightEmailSchema = z.object({
 export type ParseFreightEmailInput = z.infer<typeof parseFreightEmailSchema>;
 
 export const parseFreightEmailTool: AssistantTool = {
+  access: {
+    permission: "transportationOrders.write",
+    write: true,
+    confirmationRequired: true,
+  },
   declaration: {
     name: "parse_freight_email",
     description:

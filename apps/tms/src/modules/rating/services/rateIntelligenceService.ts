@@ -57,6 +57,34 @@ export interface RateCompetitivenessResult {
 const STALE_THRESHOLD_DAYS = 30;
 const COMPETITIVE_SPREAD_PCT = 15;
 
+function endpointMatches(
+  endpoint: unknown,
+  expected: { unlocode?: string; country?: string }
+): boolean {
+  if (!endpoint || typeof endpoint !== "object") return false;
+  const value = endpoint as Record<string, unknown>;
+  const normalize = (input: unknown) =>
+    typeof input === "string" ? input.trim().toUpperCase() : null;
+  const expectedUnlocode = normalize(expected.unlocode);
+  const expectedCountry = normalize(expected.country);
+  const actualUnlocode = normalize(value.unlocode);
+  const actualCountry = normalize(value.country);
+
+  if (expectedUnlocode) return actualUnlocode === expectedUnlocode;
+  if (expectedCountry) return actualCountry === expectedCountry;
+  return false;
+}
+
+function rateMatchesLane(rate: { origin?: unknown; destination?: unknown }, lane: LaneKey) {
+  return endpointMatches(rate.origin, {
+    unlocode: lane.originUnlocode,
+    country: lane.originCountry,
+  }) && endpointMatches(rate.destination, {
+    unlocode: lane.destinationUnlocode,
+    country: lane.destinationCountry,
+  });
+}
+
 /**
  * Compute lane intelligence for a given mode/equipment/origin/destination.
  * Used by the Quote Agent to select the best rate and set the sell price.
@@ -70,11 +98,12 @@ export async function getLaneIntelligence(
   const staleThreshold = new Date(now.getTime() - STALE_THRESHOLD_DAYS * 86400 * 1000);
 
   // Fetch matching rates if not provided
-  const rates = existingRates ?? await db.carrierRate.findMany({
+  const candidateRates = existingRates ?? await db.carrierRate.findMany({
     where: {
       accountId: ctx.accountId,
       mode: lane.mode.toUpperCase(),
       equipment: lane.equipment,
+      effectiveFrom: { lte: now },
       OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
     },
     select: {
@@ -84,10 +113,13 @@ export async function getLaneIntelligence(
       surcharges: true,
       updatedAt: true,
       effectiveTo: true,
+      origin: true,
+      destination: true,
     },
     orderBy: { updatedAt: "desc" },
     take: 50,
   }).catch(() => []);
+  const rates = candidateRates.filter((rate) => rateMatchesLane(rate, lane));
 
   if (rates.length === 0) {
     // No rates on file — return a low-confidence signal
@@ -216,11 +248,17 @@ export function computeSellPrice(
   buyAmount: Decimal,
   targetMarginPct: Decimal
 ): { sellAmount: Decimal; grossProfit: Decimal; actualMarginPct: Decimal } {
-  // sellAmount = buyAmount * (1 + markupPct/100)
-  const multiplier = new Decimal(1).plus(targetMarginPct.div(100));
-  const sellAmount = buyAmount.times(multiplier).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+  if (targetMarginPct.lt(0) || targetMarginPct.gte(100)) {
+    throw new Error("Target gross margin must be between 0% and 100%.");
+  }
+  // Gross margin is profit / sell, so sell = buy / (1 - margin).
+  const sellAmount = buyAmount
+    .div(new Decimal(1).minus(targetMarginPct.div(100)))
+    .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
   const grossProfit = sellAmount.minus(buyAmount);
-  const actualMarginPct = targetMarginPct;
+  const actualMarginPct = sellAmount.eq(0)
+    ? new Decimal(0)
+    : grossProfit.div(sellAmount).times(100).toDecimalPlaces(2);
 
   return { sellAmount, grossProfit, actualMarginPct };
 }

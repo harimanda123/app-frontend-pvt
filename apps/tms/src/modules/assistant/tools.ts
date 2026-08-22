@@ -1,4 +1,6 @@
 import { db } from "@qubere/db";
+import { canWrite, type AccountContext } from "@qubere/auth";
+import { createAuditLog } from "@qubere/decisions";
 import { runRiskAgent } from "@/modules/agents/services/operationalAgents";
 import { sweepPendingInvoices, runFreightAuditAgent } from "@/modules/invoices/services/freightAuditAgent";
 import { autoDispatchTender } from "@/modules/tenders/services/tenderService";
@@ -17,7 +19,8 @@ export interface AssistantToolDefinition {
     properties: Record<string, unknown>;
     required?: string[];
   };
-  execute: (args: any, ctx?: any) => Promise<unknown>;
+  access?: { permission?: string; write?: boolean; confirmationRequired?: boolean };
+  execute: (args: Record<string, any>, ctx: AccountContext) => Promise<unknown>;
 }
 
 export const availableAssistantTools: Record<string, AssistantToolDefinition> = {
@@ -25,6 +28,10 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
     name: parseFreightEmailTool.declaration.name,
     description: parseFreightEmailTool.declaration.description,
     parameters: parseFreightEmailTool.declaration.parameters as any,
+    access:
+      typeof parseFreightEmailTool.access === "object"
+        ? parseFreightEmailTool.access
+        : undefined,
     execute: async (args, ctx) => parseFreightEmailTool.execute(ctx, args),
   },
 
@@ -32,6 +39,10 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
     name: planMovementStopsTool.declaration.name,
     description: planMovementStopsTool.declaration.description,
     parameters: planMovementStopsTool.declaration.parameters as any,
+    access:
+      typeof planMovementStopsTool.access === "object"
+        ? planMovementStopsTool.access
+        : undefined,
     execute: async (args, ctx) => planMovementStopsTool.execute(ctx, args),
   },
 
@@ -39,6 +50,10 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
     name: recommendCarrierTool.declaration.name,
     description: recommendCarrierTool.declaration.description,
     parameters: recommendCarrierTool.declaration.parameters as any,
+    access:
+      typeof recommendCarrierTool.access === "object"
+        ? recommendCarrierTool.access
+        : undefined,
     execute: async (args, ctx) => recommendCarrierTool.execute(ctx, args),
   },
 
@@ -76,8 +91,22 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
           where,
           take: args.limit || 10,
           orderBy: { createdAt: "desc" },
-          include: { exceptionItems: { where: { status: "Open" } } },
         });
+        const openExceptions = await db.exceptionItem.findMany({
+          where: {
+            accountId,
+            shipmentId: { in: shipments.map((shipment) => shipment.id) },
+            status: { in: ["Open", "OPEN"] },
+          },
+          select: { shipmentId: true },
+        });
+        const exceptionCountByShipment = openExceptions.reduce<Record<string, number>>(
+          (counts, item) => {
+            if (item.shipmentId) counts[item.shipmentId] = (counts[item.shipmentId] ?? 0) + 1;
+            return counts;
+          },
+          {}
+        );
 
         return {
           count: shipments.length,
@@ -92,7 +121,7 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
             estimatedArrival: s.estimatedArrival ? new Date(s.estimatedArrival).toISOString() : undefined,
             customerPromiseDate: s.customerPromiseDate ? new Date(s.customerPromiseDate).toISOString() : undefined,
             demurrageExposureUsd: s.demurrageExposureUsd ? Number(s.demurrageExposureUsd) : 0,
-            exceptionCount: s.exceptionItems.length,
+            exceptionCount: exceptionCountByShipment[s.id] ?? 0,
           })),
         };
       } catch {
@@ -223,7 +252,15 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
     description: "Trigger the Risk Agent to sweep all active shipments for LFD, demurrage, and customer promise risks.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        confirm: { type: "boolean", description: "Explicit confirmation to run the mutating risk sweep" },
+      },
+      required: ["confirm"],
+    },
+    access: {
+      permission: "decisions.reevaluate",
+      write: true,
+      confirmationRequired: true,
     },
     execute: async (_, ctx) => {
       const mockCtx = ctx;
@@ -245,6 +282,11 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
       properties: {
         carrierInvoiceId: { type: "string", description: "Optional specific invoice ID to audit" },
       },
+    },
+    access: {
+      permission: "carrierInvoices.match",
+      write: true,
+      confirmationRequired: true,
     },
     execute: async (args, ctx) => {
       const mockCtx = ctx;
@@ -274,13 +316,19 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
 
   auto_dispatch_tender: {
     name: "auto_dispatch_tender",
-    description: "Run the Tender Agent to select top carrier and dispatch freight tender under policy controls.",
+    description: "Run the Tender Agent to select an eligible carrier and create an unsent tender draft under policy controls.",
     parameters: {
       type: "object",
       properties: {
         shipmentId: { type: "string", description: "Shipment ID to auto-dispatch tender for" },
+        confirm: { type: "boolean", description: "Explicit confirmation to create the tender draft" },
       },
-      required: ["shipmentId"],
+      required: ["shipmentId", "confirm"],
+    },
+    access: {
+      permission: "tenders.send",
+      write: true,
+      confirmationRequired: true,
     },
     execute: async (args, ctx) => {
       const mockCtx = ctx;
@@ -297,8 +345,14 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
       properties: {
         transportationOrderId: { type: "string", description: "Transportation Order ID to evaluate RFQ for" },
         targetMarginPercent: { type: "number", description: "Target margin % (default 15%)" },
+        confirm: { type: "boolean", description: "Explicit confirmation to create the quote proposal" },
       },
-      required: ["transportationOrderId"],
+      required: ["transportationOrderId", "confirm"],
+    },
+    access: {
+      permission: "transportationOrders.write",
+      write: true,
+      confirmationRequired: true,
     },
     execute: async (args, ctx) => {
       const mockCtx = ctx;
@@ -331,10 +385,15 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
       },
       required: ["itemId", "action"],
     },
+    access: { write: true, confirmationRequired: true },
     execute: async (args, ctx) => {
-      const accountId = ctx?.accountId;
+      const accountId = ctx.accountId;
       if (!accountId) return { success: false, error: "No active tenant account context." };
-      const { itemId, action, note } = args;
+      const { itemId, action, note } = args as {
+        itemId: string;
+        action: "approve" | "reject" | "resolve";
+        note?: string;
+      };
 
       // Try AgentDecision
       const decision = await db.agentDecision.findFirst({
@@ -342,14 +401,32 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
       }).catch(() => null);
 
       if (decision) {
+        if (action === "resolve") {
+          return { success: false, error: "Agent decisions must be approved or rejected." };
+        }
+        const requiredPermission =
+          action === "approve" ? "decisions.approve" : "decisions.reject";
+        if (!ctx.isPlatformAdmin && !ctx.permissions.includes(requiredPermission)) {
+          return { success: false, error: `Missing permission '${requiredPermission}'.` };
+        }
         await db.agentDecision.update({
           where: { id: itemId },
           data: {
-            autoApproved: action === "approve",
-            status: action === "approve" ? "Completed" : "Rejected",
-            reviewedByUserId: ctx?.userId ?? "operator",
+            autoApproved: false,
+            status: action === "approve" ? "Approved" : "Rejected",
+            triageState: action === "approve" ? "APPROVED" : "REJECTED",
+            reviewedByUserId: ctx.userId,
             blockedReason: action === "reject" ? note || "Rejected by operator" : null,
           },
+        });
+        await createAuditLog({
+          accountId,
+          userId: ctx.userId,
+          action: action === "approve" ? "AGENT_DECISION_APPROVED" : "AGENT_DECISION_REJECTED",
+          entity: "AgentDecision",
+          entityId: itemId,
+          source: "SYSTEM",
+          metadata: { channel: "ASSISTANT", note: note ?? null },
         });
         await queueTmsMemoryEvent({
           kind: "DECISION_REVIEWED",
@@ -358,7 +435,9 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
           decisionId: itemId,
           action: action === "approve" ? "approve" : "reject",
           note,
-        }).catch((error) => console.error("[TMS memory] Failed to enqueue assistant decision review", error));
+        }).catch((error) =>
+          console.error("[TMS memory] Failed to enqueue assistant decision review", error)
+        );
         return { success: true, type: "DECISION", action: action.toUpperCase(), itemId };
       }
 
@@ -368,21 +447,41 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
       }).catch(() => null);
 
       if (exception) {
+        if (action !== "resolve") {
+          return { success: false, error: "Exceptions must use the resolve action." };
+        }
+        if (!ctx.isPlatformAdmin && !ctx.permissions.includes("exceptions.resolve")) {
+          return { success: false, error: "Missing permission 'exceptions.resolve'." };
+        }
+        if (!note?.trim()) {
+          return { success: false, error: "A resolution note is required." };
+        }
         await db.exceptionItem.update({
           where: { id: itemId },
           data: {
             status: "Resolved",
             resolvedAt: new Date(),
-            resolvedBy: ctx?.userId ?? "operator",
-            resolutionNote: note || "Resolved by operator via Assistant",
+            resolvedBy: ctx.userId,
+            resolutionNote: note,
           },
+        });
+        await createAuditLog({
+          accountId,
+          userId: ctx.userId,
+          action: "EXCEPTION_RESOLVED",
+          entity: "ExceptionItem",
+          entityId: itemId,
+          source: "SYSTEM",
+          metadata: { channel: "ASSISTANT", note },
         });
         await queueTmsMemoryEvent({
           kind: "EXCEPTION_RESOLVED",
           accountId,
           eventId: crypto.randomUUID(),
           exceptionId: itemId,
-        }).catch((error) => console.error("[TMS memory] Failed to enqueue assistant resolution", error));
+        }).catch((error) =>
+          console.error("[TMS memory] Failed to enqueue assistant resolution", error)
+        );
         return { success: true, type: "EXCEPTION", action: "RESOLVED", itemId };
       }
 
@@ -390,3 +489,30 @@ export const availableAssistantTools: Record<string, AssistantToolDefinition> = 
     },
   },
 };
+
+export async function executeAssistantTool(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: AccountContext
+): Promise<unknown> {
+  const tool = availableAssistantTools[name];
+  if (!tool) throw new Error(`Assistant tool '${name}' is not registered.`);
+
+  if (
+    tool.access?.permission &&
+    !ctx.isPlatformAdmin &&
+    !ctx.permissions.includes(tool.access.permission)
+  ) {
+    throw new Error(
+      `Assistant tool '${name}' requires permission '${tool.access.permission}'.`
+    );
+  }
+  if (tool.access?.write && !canWrite(ctx)) {
+    throw new Error(`Assistant tool '${name}' is not available to read-only users.`);
+  }
+  if (tool.access?.confirmationRequired && args.confirm !== true) {
+    throw new Error(`Assistant tool '${name}' requires explicit confirmation.`);
+  }
+
+  return tool.execute(args, ctx);
+}

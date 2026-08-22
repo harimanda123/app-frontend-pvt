@@ -10,14 +10,8 @@ import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Port congestion/delay adds this many hours per detected event */
-const PORT_DELAY_HOURS = 48;
-
 /** If LFD is within this many hours with customs not released, escalate */
 const LFD_RISK_THRESHOLD_HOURS = 48;
-
-/** Demurrage rate per day (USD) used for exposure estimate */
-const DEMURRAGE_RATE_PER_DAY_USD = 350;
 
 // ---------------------------------------------------------------------------
 // ETA Agent — Tracking & Replanning Cascade
@@ -63,7 +57,12 @@ export async function runTrackingEtaAgent(
   const accountMemory = await TmsAccountContextBuilder.build({
     accountId: ctx.accountId,
     task: "ETA_PREDICTION",
-    query: [shipment.transportMode, shipment.countryOfExport, shipment.destinationCountry, shipment.carrierName]
+    query: [
+      shipment.transportMode,
+      shipment.countryOfExport,
+      shipment.destinationCountry,
+      shipment.carrierName,
+    ]
       .filter(Boolean)
       .join(" "),
     scope: {
@@ -79,8 +78,7 @@ export async function runTrackingEtaAgent(
   const previousEta = shipment.etaObservations?.[0]?.eta ?? shipment.estimatedArrival;
   const latestFiling = shipment.customsFilings?.[0];
   const isCustomsReleased =
-    latestFiling?.filingStatus === "RELEASED" ||
-    latestFiling?.filingStatus === "ACCEPTED";
+    latestFiling?.filingStatus === "RELEASED";
 
   // ---- OBSERVE: Determine delay from tracking signal ----
   const DELAY_EVENT_TYPES = [
@@ -91,22 +89,49 @@ export async function runTrackingEtaAgent(
     "CONGESTION",
     "TERMINAL_DELAY",
   ];
-  const delayEvent = shipment.trackingEvents.find(
-    (e) => DELAY_EVENT_TYPES.includes(e.eventType ?? "")
-  );
+  // Only the newest signal may drive an ETA change. Reusing an older delay
+  // from the recent-event window caused every sweep to add another 48 hours.
+  const delayEvent =
+    latestEvent && DELAY_EVENT_TYPES.includes(latestEvent.eventType ?? "")
+      ? latestEvent
+      : null;
   const delayDetected = !!delayEvent;
+  const processedReasonCode = delayEvent ? `TRACKING_EVENT:${delayEvent.id}` : null;
+  const delayAlreadyProcessed =
+    processedReasonCode != null &&
+    shipment.etaObservations?.[0]?.reasonCode === processedReasonCode;
 
   // ---- UNDERSTAND: Compute new ETA ----
   let newEta: Date | null = previousEta ?? null;
   let etaSource = "TRACKING_CONFIRMED";
-  let etaConfidence = 90;
+  const etaConfidence = latestEvent?.confidence ?? 0;
 
-  if (delayDetected && previousEta) {
+  if (delayDetected && !delayAlreadyProcessed) {
+    const normalized =
+      delayEvent?.normalizedData && typeof delayEvent.normalizedData === "object"
+        ? (delayEvent.normalizedData as Record<string, unknown>)
+        : {};
+    const providerEtaRaw =
+      normalized.estimatedArrival ?? normalized.eta ?? normalized.predictedArrival;
+    const providerEta =
+      typeof providerEtaRaw === "string" || providerEtaRaw instanceof Date
+        ? new Date(providerEtaRaw)
+        : null;
     const delayHours =
-      (delayEvent?.normalizedData as any)?.delayHours ?? PORT_DELAY_HOURS;
-    newEta = new Date(previousEta.getTime() + delayHours * 3600 * 1000);
+      typeof normalized.delayHours === "number" &&
+      Number.isFinite(normalized.delayHours) &&
+      normalized.delayHours > 0
+        ? normalized.delayHours
+        : null;
+
+    if (providerEta && Number.isFinite(providerEta.getTime())) {
+      newEta = providerEta;
+    } else if (previousEta && delayHours != null) {
+      newEta = new Date(previousEta.getTime() + delayHours * 3600 * 1000);
+    } else {
+      newEta = null;
+    }
     etaSource = delayEvent?.eventType ?? "PORT_DELAY";
-    etaConfidence = 82;
   }
 
   // ---- PREDICT: Customer promise impact and LFD exposure ----
@@ -117,11 +142,11 @@ export async function runTrackingEtaAgent(
       : null;
 
   const lfd = shipment.lastFreeDay;
-  const daysOverLfd =
-    newEta && lfd
-      ? Math.max(0, (newEta.getTime() - lfd.getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
-  const demurrageExposureUsd = Math.round(daysOverLfd * DEMURRAGE_RATE_PER_DAY_USD);
+  // Exposure requires a terminal/carrier free-time rate schedule. Preserve a
+  // previously sourced amount rather than fabricating a universal $/day rate.
+  const demurrageExposureUsd = shipment.demurrageExposureUsd
+    ? Number(shipment.demurrageExposureUsd)
+    : 0;
 
   // LFD risk: LFD within threshold and customs not released
   const hoursToLfd =
@@ -137,19 +162,32 @@ export async function runTrackingEtaAgent(
     {
       actionType: "UPDATE_ETA",
       confidenceScore: etaConfidence,
+      requiredInputsPresent: newEta != null,
+      dataFresh: latestEvent
+        ? latestEvent.receivedAt instanceof Date &&
+          Date.now() - latestEvent.receivedAt.getTime() <= 7 * 24 * 60 * 60 * 1000
+        : true,
+      reversible: true,
     },
     "Tracking & ETA Agent"
   );
 
   // ---- ACT: Write to DB if policy permits ----
-  if (policyResult.allowed && newEta) {
+  let promiseState = shipment.promiseState ?? "UNKNOWN";
+  let etaChanged = false;
+  if (
+    policyResult.allowed &&
+    newEta &&
+    !delayAlreadyProcessed &&
+    previousEta?.getTime() !== newEta.getTime()
+  ) {
+    etaChanged = true;
     await db.shipment.update({
       where: { id: shipmentId },
       data: {
         estimatedArrival: newEta,
-        demurrageExposureUsd: demurrageExposureUsd > 0
-          ? new Decimal(demurrageExposureUsd)
-          : undefined,
+        demurrageExposureUsd:
+          demurrageExposureUsd > 0 ? new Decimal(demurrageExposureUsd) : undefined,
         healthStatus:
           lfdAtRisk || (bufferHours !== null && bufferHours < 0)
             ? "Critical"
@@ -168,15 +206,28 @@ export async function runTrackingEtaAgent(
         provider: etaSource,
         confidence: etaConfidence,
         estimatedAt: new Date(),
+        previousEta,
+        deltaMinutes: previousEta
+          ? Math.round((newEta.getTime() - previousEta.getTime()) / 60000)
+          : null,
+        reasonCode: processedReasonCode,
       },
-    }).catch(() => null);
+    });
 
     // Update promise state based on new ETA
-    await persistPromiseState(ctx, shipmentId).catch(() => null);
+    const promiseEvaluation = await persistPromiseState(ctx, shipmentId);
+    promiseState = promiseEvaluation.promiseState;
   }
 
   // ---- VERIFY: Emit TransportationEvent ----
-  if (delayDetected && newEta && previousEta) {
+  if (
+    policyResult.allowed &&
+    delayDetected &&
+    !delayAlreadyProcessed &&
+    newEta &&
+    previousEta &&
+    previousEta.getTime() !== newEta.getTime()
+  ) {
     await publishTransportationEvent(ctx, {
       entityType: "SHIPMENT",
       entityId: shipmentId,
@@ -196,7 +247,11 @@ export async function runTrackingEtaAgent(
 
   // ---- ESCALATE if needed ----
   const summary = delayDetected
-    ? `Delay detected (${delayEvent?.eventType ?? "DELAY"}). ETA updated to ${newEta?.toLocaleDateString()}. ${
+    ? `Delay detected (${delayEvent?.eventType ?? "DELAY"}). ${
+        etaChanged
+          ? `ETA updated to ${newEta?.toLocaleDateString()}.`
+          : `ETA was not changed${policyResult.allowed ? " because the signal lacked a provider ETA or explicit delay" : `: ${policyResult.reason}`}.`
+      } ${
         demurrageExposureUsd > 0
           ? `Estimated demurrage exposure: $${demurrageExposureUsd}.`
           : ""
@@ -220,15 +275,13 @@ export async function runTrackingEtaAgent(
     },
   });
 
-  const promiseState = shipment.promiseState ?? "ON_PROMISE";
-
   return {
     decision: {
       id: decision.id,
       triageState: decision.triageState,
       decisionSummary: decision.decisionSummary,
     },
-    updatedEta: newEta,
+    updatedEta: etaChanged ? newEta : previousEta ?? null,
     delayDetected,
     promiseState,
     demurrageExposureUsd,
@@ -251,13 +304,8 @@ export async function runRiskAgent(ctx: AccountContext): Promise<{
     task: "RISK_DETECTION",
     limit: 3,
   });
-  const priorHandling = accountMemory.memories.find((memory) =>
-    memory.sourceType === "HUMAN_DECISION" && memory.type === "PROCEDURE"
-  );
-  const policyResult = await evaluateAutonomyPolicy(
-    ctx,
-    { actionType: "RESOLVE_EXCEPTION", confidenceScore: 95 },
-    "Risk Agent"
+  const priorHandling = accountMemory.memories.find(
+    (memory) => memory.sourceType === "HUMAN_DECISION" && memory.type === "PROCEDURE"
   );
 
   // Load all active shipments with LFD or customerPromiseDate
@@ -286,7 +334,7 @@ export async function runRiskAgent(ctx: AccountContext): Promise<{
         select: { filingStatus: true },
       },
       exceptionItems: {
-        where: { type: "LFD_AT_RISK", status: "Open" },
+        where: { type: "LFD_AT_RISK", status: { in: ["Open", "OPEN"] } },
         select: { id: true },
       },
     },
@@ -302,8 +350,7 @@ export async function runRiskAgent(ctx: AccountContext): Promise<{
     const lfd = shipment.lastFreeDay;
     const latestFiling = shipment.customsFilings[0];
     const isCustomsReleased =
-      latestFiling?.filingStatus === "RELEASED" ||
-      latestFiling?.filingStatus === "ACCEPTED";
+      latestFiling?.filingStatus === "RELEASED";
 
     // LFD risk
     const hoursToLfd =
@@ -314,8 +361,7 @@ export async function runRiskAgent(ctx: AccountContext): Promise<{
       hoursToLfd !== null &&
       hoursToLfd < LFD_RISK_THRESHOLD_HOURS &&
       !isCustomsReleased &&
-      !hasOpenLfdException &&
-      policyResult.allowed
+      !hasOpenLfdException
     ) {
       await db.exceptionItem.create({
         data: {
@@ -330,7 +376,7 @@ export async function runRiskAgent(ctx: AccountContext): Promise<{
           status: "Open",
           sourceAgent: "Risk Agent",
         },
-      }).catch(() => null);
+      });
       exceptionsCreated++;
       shipmentsAtRisk.push(shipment.shipmentNumber);
     }
@@ -356,12 +402,10 @@ export async function runRiskAgent(ctx: AccountContext): Promise<{
         : "Healthy";
 
     if (newHealthStatus !== shipment.healthStatus) {
-      await db.shipment
-        .update({
-          where: { id: shipment.id },
-          data: { healthStatus: newHealthStatus },
-        })
-        .catch(() => null);
+      await db.shipment.update({
+        where: { id: shipment.id },
+        data: { healthStatus: newHealthStatus },
+      });
     }
   }
 
@@ -402,7 +446,9 @@ export async function runExceptionResolutionAgent(
   const accountMemory = await TmsAccountContextBuilder.build({
     accountId: ctx.accountId,
     task: "EXCEPTION_RESOLUTION",
-    query: openExceptions.map((exception) => `${exception.type} ${exception.category ?? ""}`).join(" "),
+    query: openExceptions
+      .map((exception) => `${exception.type} ${exception.category ?? ""}`)
+      .join(" "),
     scope: {
       shipmentId,
       exceptionType: openExceptions[0]?.type,
@@ -410,7 +456,6 @@ export async function runExceptionResolutionAgent(
       carrierName: shipment.carrierName ?? undefined,
     },
   });
-
   const latestFiling = shipment.customsFilings[0];
   const isCustomsHold =
     latestFiling?.filingStatus === "CustomsHold" ||
@@ -432,16 +477,11 @@ export async function runExceptionResolutionAgent(
   } else if (openExceptions.length === 0) {
     resolutionAction = "ALL_CLEAR";
   } else {
-    // Non-blocking, non-customs exceptions — check policy for auto-resolution
-    const policyResult = await evaluateAutonomyPolicy(
-      ctx,
-      { actionType: "RESOLVE_EXCEPTION", confidenceScore: 88 },
-      "Exception Resolution Agent"
-    );
-    resolutionAction = policyResult.allowed
-      ? "AUTO_MONITORING"
-      : "ESCALATED_MANUAL_REVIEW";
-    triageState = policyResult.triageState;
+    // Observing an exception is not evidence that its root cause has cleared.
+    // Resolution remains a human-reviewed proposal until a domain verifier can
+    // prove the postcondition for that exception type.
+    resolutionAction = "ESCALATED_MANUAL_REVIEW";
+    triageState = "NEEDS_HUMAN_REVIEW";
   }
 
   const decision = await db.agentDecision.create({

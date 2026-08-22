@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AccountContext } from "@qubere/auth";
+import { canWrite, type AccountContext } from "@qubere/auth";
 
 export interface FunctionDeclaration {
   name: string;
@@ -10,7 +10,7 @@ export interface FunctionDeclaration {
 export type CopilotToolAccess =
   | "ALL"
   | "ADMIN_ONLY"
-  | { permission?: string; write?: boolean };
+  | { permission?: string; write?: boolean; confirmationRequired?: boolean };
 
 export interface AssistantTool {
   declaration: FunctionDeclaration;
@@ -43,6 +43,38 @@ export class AssistantToolRegistry {
     if (!tool) {
       throw new Error(`Assistant tool '${name}' not found in registry.`);
     }
-    return tool.execute(ctx, args);
+
+    const access = tool.access;
+    if (access === "ADMIN_ONLY") {
+      const isAdmin =
+        ctx.isPlatformAdmin ||
+        ctx.roleNames.some((role) => role === "OWNER" || role === "ADMIN");
+      if (!isAdmin) throw new Error(`Assistant tool '${name}' requires an administrator role.`);
+    } else if (access && access !== "ALL") {
+      if (
+        access.permission &&
+        !ctx.isPlatformAdmin &&
+        !ctx.permissions.includes(access.permission)
+      ) {
+        throw new Error(
+          `Assistant tool '${name}' requires permission '${access.permission}'.`
+        );
+      }
+      if (access.write && !canWrite(ctx)) {
+        throw new Error(`Assistant tool '${name}' is not available to read-only users.`);
+      }
+    }
+
+    if (
+      access &&
+      access !== "ALL" &&
+      access !== "ADMIN_ONLY" &&
+      access.confirmationRequired &&
+      args.confirm !== true
+    ) {
+      throw new Error(`Assistant tool '${name}' requires explicit confirmation.`);
+    }
+    const parsedArgs = tool.schema.parse(args);
+    return tool.execute(ctx, parsedArgs);
   }
 }

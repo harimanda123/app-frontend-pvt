@@ -60,10 +60,25 @@ export async function runFreightAuditAgent(
   });
 
   const isClean =
-    auditResult.auditStatus === "MATCHED" ||
-    auditResult.auditStatus === "WITHIN_TOLERANCE";
+    (auditResult.auditStatus === "MATCHED" ||
+      auditResult.auditStatus === "WITHIN_TOLERANCE") &&
+    auditResult.hasSignedPod &&
+    !auditResult.podHasException &&
+    auditResult.currencyConsistent &&
+    auditResult.invoiceTotalMatchesLines &&
+    auditResult.uncontractedChargeTypes.length === 0;
 
-  const confidence = isClean ? 96 : 60;
+  const evidenceChecks = [
+    auditResult.agreedBuyRateUsd > 0,
+    auditResult.hasSignedPod,
+    !auditResult.podHasException,
+    auditResult.currencyConsistent,
+    auditResult.invoiceTotalMatchesLines,
+    auditResult.uncontractedChargeTypes.length === 0,
+  ];
+  const confidence = Math.round(
+    (evidenceChecks.filter(Boolean).length / evidenceChecks.length) * 100
+  );
 
   // ---- DECIDE: Policy gate for auto-approval of AP payment ----
   const policyResult = await evaluateAutonomyPolicy(
@@ -71,12 +86,29 @@ export async function runFreightAuditAgent(
     {
       actionType: "APPROVE_AP_PAYMENT",
       financialAmount: auditResult.carrierInvoicedUsd,
+      currency: auditResult.currency,
       confidenceScore: confidence,
+      requiredInputsPresent:
+        auditResult.agreedBuyRateUsd > 0 && auditResult.hasSignedPod,
+      dataFresh: true,
+      reversible: false,
     },
     "Freight Audit Agent"
   );
 
   const autoApproved = isClean && policyResult.allowed;
+
+  // Matching and payment approval are separate states. A clean audit may be
+  // matched while still awaiting policy/human payment approval.
+  const matchStatus = isClean
+    ? "MATCHED"
+    : auditResult.auditStatus === "VARIANCE_FLAGGED"
+      ? "DISPUTED"
+      : "EXCEPTION";
+  await db.carrierInvoice.update({
+    where: { id: carrierInvoiceId },
+    data: { matchStatus },
+  });
 
   // ---- ACT: Create AgentDecision ----
   const decision = await db.agentDecision.create({
@@ -132,12 +164,22 @@ export async function runFreightAuditAgent(
 
   // ---- ACT: Create dispute ExceptionItem if variance flagged ----
   if (!isClean) {
-    await db.exceptionItem
-      .create({
+    const exceptionCode = `INVOICE_AUDIT:${carrierInvoiceId}`;
+    const existingException = await db.exceptionItem.findFirst({
+      where: {
+        accountId: ctx.accountId,
+        code: exceptionCode,
+        status: { in: ["Open", "OPEN", "InProgress", "IN_PROGRESS"] },
+      },
+      select: { id: true },
+    });
+    if (!existingException) {
+      await db.exceptionItem.create({
         data: {
           accountId: ctx.accountId,
           shipmentId: auditResult.shipmentId,
           type: "INVOICE_VARIANCE",
+          code: exceptionCode,
           category: "BILLING",
           severity:
             Math.abs(auditResult.variancePct) > 10 ? "Critical" : "High",
@@ -151,8 +193,8 @@ export async function runFreightAuditAgent(
           status: "Open",
           sourceAgent: "Freight Audit Agent",
         },
-      })
-      .catch(() => null);
+      });
+    }
   }
 
   // ---- VERIFY: Emit INVOICE_AUDITED event ----
@@ -170,26 +212,26 @@ export async function runFreightAuditAgent(
       variancePct: auditResult.variancePct,
       agentDecisionId: decision.id,
     },
-  }).catch(() => null);
+  });
 
   await queueTmsMemoryEvent({
     kind: "INVOICE_AUDITED",
     accountId: ctx.accountId,
     carrierInvoiceId,
     decisionId: decision.id,
-  }).catch((error) => console.error("[TMS memory] Failed to enqueue invoice audit", error));
+  }).catch((error) =>
+    console.error("[TMS memory] Failed to enqueue invoice audit", error)
+  );
 
   // ---- ACT: If auto-approved + has POD → update shipment financial lock ----
   if (autoApproved && auditResult.hasSignedPod) {
-    await db.shipment
-      .update({
-        where: { id: auditResult.shipmentId },
-        data: {
-          // Write final actual buy cost from the verified invoice
-          actualBuyCost: auditResult.carrierInvoicedUsd as any,
-        },
-      })
-      .catch(() => null);
+    await db.shipment.update({
+      where: { id: auditResult.shipmentId },
+      data: {
+        // Write final actual buy cost from the verified invoice
+        actualBuyCost: auditResult.carrierInvoicedUsd as any,
+      },
+    });
 
     await createAuditLog({
       accountId: ctx.accountId,
@@ -203,7 +245,7 @@ export async function runFreightAuditAgent(
         auditStatus: auditResult.auditStatus,
         finalBuyCostUsd: auditResult.carrierInvoicedUsd,
       },
-    }).catch(() => null);
+    });
   }
 
   return {

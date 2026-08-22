@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { evaluateCarriersForShipment } from "../src/modules/carriers/services/carrierSelectionService";
-import { createAndSendTender, respondToTender, sweepExpiredTenders } from "../src/modules/tenders/services/tenderService";
+import { createTenderDraft } from "../src/modules/tenders/services/tenderService";
 import { scheduleAppointment } from "../src/modules/movement/services/appointmentService";
 import { ingestRawTrackingSignal } from "../src/modules/tracking/services/trackingProviderService";
 
@@ -9,6 +9,11 @@ const { dbMock } = vi.hoisted(() => ({
     carrierProfile: {
       findMany: vi.fn(),
     },
+    carrier: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    freightQuote: { findFirst: vi.fn() },
     tender: {
       create: vi.fn(),
       findFirst: vi.fn(),
@@ -20,6 +25,7 @@ const { dbMock } = vi.hoisted(() => ({
       update: vi.fn(),
     },
     shipment: {
+      findFirst: vi.fn(),
       update: vi.fn(),
     },
     agentDecision: {
@@ -69,13 +75,15 @@ describe("Phase 5 — Execution Engine (Carrier Scoring, Tenders, Fallback Casca
       id: "evt_501",
       ...data,
     }));
+    dbMock.tender.findMany.mockResolvedValue([]);
   });
 
   it("evaluates carrier profiles and ranks options based on insurance, safety status, and metrics", async () => {
     dbMock.carrierProfile.findMany.mockResolvedValueOnce([
       {
         id: "prof_1",
-        partyId: "car_swift",
+        partyId: "party_swift",
+        scac: "SWFT",
         insuranceStatus: "ACTIVE",
         safetyStatus: "SATISFACTORY",
         preferredStatus: true,
@@ -86,7 +94,8 @@ describe("Phase 5 — Execution Engine (Carrier Scoring, Tenders, Fallback Casca
       },
       {
         id: "prof_2",
-        partyId: "car_slow",
+        partyId: "party_slow",
+        scac: "SLOW",
         insuranceStatus: "INACTIVE",
         safetyStatus: "SATISFACTORY",
         preferredStatus: false,
@@ -96,6 +105,10 @@ describe("Phase 5 — Execution Engine (Carrier Scoring, Tenders, Fallback Casca
         party: { names: [{ rawName: "Slow Freight" }] },
       },
     ]);
+    dbMock.carrier.findMany.mockResolvedValueOnce([
+      { id: "car_swift", scac: "SWFT", status: "ACTIVE" },
+      { id: "car_slow", scac: "SLOW", status: "ACTIVE" },
+    ]);
 
     const ranked = await evaluateCarriersForShipment(mockContext, { mode: "OCEAN", requireInsurance: true });
 
@@ -104,48 +117,32 @@ describe("Phase 5 — Execution Engine (Carrier Scoring, Tenders, Fallback Casca
     expect(ranked[0].isEligible).toBe(true);
   });
 
-  it("dispatches tender and triggers automated fallback cascade upon rejection", async () => {
-    dbMock.carrierProfile.findMany.mockResolvedValue([
-      {
-        id: "prof_1",
-        partyId: "car_fast",
-        insuranceStatus: "ACTIVE",
-        safetyStatus: "SATISFACTORY",
-        modes: ["OCEAN"],
-        equipmentCapabilities: ["40HC"],
-        party: { names: [{ value: "Fast Trans" }] },
-      },
-      {
-        id: "prof_2",
-        partyId: "car_fallback",
-        insuranceStatus: "ACTIVE",
-        safetyStatus: "SATISFACTORY",
-        modes: ["OCEAN"],
-        equipmentCapabilities: ["40HC"],
-        party: { names: [{ value: "Fallback Trans" }] },
-      },
-    ]);
+  it("creates an unsent tender draft pending a real carrier-provider acknowledgement", async () => {
+    dbMock.shipment.findFirst.mockResolvedValueOnce({ id: "shp_500", transportMode: "OCEAN" });
+    dbMock.carrier.findFirst.mockResolvedValueOnce({
+      id: "car_fast",
+      status: "ACTIVE",
+      insuranceOnFile: true,
+    });
 
-    dbMock.tender.findFirst.mockResolvedValueOnce({
-      id: "ten_501",
-      accountId: "acc_999",
+    const result = await createTenderDraft(mockContext, {
       shipmentId: "shp_500",
       carrierId: "car_fast",
-      history: [],
     });
 
-    const result = await respondToTender(mockContext, {
-      tenderId: "ten_501",
-      accept: false,
-      rejectionReason: "No equipment available",
-    });
-
-    expect(result.status).toBe("REJECTED");
+    expect(result.dispatched).toBe(false);
     expect(dbMock.tender.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          carrierId: "car_fallback",
+          carrierId: "car_fast",
+          status: "DRAFT",
         }),
+      })
+    );
+    expect(dbMock.tender.create.mock.calls[0][0].data.sentAt).toBeUndefined();
+    expect(dbMock.transportationEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventType: "TENDER_DRAFTED" }),
       })
     );
   });

@@ -1,7 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuthenticatedRoute } from "@qubere/auth";
 import { db } from "@qubere/db";
-import { createAuditLog } from "@qubere/decisions";
+import { z } from "zod";
+import { createTenderDraft } from "@/modules/tenders/services/tenderService";
+
+const createTenderSchema = z.object({
+  shipmentId: z.string().min(1).optional(),
+  carrierId: z.string().min(1),
+  freightQuoteId: z.string().min(1).optional(),
+  idempotencyKey: z.string().min(8).max(200).optional(),
+});
 
 export const GET = withAuthenticatedRoute(
   async ({ req, ctx }: any) => {
@@ -25,45 +33,16 @@ export const GET = withAuthenticatedRoute(
 export const POST = withAuthenticatedRoute(
   async ({ req, ctx }: any) => {
     try {
-      const body = await req.json().catch(() => ({}));
-      const { shipmentId, carrierId, freightQuoteId, expiresAtHours } = body;
-
-      if (!carrierId) {
-        return NextResponse.json({ error: "carrierId is required" }, { status: 400 });
+      const parsed = createTenderSchema.safeParse(await req.json());
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: "Invalid tender request", details: parsed.error.flatten() },
+          { status: 400 }
+        );
       }
 
-      const expiresAt = new Date(Date.now() + (expiresAtHours ?? 4) * 60 * 60 * 1000);
-
-      const tender = await db.tender.create({
-        data: {
-          accountId: ctx.accountId,
-          shipmentId: shipmentId || null,
-          carrierId,
-          freightQuoteId: freightQuoteId || null,
-          status: "SENT",
-          sentAt: new Date(),
-          expiresAt,
-          sentByUserId: ctx.userId,
-          history: [
-            {
-              timestamp: new Date().toISOString(),
-              action: "TENDER_DISPATCHED",
-              actorUserId: ctx.userId,
-              notes: "Tender created and dispatched to carrier",
-            },
-          ],
-        },
-      });
-
-      await createAuditLog({
-        accountId: ctx.accountId,
-        userId: ctx.userId,
-        source: "API",
-        action: "TENDER_CREATED",
-        entity: "Tender",
-        entityId: tender.id,
-        metadata: { carrierId, shipmentId, freightQuoteId },
-      }).catch(() => null);
+      const result = await createTenderDraft(ctx, parsed.data);
+      const tender = result.tender;
 
       return NextResponse.json({
         ok: true,
@@ -71,10 +50,13 @@ export const POST = withAuthenticatedRoute(
         shipmentId: tender.shipmentId,
         carrierId: tender.carrierId,
         status: tender.status,
-        message: "Tender created and dispatched to carrier",
+        dispatched: false,
+        wasIdempotent: result.wasIdempotent,
+        message: "Tender draft created; no carrier message has been sent",
       });
     } catch (err) {
-      return NextResponse.json({ error: "Failed to dispatch tender" }, { status: 500 });
+      const message = err instanceof Error ? err.message : "Failed to create tender draft";
+      return NextResponse.json({ error: message }, { status: 400 });
     }
   },
   { permission: "tenders.send", write: true }

@@ -35,6 +35,9 @@ const { dbMock } = vi.hoisted(() => ({
     transportationEvent: {
       create: vi.fn(),
     },
+    agentPolicyConfig: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -74,6 +77,18 @@ describe("Phase 4 — Quote Engine, Carrier Rate Matching, Margins & Conversion"
       id: "evt_401",
       ...data,
     }));
+    dbMock.agentPolicyConfig.findUnique.mockResolvedValue({
+      autonomyMode: "BALANCED",
+      autoThreshold: 80,
+      financialThreshold: 5000,
+      marginThreshold: 15,
+      allowedAutoActions: ["QUOTE_APPROVE"],
+      forbiddenAutoActions: [],
+      carrierApprovalRequired: false,
+      requireInsurance: false,
+      requireCustomsRelease: false,
+      requireHumanApproval: false,
+    });
   });
 
   it("creates a carrier rate record for Shanghai -> Oakland 40HC ocean lane", async () => {
@@ -113,13 +128,19 @@ describe("Phase 4 — Quote Engine, Carrier Rate Matching, Margins & Conversion"
       requestedBy: "Acme Imports",
     });
 
-    dbMock.carrierRate.findMany.mockResolvedValueOnce([
+    dbMock.carrierRate.findMany.mockResolvedValue([
       {
         id: "rate_101",
         carrierName: "MSC Ocean",
         baseRate: 2500,
         surcharges: { BAF: 300, ISPS: 50 },
         accessorials: { Chassis: 150 },
+        origin: { unlocode: "CNSHA", city: "Shanghai" },
+        destination: { unlocode: "USOAK", city: "Oakland" },
+        currency: "USD",
+        confidence: 92,
+        effectiveTo: new Date(Date.now() + 7 * 86400 * 1000),
+        updatedAt: new Date(),
       },
     ]);
 
@@ -129,8 +150,7 @@ describe("Phase 4 — Quote Engine, Carrier Rate Matching, Margins & Conversion"
     });
 
     // Total Buy = 2500 + 350 + 150 = 3000
-    // Sell Price = 3000 * 1.15 = 3450
-    // Margin = 3450 - 3000 = 450
+    // Gross margin is profit / sell, therefore sell = 3000 / (1 - 0.15).
     expect(dbMock.agentDecision.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -144,9 +164,9 @@ describe("Phase 4 — Quote Engine, Carrier Rate Matching, Margins & Conversion"
       expect.objectContaining({
         data: expect.objectContaining({
           buyAmount: 3000,
-          markupPercentage: 15,
-          sellAmount: 3450,
-          margin: 450,
+          markupPercentage: 17.65,
+          sellAmount: 3529.41,
+          margin: 529.41,
           approvalState: "AUTO_APPROVED",
           status: "PROPOSED",
         }),
@@ -167,8 +187,12 @@ describe("Phase 4 — Quote Engine, Carrier Rate Matching, Margins & Conversion"
       sellAmount: 3450,
       margin: 450,
       currency: "USD",
+      approvalState: "APPROVED",
+      status: "PROPOSED",
+      shipmentId: null,
       transportationOrder: {
         id: "ord_401",
+        shipmentId: null,
         requestedBy: "Acme Imports Inc",
         origin: { country: "CN" },
         destination: { country: "US", unlocode: "USOAK" },

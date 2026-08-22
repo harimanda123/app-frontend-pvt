@@ -13,9 +13,9 @@ const autoDispatchSchema = z.object({
 /**
  * POST /api/tenders/auto-dispatch
  *
- * Policy-gated: Scores eligible carriers and dispatches a tender to the
- * top-ranked carrier. If policy blocks, creates a Review Required decision
- * for the operator to manually dispatch.
+ * Policy-gated: scores eligible carriers and creates a tender draft for the
+ * top-ranked carrier. A provider integration must acknowledge delivery before
+ * the tender can transition to SENT.
  */
 export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
   const body = await req.json();
@@ -44,4 +44,4 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx }) => {
     }),
     reason: result.reason ?? null,
   });
-});
+}, { permission: "tenders.send", write: true });

@@ -2,7 +2,10 @@ import { Decimal } from "decimal.js";
 import { db } from "@qubere/db";
 import type { AccountContext } from "@qubere/auth";
 import { publishTransportationEvent } from "../../events/services/eventService";
-import { evaluateAutonomyPolicy } from "../../autonomy/services/policyEngineService";
+import {
+  evaluateAutonomyPolicy,
+  loadPolicyForAgent,
+} from "../../autonomy/services/policyEngineService";
 import { TmsAccountContextBuilder } from "../../memory/memory.context-builder";
 import { buildLaneKey } from "../../memory/memory.domain-events";
 import {
@@ -93,11 +96,19 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
     throw new Error(`TransportationOrder ${input.transportationOrderId} not found.`);
   }
 
-  const mode = (order.mode ?? "OCEAN").toUpperCase();
-  const equipmentReqs = (order.equipmentRequirements as string[]) ?? ["40HC"];
-  const equipment = equipmentReqs[0] ?? "40HC";
+  const equipmentReqs = Array.isArray(order.equipmentRequirements)
+    ? order.equipmentRequirements.filter((value): value is string => typeof value === "string")
+    : [];
   const originData = (order.origin ?? {}) as Record<string, string>;
   const destData = (order.destination ?? {}) as Record<string, string>;
+  if (!order.mode || !equipmentReqs[0]) {
+    throw new Error("Mode and equipment are required before requesting a quote.");
+  }
+  if (!(originData.unlocode || originData.country) || !(destData.unlocode || destData.country)) {
+    throw new Error("A grounded origin and destination are required before requesting a quote.");
+  }
+  const mode = order.mode.toUpperCase();
+  const equipment = equipmentReqs[0];
 
   const lane: LaneKey = {
     mode,
@@ -133,6 +144,13 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
         accountId: ctx.accountId,
         mode,
         equipment,
+        effectiveFrom: { lte: new Date() },
+        origin: originData.unlocode
+          ? { path: ["unlocode"], equals: originData.unlocode }
+          : { path: ["country"], equals: originData.country },
+        destination: destData.unlocode
+          ? { path: ["unlocode"], equals: destData.unlocode }
+          : { path: ["country"], equals: destData.country },
         OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
       },
       select: {
@@ -143,15 +161,29 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
         surcharges: true,
         accessorials: true,
         confidence: true,
+        currency: true,
+        effectiveTo: true,
+        origin: true,
+        destination: true,
         updatedAt: true,
       },
-      orderBy: [
-        { confidence: "desc" },
-        { baseRate: "asc" },
-      ],
       take: 20,
     });
-    availableRates = Array.isArray(res) ? res : [];
+    availableRates = Array.isArray(res)
+      ? res.sort((a, b) => {
+          const total = (rate: typeof a) => {
+            const jsonTotal = (value: unknown) =>
+              value && typeof value === "object"
+                ? Object.values(value as Record<string, unknown>).reduce<number>(
+                    (sum, amount) => sum + Number(amount ?? 0),
+                    0
+                  )
+                : 0;
+            return Number(rate.baseRate) + jsonTotal(rate.surcharges) + jsonTotal(rate.accessorials);
+          };
+          return total(a) - total(b);
+        })
+      : [];
   } catch {
     availableRates = [];
   }
@@ -164,9 +196,10 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
   let buyBase: Decimal;
   let surchargesTotal: Decimal;
   let accessorialsTotal: Decimal;
-  let carrierId: string;
+  let carrierId: string | null;
   let carrierName: string;
   let rateSource: string;
+  let quoteCurrency: string;
 
   if (selectedRate) {
     buyBase = new Decimal(selectedRate.baseRate.toString());
@@ -185,67 +218,59 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
         )
       : new Decimal(0);
 
-    carrierId = selectedRate.id;
-    carrierName = selectedRate.carrierName ?? "Contracted Carrier";
+    carrierId = null;
+    if (!selectedRate.carrierName && !selectedRate.carrierPartyId) {
+      throw new Error(`CarrierRate ${selectedRate.id} has no carrier identity.`);
+    }
+    carrierName = selectedRate.carrierName ?? `Carrier ${selectedRate.carrierPartyId}`;
     rateSource = "CONTRACTED_RATE";
-  } else if (input.forceQuoteEvenIfNoRates && laneIntel.recommendedBuyRate > 0) {
-    // No contracted rates — use market intelligence median as buy estimate
-    buyBase = new Decimal(laneIntel.recommendedBuyRate);
-    surchargesTotal = new Decimal(0);
-    accessorialsTotal = new Decimal(0);
-    carrierId = "market_rate";
-    carrierName = "Market Rate (No Contracted Carrier)";
-    rateSource = "MARKET_INTELLIGENCE";
-  } else if (!selectedRate && laneIntel.rateCount === 0 && !input.forceQuoteEvenIfNoRates) {
+    quoteCurrency = selectedRate.currency;
+  } else {
     throw new Error(
       `No rates available for lane ${lane.mode}/${lane.equipment}. ` +
       `Add at least one CarrierRate to proceed.`
     );
-  } else {
-    buyBase = new Decimal(laneIntel.recommendedBuyRate > 0 ? laneIntel.recommendedBuyRate : 2500);
-    surchargesTotal = new Decimal(0);
-    accessorialsTotal = new Decimal(0);
-    carrierId = "market_rate";
-    carrierName = "Contracted Carrier";
-    rateSource = "MARKET_INTELLIGENCE";
   }
 
   const totalBuyCost = buyBase.plus(surchargesTotal).plus(accessorialsTotal);
 
-  const confidenceScore = selectedRate
-    ? (selectedRate.confidence ?? 92)
-    : laneIntel.confidence;
-
-  // ---- DECIDE: Load policy for margin target and auto-approval gate ----
-  const policyResult = await evaluateAutonomyPolicy(
-    ctx,
-    {
-      actionType: "QUOTE_APPROVE",
-      confidenceScore,
-      financialAmount: totalBuyCost.toNumber(),
-    },
-    "Rate & Quote Recommendation Agent"
-  );
-
-  // Determine target margin — use policy default, then input override, then 15%
+  const confidenceScore = selectedRate.confidence ?? laneIntel.confidence;
+  const policy = await loadPolicyForAgent(ctx, "Rate & Quote Recommendation Agent");
+  const configuredMarginFloor = new Decimal(policy.marginThreshold ?? 15);
   const rememberedTargetMargin = input.targetMarginPercent == null
     ? TmsAccountContextBuilder.rememberedTargetMargin(accountMemory)
     : null;
-  const targetMarginPct = new Decimal(input.targetMarginPercent ?? rememberedTargetMargin ?? 15.0);
+  const requestedMargin = new Decimal(
+    input.targetMarginPercent ?? rememberedTargetMargin ?? configuredMarginFloor
+  );
+  const targetMarginPct = Decimal.max(requestedMargin, configuredMarginFloor);
 
   const { sellAmount, grossProfit, actualMarginPct } = computeSellPrice(
     totalBuyCost,
     targetMarginPct
   );
 
-  // Is this quote within our financial threshold?
-  const meetsMarginGate =
-    actualMarginPct.gte(targetMarginPct.times(0.8)); // allow 20% tolerance
+  const policyResult = await evaluateAutonomyPolicy(
+    ctx,
+    {
+      actionType: "QUOTE_APPROVE",
+      confidenceScore,
+      financialAmount: totalBuyCost.toNumber(),
+      currency: quoteCurrency,
+      requiredInputsPresent: true,
+      dataFresh: laneIntel.freshRateCount > 0,
+      reversible: true,
+      grossMarginPct: actualMarginPct.toNumber(),
+    },
+    "Rate & Quote Recommendation Agent"
+  );
+
+  const meetsMarginGate = actualMarginPct.gte(configuredMarginFloor);
 
   const isAutoApproved =
     policyResult.allowed &&
     meetsMarginGate &&
-    confidenceScore >= 60;
+    confidenceScore >= policy.minAutoConfidence;
 
   const approvalState = isAutoApproved ? "AUTO_APPROVED" : "PENDING_APPROVAL";
 
@@ -255,8 +280,8 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
       accountId: ctx.accountId,
       agentName: "Rate & Quote Recommendation Agent",
       decisionSummary:
-        `Recommended ${carrierName} — Buy: $${totalBuyCost.toFixed(2)}, ` +
-        `Sell: $${sellAmount.toFixed(2)}, Margin: ${actualMarginPct.toFixed(1)}%. ` +
+        `Recommended ${carrierName} — Buy: ${quoteCurrency} ${totalBuyCost.toFixed(2)}, ` +
+        `Sell: ${quoteCurrency} ${sellAmount.toFixed(2)}, Gross margin: ${actualMarginPct.toFixed(1)}%. ` +
         `Source: ${rateSource}. Lane confidence: ${laneIntel.confidence}%.`,
       confidence: confidenceScore,
       triageState: isAutoApproved ? "AUTO_VERIFIED" : "NEEDS_HUMAN_REVIEW",
@@ -266,24 +291,25 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
       evidenceItems: [
         {
           field: "buyAmount",
-          extractedValue: `$${totalBuyCost.toFixed(2)}`,
-          sourceSpan: `Base: $${buyBase.toFixed(2)}, Surcharges: $${surchargesTotal.toFixed(2)}, Accessorials: $${accessorialsTotal.toFixed(2)}`,
-          confidence: selectedRate ? 95 : 60,
+          extractedValue: `${quoteCurrency} ${totalBuyCost.toFixed(2)}`,
+          sourceSpan: `Base: ${buyBase.toFixed(2)}, Surcharges: ${surchargesTotal.toFixed(2)}, Accessorials: ${accessorialsTotal.toFixed(2)}`,
+          confidence: confidenceScore,
         },
         {
           field: "laneAvgRate",
-          extractedValue: `$${laneIntel.averageRate.toFixed(2)}`,
+          extractedValue: `${quoteCurrency} ${laneIntel.averageRate.toFixed(2)}`,
           sourceSpan: `${laneIntel.rateCount} rate(s) on file, ${laneIntel.freshRateCount} fresh`,
           confidence: laneIntel.confidence,
         },
         {
           field: "targetMarginPct",
           extractedValue: `${targetMarginPct.toFixed(1)}%`,
-          sourceSpan: input.targetMarginPercent != null
-            ? "Caller Override"
-            : rememberedTargetMargin != null
-              ? "Account Operating Memory"
-              : "Account Default",
+          sourceSpan:
+            input.targetMarginPercent != null
+              ? "Caller request constrained by account margin floor"
+              : rememberedTargetMargin != null
+                ? "Account operating memory constrained by account margin floor"
+                : "Account margin floor",
           confidence: 100,
         },
         ...TmsAccountContextBuilder.summarizeForEvidence(accountMemory).map((memory) => ({
@@ -294,7 +320,7 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
         })),
         {
           field: "sellAmount",
-          extractedValue: `$${sellAmount.toFixed(2)}`,
+          extractedValue: `${quoteCurrency} ${sellAmount.toFixed(2)}`,
           sourceSpan: `Margin-on-sell: buy ÷ (1 - margin%)`,
           confidence: 95,
         },
@@ -303,8 +329,10 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
   });
 
   // ---- ACT: Create FreightQuote ----
-  const validUntil = new Date();
-  validUntil.setDate(validUntil.getDate() + 7);
+  const validUntil = selectedRate.effectiveTo ?? null;
+  const markupPct = totalBuyCost.eq(0)
+    ? new Decimal(0)
+    : grossProfit.div(totalBuyCost).times(100).toDecimalPlaces(2);
 
   const quote = await db.freightQuote.create({
     data: {
@@ -315,20 +343,20 @@ export async function evaluateRFQ(ctx: AccountContext, input: EvaluateRFQInput) 
       carrierPartyId: selectedRate?.carrierPartyId ?? null,
       carrierName,
       mode,
-      laneOrigin: order.origin ?? { unlocode: "CNSHA", city: "Shanghai" },
-      laneDestination: order.destination ?? { unlocode: "USOAK", city: "Oakland" },
+      laneOrigin: order.origin === null ? undefined : (order.origin as any),
+      laneDestination: order.destination === null ? undefined : (order.destination as any),
       equipment,
       buyAmount: totalBuyCost.toNumber() as any,
-      markupPercentage: targetMarginPct.toNumber() as any,
+      markupPercentage: markupPct.toNumber() as any,
       sellAmount: sellAmount.toNumber() as any,
       margin: grossProfit.toNumber() as any,
       amount: sellAmount.toNumber() as any,
-      currency: "USD",
-      transitDays: 14,
+      currency: quoteCurrency,
+      transitDays: null,
       validUntil,
       surcharges: selectedRate?.surcharges ?? {},
       accessorials: selectedRate?.accessorials ?? {},
-      source: rateSource === "CONTRACTED_RATE" ? "RATE_ENGINE" : "MANUAL",
+      source: "RATE_ENGINE",
       status: "PROPOSED",
       approvalState,
       agentDecisionId: decision.id,
@@ -386,21 +414,35 @@ export async function convertQuoteToShipment(ctx: AccountContext, quoteId: strin
   if (!quote) throw new Error(`FreightQuote ${quoteId} not found.`);
 
   const order = quote.transportationOrder;
+  if (!order) throw new Error(`FreightQuote ${quoteId} is not linked to a transportation order.`);
+  if (!["AUTO_APPROVED", "APPROVED"].includes(quote.approvalState)) {
+    throw new Error(`FreightQuote ${quoteId} must be approved before conversion.`);
+  }
+  if (quote.status === "ACCEPTED" || quote.shipmentId || order.shipmentId) {
+    throw new Error(`FreightQuote ${quoteId} has already been converted.`);
+  }
+  const origin = (order.origin ?? {}) as Record<string, string>;
+  const destination = (order.destination ?? {}) as Record<string, string>;
+  if (!order.requestedBy || !quote.mode || !origin.country || !destination.country) {
+    throw new Error(
+      "Order party, mode, origin country, and destination country are required for conversion."
+    );
+  }
   const shipmentNumber = `SHP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
 
   const shipment = await db.shipment.create({
     data: {
       accountId: ctx.accountId,
       shipmentNumber,
-      importerName: order?.requestedBy ?? "Importer",
-      transportMode: quote.mode ?? "OCEAN",
-      countryOfExport: (order?.origin as any)?.country ?? "CN",
-      destinationCountry: (order?.destination as any)?.country ?? "US",
-      portOfEntry: (order?.destination as any)?.unlocode ?? "USOAK",
-      carrierName: quote.carrierName ?? "Carrier",
+      importerName: order.requestedBy,
+      transportMode: quote.mode,
+      countryOfExport: origin.country,
+      destinationCountry: destination.country,
+      portOfEntry: destination.unlocode ?? null,
+      carrierName: quote.carrierName,
       status: "In Progress",
       invoiceCurrency: quote.currency,
-      estimatedArrival: new Date(Date.now() + 14 * 86400 * 1000),
+      estimatedArrival: null,
       // Seed financial cache from the accepted quote
       sellAmount: quote.sellAmount,
       expectedBuyCost: quote.buyAmount,
@@ -439,12 +481,10 @@ export async function convertQuoteToShipment(ctx: AccountContext, quoteId: strin
     data: { shipmentId: shipment.id, status: "ACCEPTED" },
   });
 
-  if (order) {
-    await db.transportationOrder.update({
-      where: { id: order.id },
-      data: { shipmentId: shipment.id, status: "SHIPMENT_CREATED" },
-    });
-  }
+  await db.transportationOrder.update({
+    where: { id: order.id },
+    data: { shipmentId: shipment.id, status: "SHIPMENT_CREATED" },
+  });
 
   await publishTransportationEvent(ctx, {
     entityType: "SHIPMENT",

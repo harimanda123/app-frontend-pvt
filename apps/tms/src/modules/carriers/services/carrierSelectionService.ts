@@ -26,8 +26,8 @@ export interface ScoredCarrier {
   isPreferred: boolean;
   hasInsurance: boolean;
   safetyStatus?: string;
-  onTimeDeliveryRate: number;
-  tenderAcceptanceRate: number;
+  onTimeDeliveryRate: number | null;
+  tenderAcceptanceRate: number | null;
   recentRejectionCount: number;
   scoreBreakdown: {
     base: number;
@@ -46,11 +46,20 @@ export async function evaluateCarriersForShipment(
   input: CarrierScoringInput
 ): Promise<ScoredCarrier[]> {
   const mode = input.mode.toUpperCase();
-  const laneKey = buildLaneKey({ mode, equipment: input.equipment, origin: input.origin, destination: input.destination });
+  const requireInsurance = input.requireInsurance ?? true;
+  const requireSafetyCheck = input.requireSafetyCheck ?? true;
+  const laneKey = buildLaneKey({
+    mode,
+    equipment: input.equipment,
+    origin: input.origin,
+    destination: input.destination,
+  });
   const memoryContext = await TmsAccountContextBuilder.build({
     accountId: ctx.accountId,
     task: "CARRIER_SELECTION",
-    query: [mode, input.equipment, input.origin?.unlocode, input.destination?.unlocode].filter(Boolean).join(" "),
+    query: [mode, input.equipment, input.origin?.unlocode, input.destination?.unlocode]
+      .filter(Boolean)
+      .join(" "),
     scope: {
       shipmentId: input.shipmentId,
       laneKey,
@@ -79,6 +88,21 @@ export async function evaluateCarriersForShipment(
     profiles = [];
   }
 
+  const executionCarriers = await db.carrier.findMany({
+    where: { accountId: ctx.accountId, status: "ACTIVE" },
+  });
+  const executionCarrierForProfile = (profile: any) => {
+    const profileName = profile.party?.names?.[0]?.rawName ?? profile.legalName;
+    return executionCarriers.find((carrier) =>
+      (profile.scac && carrier.scac === profile.scac) ||
+      (profile.dot && carrier.dotNumber === profile.dot) ||
+      (profile.mc && carrier.mcNumber === profile.mc) ||
+      (profileName &&
+        typeof carrier.legalName === "string" &&
+        carrier.legalName.trim().toLowerCase() === profileName.trim().toLowerCase())
+    );
+  };
+
   // Load recent tender history (last 90 days) for all carriers — one query
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86400 * 1000);
   let recentTenders: any[] = [];
@@ -87,7 +111,11 @@ export async function evaluateCarriersForShipment(
       where: {
         accountId: ctx.accountId,
         createdAt: { gte: ninetyDaysAgo },
-        carrierId: { in: profiles.map((p: any) => p.partyId ?? p.id).filter((id: any): id is string => Boolean(id)) },
+        carrierId: {
+          in: profiles
+            .map((profile: any) => executionCarrierForProfile(profile)?.id)
+            .filter((id: unknown): id is string => typeof id === "string"),
+        },
       },
       select: {
         carrierId: true,
@@ -129,14 +157,21 @@ export async function evaluateCarriersForShipment(
   // Score each carrier
   const scored: ScoredCarrier[] = (profiles as any[])
     .filter((profile) => {
-      const cId = profile.partyId ?? profile.id;
+      const cId = executionCarrierForProfile(profile)?.id;
+      if (!cId) return false;
       if (input.excludeCarrierIds?.includes(cId)) return false;
       return true;
     })
     .map((profile): ScoredCarrier | null => {
       const carrierName = profile.party?.names?.[0]?.rawName ?? profile.legalName ?? "Carrier";
-      const modes = (profile.modes as string[]) ?? ["OCEAN", "TRUCK"];
-      const equipmentCaps = (profile.equipmentCapabilities as string[]) ?? ["40HC", "20GP", "53FT_DRY"];
+      const modes = Array.isArray(profile.modes)
+        ? profile.modes.filter((value: unknown): value is string => typeof value === "string")
+        : [];
+      const equipmentCaps = Array.isArray(profile.equipmentCapabilities)
+        ? profile.equipmentCapabilities.filter(
+            (value: unknown): value is string => typeof value === "string"
+          )
+        : [];
       const metrics = (profile.performanceMetrics as Record<string, number>) ?? {};
 
       const supportsMode = modes.includes(mode);
@@ -144,11 +179,12 @@ export async function evaluateCarriersForShipment(
         ? equipmentCaps.includes(input.equipment)
         : true;
       const hasInsurance = profile.insuranceStatus === "ACTIVE" || profile.insuranceOnFile === true;
-      const isSafetySatisfactory =
-        profile.safetyStatus === "SATISFACTORY" || !input.requireSafetyCheck;
+      const isSafetySatisfactory = profile.safetyStatus === "SATISFACTORY";
       const isPreferred = profile.preferredStatus === true;
 
-      const cId = profile.partyId ?? profile.id;
+      const executionCarrier = executionCarrierForProfile(profile);
+      if (!executionCarrier) return null;
+      const cId = executionCarrier.id;
       const tenderHistory = tendersByCarrier.get(cId);
 
       if (tenderHistory?.activeOnShipment) {
@@ -156,32 +192,39 @@ export async function evaluateCarriersForShipment(
       }
 
       const base = 40;
-      const insuranceScore = hasInsurance ? 15 : input.requireInsurance ? -30 : 0;
-      const safetyScore = isSafetySatisfactory ? 10 : -10;
+      const insuranceScore = hasInsurance ? 15 : requireInsurance ? -30 : 0;
+      const safetyScore = isSafetySatisfactory ? 10 : requireSafetyCheck ? -10 : 0;
       const preferredScore = isPreferred ? 10 : 0;
 
-      const onTimeRate = metrics.onTimeDeliveryRate ?? 85;
-      const onTimeScore = Math.round(
-        Math.max(0, Math.min(15, ((onTimeRate - 80) / 20) * 15))
-      );
+      const onTimeRate = Number.isFinite(metrics.onTimeDeliveryRate)
+        ? metrics.onTimeDeliveryRate
+        : null;
+      const onTimeScore = onTimeRate == null
+        ? 0
+        : Math.round(Math.max(0, Math.min(15, ((onTimeRate - 80) / 20) * 15)));
 
       const profileAcceptance = metrics.tenderAcceptanceRate ?? null;
       const computedAcceptance =
         tenderHistory && tenderHistory.total > 0
           ? (tenderHistory.accepted / tenderHistory.total) * 100
           : null;
-      const tenderAcceptanceRate = computedAcceptance ?? profileAcceptance ?? 85;
-      const tenderAcceptanceScore = Math.round(
-        Math.max(0, Math.min(10, ((tenderAcceptanceRate - 70) / 30) * 10))
-      );
+      const tenderAcceptanceRate = computedAcceptance ?? profileAcceptance ?? null;
+      const tenderAcceptanceScore = tenderAcceptanceRate == null
+        ? 0
+        : Math.round(
+            Math.max(0, Math.min(10, ((tenderAcceptanceRate - 70) / 30) * 10))
+          );
 
       const recentRejectionCount = tenderHistory?.rejected ?? 0;
       const recentHistoryScore = Math.max(-15, -recentRejectionCount * 5);
-      const accountMemoryScore = TmsAccountContextBuilder.carrierPreferenceAdjustment(memoryContext, {
-        carrierId: cId,
-        carrierName,
-        scac: profile.scac,
-      });
+      const accountMemoryScore = TmsAccountContextBuilder.carrierPreferenceAdjustment(
+        memoryContext,
+        {
+          carrierId: cId,
+          carrierName,
+          scac: profile.scac,
+        }
+      );
 
       const rawScore =
         base +
@@ -198,8 +241,8 @@ export async function evaluateCarriersForShipment(
       const isEligible =
         supportsMode &&
         supportsEquipment &&
-        (input.requireInsurance ? hasInsurance : true) &&
-        (input.requireSafetyCheck ? isSafetySatisfactory : true);
+        (requireInsurance ? hasInsurance : true) &&
+        (requireSafetyCheck ? isSafetySatisfactory : true);
 
       return {
         carrierId: cId,
@@ -233,7 +276,10 @@ export async function evaluateCarriersForShipment(
   // Sort: eligible carriers first, then by score descending
   scored.sort((a, b) => {
     if (a.isEligible !== b.isEligible) return a.isEligible ? -1 : 1;
-    return b.score - a.score;
+    const scoreDelta = b.score - a.score;
+    if (scoreDelta !== 0) return scoreDelta;
+    const nameDelta = a.carrierName.localeCompare(b.carrierName);
+    return nameDelta !== 0 ? nameDelta : a.carrierId.localeCompare(b.carrierId);
   });
 
   return scored;

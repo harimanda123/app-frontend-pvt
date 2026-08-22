@@ -20,25 +20,18 @@ export interface AutonomyPolicyConfig {
 export const DEFAULT_AUTONOMY_POLICY: AutonomyPolicyConfig = {
   maxFinancialCommitment: 5000,
   minAutoConfidence: 80.0,
-  allowedAutoActions: [
-    "AUTO_QUOTE",
-    "QUOTE_APPROVE",
-    "AUTO_TENDER",
-    "TENDER_DISPATCH",
-    "AUTO_NOTIFY_CUSTOMER",
-    "AUTO_RESCHEDULE",
-    "UPDATE_ETA",
-    "RESOLVE_EXCEPTION",
-  ],
+  // A missing tenant policy must never grant write authority. Accounts opt in
+  // to individual autonomous actions through their AgentPolicyConfig row.
+  allowedAutoActions: [],
   forbiddenAutoActions: [
     "CUSTOMS_HOLD_OVERRIDE",
     "UNVERIFIED_INVOICE_PAYMENT",
     "MANUAL_ENTRY_OVERRIDE",
   ],
-  autonomyMode: "BALANCED",
+  autonomyMode: "SUPERVISED",
   financialThreshold: 5000,
   marginThreshold: 10.0,
-  carrierApprovalRequired: false,
+  carrierApprovalRequired: true,
   requireInsurance: true,
   requireCustomsRelease: true,
   requireHumanApproval: false,
@@ -46,8 +39,9 @@ export const DEFAULT_AUTONOMY_POLICY: AutonomyPolicyConfig = {
 
 /**
  * Loads the per-account, per-agent policy from DB (AgentPolicyConfig).
- * Falls back to DEFAULT_AUTONOMY_POLICY when no DB row exists — this preserves
- * the pre-TMS behavior for the customs app's existing agents.
+ * Falls back to a deny-by-default supervised policy when no DB row exists.
+ * This service is TMS-specific; it must not inherit a permissive default from
+ * the customs auto-approval implementation.
  */
 export async function loadPolicyForAgent(
   ctx: AccountContext,
@@ -71,13 +65,18 @@ export async function loadPolicyForAgent(
         ? Number(row.financialThreshold)
         : DEFAULT_AUTONOMY_POLICY.maxFinancialCommitment,
     minAutoConfidence: row.autoThreshold ?? DEFAULT_AUTONOMY_POLICY.minAutoConfidence,
-    allowedAutoActions: DEFAULT_AUTONOMY_POLICY.allowedAutoActions,
-    forbiddenAutoActions: DEFAULT_AUTONOMY_POLICY.forbiddenAutoActions,
-    autonomyMode: (row.autonomyMode as AutonomyPolicyConfig["autonomyMode"]) ?? "BALANCED",
+    allowedAutoActions: Array.isArray(row.allowedAutoActions)
+      ? row.allowedAutoActions.filter((value): value is string => typeof value === "string")
+      : [],
+    forbiddenAutoActions: Array.isArray(row.forbiddenAutoActions)
+      ? row.forbiddenAutoActions.filter((value): value is string => typeof value === "string")
+      : DEFAULT_AUTONOMY_POLICY.forbiddenAutoActions,
+    autonomyMode:
+      (row.autonomyMode as AutonomyPolicyConfig["autonomyMode"]) ?? "SUPERVISED",
     financialThreshold:
       row.financialThreshold != null ? Number(row.financialThreshold) : null,
     marginThreshold: row.marginThreshold != null ? Number(row.marginThreshold) : null,
-    carrierApprovalRequired: row.carrierApprovalRequired ?? false,
+    carrierApprovalRequired: row.carrierApprovalRequired ?? true,
     requireInsurance: row.requireInsurance ?? true,
     requireCustomsRelease: row.requireCustomsRelease ?? true,
     requireHumanApproval: row.requireHumanApproval ?? false,
@@ -87,7 +86,15 @@ export async function loadPolicyForAgent(
 export interface EvaluatePolicyActionInput {
   actionType: string;
   financialAmount?: number;
+  currency?: string;
   confidenceScore: number;
+  requiredInputsPresent?: boolean;
+  dataFresh?: boolean;
+  reversible?: boolean;
+  carrierApproved?: boolean;
+  insuranceValid?: boolean;
+  customsReleased?: boolean;
+  grossMarginPct?: number;
   /** Pass to override DB lookup — used in tests */
   policyOverride?: Partial<AutonomyPolicyConfig>;
 }
@@ -106,6 +113,33 @@ export function evaluatePolicyConfig(
   const actionType = input.actionType.toUpperCase();
   const financialAmount = input.financialAmount ?? 0;
   const confidence = input.confidenceScore;
+
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 100) {
+    return {
+      allowed: false,
+      reason: "Confidence must be a finite value between 0 and 100.",
+      triageState: "NEEDS_HUMAN_REVIEW",
+      gate: "INVALID_CONFIDENCE",
+    };
+  }
+
+  if (input.requiredInputsPresent === false) {
+    return {
+      allowed: false,
+      reason: "Required operational inputs are missing.",
+      triageState: "NEEDS_HUMAN_REVIEW",
+      gate: "MISSING_REQUIRED_INPUT",
+    };
+  }
+
+  if (input.dataFresh === false) {
+    return {
+      allowed: false,
+      reason: "The evidence used for this action is stale.",
+      triageState: "NEEDS_HUMAN_REVIEW",
+      gate: "STALE_EVIDENCE",
+    };
+  }
 
   // Gate 0: SUPERVISED mode — never auto-execute
   if (policy.autonomyMode === "SUPERVISED") {
@@ -158,16 +192,55 @@ export function evaluatePolicyConfig(
     };
   }
 
-  // Gate 5: Allowed actions list (skip in AUTONOMOUS mode)
-  if (
-    policy.autonomyMode !== "AUTONOMOUS" &&
-    !policy.allowedAutoActions.includes(actionType)
-  ) {
+  // Gate 5: Every execution mode, including AUTONOMOUS, is constrained by an
+  // explicit per-account action allowlist.
+  if (!policy.allowedAutoActions.includes(actionType)) {
     return {
       allowed: false,
       reason: `Action '${actionType}' is not in the allowed auto-execution list for this account.`,
       triageState: "NEEDS_HUMAN_REVIEW",
       gate: "NOT_IN_ALLOWED_LIST",
+    };
+  }
+
+
+  if (policy.carrierApprovalRequired && input.carrierApproved === false) {
+    return {
+      allowed: false,
+      reason: "The selected carrier is not approved for autonomous execution.",
+      triageState: "NEEDS_HUMAN_REVIEW",
+      gate: "CARRIER_NOT_APPROVED",
+    };
+  }
+
+  if (policy.requireInsurance && input.insuranceValid === false) {
+    return {
+      allowed: false,
+      reason: "Valid carrier insurance is required for this action.",
+      triageState: "NEEDS_HUMAN_REVIEW",
+      gate: "INSURANCE_REQUIRED",
+    };
+  }
+
+  if (policy.requireCustomsRelease && input.customsReleased === false) {
+    return {
+      allowed: false,
+      reason: "Confirmed customs release is required for this action.",
+      triageState: "NEEDS_HUMAN_REVIEW",
+      gate: "CUSTOMS_RELEASE_REQUIRED",
+    };
+  }
+
+  if (
+    policy.marginThreshold != null &&
+    input.grossMarginPct != null &&
+    input.grossMarginPct < policy.marginThreshold
+  ) {
+    return {
+      allowed: false,
+      reason: `Gross margin ${input.grossMarginPct.toFixed(2)}% is below the configured ${policy.marginThreshold.toFixed(2)}% floor.`,
+      triageState: "NEEDS_HUMAN_REVIEW",
+      gate: "MARGIN_THRESHOLD",
     };
   }
 
@@ -180,23 +253,13 @@ export function evaluatePolicyConfig(
   };
 }
 
-export function evaluateAutonomyPolicy(
+export async function evaluateAutonomyPolicy(
   ctx: AccountContext,
   input: EvaluatePolicyActionInput,
   agentName = "DEFAULT"
-): Promise<PolicyEvaluation> & PolicyEvaluation {
-  const syncPolicy = input.policyOverride
+): Promise<PolicyEvaluation> {
+  const loadedPolicy = input.policyOverride
     ? { ...DEFAULT_AUTONOMY_POLICY, ...input.policyOverride }
-    : DEFAULT_AUTONOMY_POLICY;
-
-  const syncResult = evaluatePolicyConfig(syncPolicy, input);
-
-  const promise = (async () => {
-    const loadedPolicy = input.policyOverride
-      ? { ...DEFAULT_AUTONOMY_POLICY, ...input.policyOverride }
-      : await loadPolicyForAgent(ctx, agentName);
-    return evaluatePolicyConfig(loadedPolicy, input);
-  })();
-
-  return Object.assign(promise, syncResult);
+    : await loadPolicyForAgent(ctx, agentName);
+  return evaluatePolicyConfig(loadedPolicy, input);
 }

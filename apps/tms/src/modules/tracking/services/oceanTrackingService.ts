@@ -1,5 +1,3 @@
-import { db } from "@qubere/db";
-
 export interface AisVesselPosition {
   vesselName: string;
   mmsi: string;
@@ -30,38 +28,13 @@ export interface OceanTrackingStatus {
 
 export async function fetchLiveOceanTracking(
   shipmentId: string,
-  vesselName = "MSC Aries",
-  voyageNumber = "418E"
-): Promise<OceanTrackingStatus> {
-  const now = new Date();
-  const plannedEta = new Date(now.getTime() + 3.5 * 86400000);
-  const recalculatedEta = new Date(now.getTime() + 3.25 * 86400000);
-
-  const mockPosition: AisVesselPosition = {
-    vesselName,
-    mmsi: "351829000",
-    imoNumber: "9820192",
-    latitude: 36.4,
-    longitude: -145.2,
-    headingDegrees: 78,
-    speedKnots: 19.4,
-    lastReportedIso: new Date(now.getTime() - 120000).toISOString(),
-    destinationPortCode: "USOAK",
-    destinationPortName: "Oakland International Container Terminal",
-    etaIso: recalculatedEta.toISOString(),
-    confidenceScore: 94,
-  };
-
-  return {
-    shipmentId,
-    vesselName,
-    voyageNumber,
-    currentPosition: mockPosition,
-    currentMilestone: "East Pacific Ocean Transit",
-    nextPortOfDischarge: "Oakland, CA (USOAK)",
-    plannedEtaIso: plannedEta.toISOString(),
-    recalculatedEtaIso: recalculatedEta.toISOString(),
-    scheduleDelayHours: 0,
-    sourceProvider: "Project44 AIS Telematics (Satellite Stream)",
-  };
+  vesselName: string,
+  voyageNumber: string
+): Promise<OceanTrackingStatus | null> {
+  // No AIS provider client is configured in this service yet. Returning null
+  // prevents demo coordinates and ETA values from entering operational state.
+  void shipmentId;
+  void vesselName;
+  void voyageNumber;
+  return null;
 }

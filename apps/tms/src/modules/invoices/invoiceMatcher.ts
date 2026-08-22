@@ -1,126 +1,78 @@
 import { db } from "@qubere/db";
 import { createAuditLog } from "@qubere/decisions";
+import { performFreightAudit } from "./services/freightAuditService";
 
 export interface ReconcileCarrierInvoiceInput {
   accountId: string;
   carrierInvoiceId: string;
-  tolerancePercentage?: number; // default 1.0% tolerance
+  /** @deprecated Tolerance is configured by the authoritative audit service. */
+  tolerancePercentage?: number;
 }
 
+/**
+ * Compatibility entry point for callers that predate FreightAuditAgent.
+ * All matching math is delegated to the single authoritative audit engine so
+ * route and agent calls cannot disagree about tolerances or evidence.
+ */
 export async function reconcileCarrierInvoice(input: ReconcileCarrierInvoiceInput) {
-  const tolerance = input.tolerancePercentage ?? 1.0;
+  const ctx = { accountId: input.accountId };
+  const result = await performFreightAudit(ctx, input.carrierInvoiceId);
+  const isMatch =
+    result.auditStatus === "MATCHED" || result.auditStatus === "WITHIN_TOLERANCE";
+  const matchStatus = isMatch
+    ? "MATCHED"
+    : result.auditStatus === "VARIANCE_FLAGGED"
+      ? "DISPUTED"
+      : "EXCEPTION";
 
-  // 1. Fetch CarrierInvoice
-  const invoice = await db.carrierInvoice.findFirst({
-    where: { id: input.carrierInvoiceId, accountId: input.accountId },
-    include: { lines: true },
+  const invoice = await db.carrierInvoice.update({
+    where: { id: input.carrierInvoiceId },
+    data: { matchStatus },
   });
 
-  if (!invoice) {
-    throw new Error(`CarrierInvoice ${input.carrierInvoiceId} not found.`);
+  let exception: { id: string } | null = null;
+  if (!isMatch) {
+    const code = `INVOICE_AUDIT:${input.carrierInvoiceId}`;
+    exception = await db.exceptionItem.findFirst({
+      where: {
+        accountId: input.accountId,
+        code,
+        status: { in: ["Open", "OPEN", "InProgress", "IN_PROGRESS"] },
+      },
+      select: { id: true },
+    });
+
+    if (!exception) {
+      exception = await db.exceptionItem.create({
+        data: {
+          accountId: input.accountId,
+          shipmentId: result.shipmentId,
+          code,
+          category: "BILLING",
+          type: "INVOICE_AUDIT_EXCEPTION",
+          severity: "High",
+          description: result.notes,
+          status: "Open",
+        },
+        select: { id: true },
+      });
+    }
   }
 
-  // 2. Fetch accepted FreightQuote or Tender for shipment
-  const acceptedTender = await db.tender.findFirst({
-    where: {
-      accountId: input.accountId,
-      shipmentId: invoice.shipmentId,
-      carrierId: invoice.carrierId,
-      status: "ACCEPTED",
+  await createAuditLog({
+    accountId: input.accountId,
+    action: isMatch ? "CARRIER_INVOICE_MATCHED" : "CARRIER_INVOICE_DISPUTED",
+    entity: "CarrierInvoice",
+    entityId: input.carrierInvoiceId,
+    source: "SYSTEM",
+    metadata: {
+      auditStatus: result.auditStatus,
+      expectedAmount: result.agreedBuyRateUsd,
+      invoicedAmount: result.carrierInvoicedUsd,
+      variance: result.varianceUsd,
+      exceptionId: exception?.id ?? null,
     },
   });
 
-  const quote = await db.freightQuote.findFirst({
-    where: {
-      accountId: input.accountId,
-      shipmentId: invoice.shipmentId,
-      carrierId: invoice.carrierId,
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const expectedAmount = quote ? Number(quote.amount) : 0;
-  const invoicedAmount = Number(invoice.totalAmount);
-
-  if (expectedAmount === 0) {
-    // No accepted quote found => flag exception
-    await db.carrierInvoice.update({
-      where: { id: invoice.id },
-      data: { matchStatus: "EXCEPTION" },
-    });
-
-    const exception = await db.exceptionItem.create({
-      data: {
-        accountId: input.accountId,
-        shipmentId: invoice.shipmentId,
-        category: "BILLING",
-        type: "INVOICE_NO_ACCEPTED_QUOTE",
-        severity: "High",
-        description: `Carrier invoice ${invoice.invoiceNumber ?? invoice.id} has no accepted quote or tender`,
-        status: "Open",
-      },
-    });
-
-    return { matchStatus: "EXCEPTION", exception };
-  }
-
-  const difference = Math.abs(invoicedAmount - expectedAmount);
-  const allowedToleranceUsd = (expectedAmount * tolerance) / 100;
-  const isMatch = difference <= allowedToleranceUsd;
-
-  if (isMatch) {
-    const updatedInvoice = await db.carrierInvoice.update({
-      where: { id: invoice.id },
-      data: { matchStatus: "MATCHED" },
-    });
-
-    await createAuditLog({
-      accountId: input.accountId,
-      action: "CARRIER_INVOICE_MATCHED",
-      entity: "CarrierInvoice",
-      entityId: invoice.id,
-      source: "SYSTEM",
-      metadata: {
-        expectedAmount,
-        invoicedAmount,
-        difference,
-      },
-    });
-
-    return { matchStatus: "MATCHED", invoice: updatedInvoice };
-  } else {
-    // Variance exceeds tolerance => DISPUTED + ExceptionItem
-    const updatedInvoice = await db.carrierInvoice.update({
-      where: { id: invoice.id },
-      data: { matchStatus: "DISPUTED" },
-    });
-
-    const exception = await db.exceptionItem.create({
-      data: {
-        accountId: input.accountId,
-        shipmentId: invoice.shipmentId,
-        category: "BILLING",
-        type: "INVOICE_AMOUNT_MISMATCH",
-        severity: "High",
-        description: `Carrier invoice variance ($${invoicedAmount} vs quote $${expectedAmount}) exceeds tolerance`,
-        status: "Open",
-      },
-    });
-
-    await createAuditLog({
-      accountId: input.accountId,
-      action: "CARRIER_INVOICE_DISPUTED",
-      entity: "CarrierInvoice",
-      entityId: invoice.id,
-      source: "SYSTEM",
-      metadata: {
-        expectedAmount,
-        invoicedAmount,
-        difference,
-        exceptionId: exception.id,
-      },
-    });
-
-    return { matchStatus: "DISPUTED", invoice: updatedInvoice, exception };
-  }
+  return { matchStatus, invoice, exception, audit: result };
 }

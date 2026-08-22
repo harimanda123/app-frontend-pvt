@@ -14,6 +14,13 @@ const { dbMock } = vi.hoisted(() => ({
     transportationEvent: {
       create: vi.fn(),
     },
+    etaObservation: {
+      create: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    agentPolicyConfig: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -37,31 +44,53 @@ describe("Phase 6 — Agentic Operations & Autonomy Policy Engine", () => {
       id: "evt_601",
       ...data,
     }));
+    dbMock.agentPolicyConfig.findUnique.mockResolvedValue(null);
   });
 
-  it("evaluates tenant autonomy policy rules accurately", () => {
-    // 1. High confidence & under financial cap -> AUTO_VERIFIED
-    const autoQuoteResult = evaluateAutonomyPolicy(mockContext, {
+  it("evaluates tenant autonomy policy rules accurately", async () => {
+    // A missing tenant policy denies execution by default.
+    const defaultResult = await evaluateAutonomyPolicy(mockContext, {
       actionType: "AUTO_QUOTE",
       financialAmount: 3450,
       confidenceScore: 92,
     });
+    expect(defaultResult.allowed).toBe(false);
+    expect(defaultResult.gate).toBe("AUTONOMY_MODE_SUPERVISED");
+
+    // Explicit tenant opt-in permits a high-confidence action under the cap.
+    const autoQuoteResult = await evaluateAutonomyPolicy(mockContext, {
+      actionType: "AUTO_QUOTE",
+      financialAmount: 3450,
+      confidenceScore: 92,
+      policyOverride: {
+        autonomyMode: "BALANCED",
+        allowedAutoActions: ["AUTO_QUOTE"],
+      },
+    });
     expect(autoQuoteResult.allowed).toBe(true);
     expect(autoQuoteResult.triageState).toBe("AUTO_VERIFIED");
 
-    // 2. Financial amount > $5000 cap -> NEEDS_HUMAN_REVIEW
-    const highCapResult = evaluateAutonomyPolicy(mockContext, {
+    // Financial amount > $5000 cap still requires review.
+    const highCapResult = await evaluateAutonomyPolicy(mockContext, {
       actionType: "AUTO_TENDER",
       financialAmount: 7500,
       confidenceScore: 95,
+      policyOverride: {
+        autonomyMode: "BALANCED",
+        allowedAutoActions: ["AUTO_TENDER"],
+      },
     });
     expect(highCapResult.allowed).toBe(false);
     expect(highCapResult.triageState).toBe("NEEDS_HUMAN_REVIEW");
 
-    // 3. Forbidden action -> NEEDS_HUMAN_REVIEW
-    const forbiddenResult = evaluateAutonomyPolicy(mockContext, {
+    // Explicitly forbidden actions remain blocked even when allowlisted.
+    const forbiddenResult = await evaluateAutonomyPolicy(mockContext, {
       actionType: "CUSTOMS_HOLD_OVERRIDE",
       confidenceScore: 99,
+      policyOverride: {
+        autonomyMode: "AUTONOMOUS",
+        allowedAutoActions: ["CUSTOMS_HOLD_OVERRIDE"],
+      },
     });
     expect(forbiddenResult.allowed).toBe(false);
     expect(forbiddenResult.triageState).toBe("NEEDS_HUMAN_REVIEW");
@@ -69,14 +98,43 @@ describe("Phase 6 — Agentic Operations & Autonomy Policy Engine", () => {
 
   it("monitors tracking signals, detects port delay, and recalculates ETA", async () => {
     const initialEta = new Date("2026-08-25T00:00:00Z");
-    dbMock.shipment.findFirst.mockResolvedValueOnce({
-      id: "shp_601",
-      accountId: "acc_999",
-      estimatedArrival: initialEta,
-      trackingEvents: [
-        { eventType: "PORT_DELAY", occurredAt: new Date() },
-      ],
+    const providerEta = new Date("2026-08-27T00:00:00Z");
+    dbMock.shipment.findFirst
+      .mockResolvedValueOnce({
+        id: "shp_601",
+        accountId: "acc_999",
+        estimatedArrival: initialEta,
+        trackingEvents: [
+          {
+            id: "track_601",
+            eventType: "PORT_DELAY",
+            occurredAt: new Date(),
+            receivedAt: new Date(),
+            normalizedData: { estimatedArrival: providerEta.toISOString() },
+            confidence: 95,
+          },
+        ],
+        etaObservations: [],
+        customsFilings: [],
+      })
+      .mockResolvedValueOnce({
+        customerPromiseDate: null,
+        estimatedArrival: providerEta,
+      });
+    dbMock.agentPolicyConfig.findUnique.mockResolvedValueOnce({
+      autonomyMode: "BALANCED",
+      autoThreshold: 80,
+      financialThreshold: 5000,
+      marginThreshold: 10,
+      allowedAutoActions: ["UPDATE_ETA"],
+      forbiddenAutoActions: [],
+      carrierApprovalRequired: false,
+      requireInsurance: false,
+      requireCustomsRelease: false,
+      requireHumanApproval: false,
     });
+    dbMock.etaObservation.findFirst.mockResolvedValueOnce({ eta: providerEta, confidence: 95 });
+    dbMock.etaObservation.create.mockResolvedValueOnce({ id: "eta_601" });
 
     const result = await runTrackingEtaAgent(mockContext, "shp_601");
 
@@ -89,6 +147,7 @@ describe("Phase 6 — Agentic Operations & Autonomy Policy Engine", () => {
         }),
       })
     );
+    expect(result.updatedEta).toEqual(providerEta);
     expect(dbMock.transportationEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

@@ -16,6 +16,7 @@ const { dbMock } = vi.hoisted(() => ({
     shipmentMovement: { create: vi.fn() },
     party: { create: vi.fn() },
     carrierProfile: { create: vi.fn(), findFirst: vi.fn() },
+    carrier: { findFirst: vi.fn(), create: vi.fn() },
   },
 }));
 
@@ -103,6 +104,11 @@ describe("Phase 1 — TMS Foundation, AI Order Intake, Movement Graph & Events",
 
     dbMock.carrierProfile.create.mockImplementation(async ({ data }: any) => ({
       id: "cp_001",
+      ...data,
+    }));
+    dbMock.carrier.findFirst.mockResolvedValue(null);
+    dbMock.carrier.create.mockImplementation(async ({ data }: any) => ({
+      id: "carrier_001",
       ...data,
     }));
   });
@@ -230,6 +236,16 @@ describe("Phase 1 — TMS Foundation, AI Order Intake, Movement Graph & Events",
           partyId: "party_001",
           scac: "ONEY",
           insuranceStatus: "ACTIVE",
+        }),
+      })
+    );
+    expect(dbMock.carrier.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          legalName: "Ocean Network Express",
+          scac: "ONEY",
+          insuranceOnFile: true,
+          status: "INACTIVE",
         }),
       })
     );
