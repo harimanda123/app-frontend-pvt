@@ -372,6 +372,7 @@ export async function getOperationsSummary(ctx: AccountContext): Promise<Operati
             select: {
               id: true,
               shipmentNumber: true,
+              importerName: true,
               lastFreeDay: true,
               demurrageExposureUsd: true,
             },
