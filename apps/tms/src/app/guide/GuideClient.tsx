@@ -210,7 +210,7 @@ export function GuideClient() {
         <TmsHeader tenantName="Enterprise Freight" userName="Operations Lead" />
 
         <main className="flex-1 p-6 md:p-8 overflow-y-auto space-y-6 max-w-[1600px] mx-auto w-full">
-          {/* HEADER TOOLBAR (Matching standard Qubere TMS page headers) */}
+          {/* HEADER TOOLBAR */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-border shadow-2xs">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0">
@@ -224,7 +224,7 @@ export function GuideClient() {
                   </span>
                 </div>
                 <p className="text-xs text-ink-muted mt-0.5 font-medium">
-                  Interactive reference manual and step-by-step instructions for all autonomous freight modules.
+                  Interactive reference manual and step-by-step instructions. Click any box below to jump into the product feature.
                 </p>
               </div>
             </div>
@@ -244,31 +244,54 @@ export function GuideClient() {
             </div>
           </div>
 
-          {/* OVERVIEW STAT CARDS GRID (Standard Qubere Stat Tile Pattern) */}
+          {/* OVERVIEW STAT CARDS GRID (CLICKABLE TO DIRECT ROUTES) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-5 bg-white border border-border space-y-2">
-              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">TMS Modules</span>
-              <p className="text-2xl font-black text-ink">7 Core Modules</p>
-              <p className="text-[10px] text-brand font-semibold">End-to-End Freight Execution</p>
-            </Card>
-            <Card className="p-5 bg-white border border-border space-y-2">
-              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">AI Autonomous Agents</span>
-              <p className="text-2xl font-black text-ink">8 Deployed Agents</p>
-              <p className="text-[10px] text-emerald-600 font-semibold">Policy Verified Executions</p>
-            </Card>
-            <Card className="p-5 bg-white border border-border space-y-2">
-              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">SLA Governance</span>
-              <p className="text-2xl font-black text-ink">60-Min SLA</p>
-              <p className="text-[10px] text-brand font-semibold">Waterfall Carrier Dispatch</p>
-            </Card>
-            <Card className="p-5 bg-white border border-border space-y-2">
-              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Demurrage Shield</span>
-              <p className="text-2xl font-black text-emerald-600">$350/Day Exposure</p>
-              <p className="text-[10px] text-ink-muted">Last Free Day Risk Alerts</p>
-            </Card>
+            <Link href="/" className="block group cursor-pointer">
+              <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">TMS Modules</span>
+                  <ArrowUpRight className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
+                </div>
+                <p className="text-2xl font-black text-ink group-hover:text-brand transition-colors">7 Core Modules</p>
+                <p className="text-[10px] text-brand font-semibold">End-to-End Freight Execution ➔</p>
+              </Card>
+            </Link>
+
+            <Link href="/admin" className="block group cursor-pointer">
+              <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">AI Autonomous Agents</span>
+                  <ArrowUpRight className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
+                </div>
+                <p className="text-2xl font-black text-ink group-hover:text-brand transition-colors">8 Deployed Agents</p>
+                <p className="text-[10px] text-emerald-600 font-semibold">Policy Verified Executions ➔</p>
+              </Card>
+            </Link>
+
+            <Link href="/tenders" className="block group cursor-pointer">
+              <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">SLA Governance</span>
+                  <ArrowUpRight className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
+                </div>
+                <p className="text-2xl font-black text-ink group-hover:text-brand transition-colors">60-Min SLA</p>
+                <p className="text-[10px] text-brand font-semibold">Waterfall Carrier Dispatch ➔</p>
+              </Card>
+            </Link>
+
+            <Link href="/shipments" className="block group cursor-pointer">
+              <Card className="p-5 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Demurrage Shield</span>
+                  <ArrowUpRight className="w-4 h-4 text-ink-muted group-hover:text-brand transition-colors" />
+                </div>
+                <p className="text-2xl font-black text-emerald-600 group-hover:text-emerald-700 transition-colors">$350/Day Exposure</p>
+                <p className="text-[10px] text-ink-muted font-semibold">Last Free Day Risk Alerts ➔</p>
+              </Card>
+            </Link>
           </div>
 
-          {/* INSTANT ACCESS DIRECTORY CARD */}
+          {/* INSTANT ACCESS DIRECTORY CARD (ALL CLICKABLE BOXES) */}
           <Card className="p-6 bg-white border border-border shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
@@ -276,7 +299,7 @@ export function GuideClient() {
                   <Command className="w-4 h-4 text-brand" />
                   <span>Instant Access Directory</span>
                 </h2>
-                <p className="text-xs text-ink-muted mt-0.5">Click any module card below to open its live workspace in your app.</p>
+                <p className="text-xs text-ink-muted mt-0.5">Click any module box below to jump directly into that product route.</p>
               </div>
               <span className="px-3 py-1 rounded-full bg-brand/10 text-brand font-mono font-bold text-xs">
                 6 Access Points
@@ -297,11 +320,11 @@ export function GuideClient() {
                   <Link
                     key={routeItem.path}
                     href={routeItem.path}
-                    className="p-4 rounded-2xl bg-surface-muted/60 border border-border hover:border-brand/40 hover:bg-white transition-all group space-y-1.5 block"
+                    className="p-4 rounded-2xl bg-surface-muted/60 border border-border hover:border-brand/50 hover:bg-white hover:shadow-xs transition-all group space-y-1.5 block cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2.5">
-                        <div className="w-7 h-7 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
+                        <div className="w-7 h-7 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0 group-hover:bg-brand group-hover:text-white transition-colors">
                           <IconComponent className="w-4 h-4" />
                         </div>
                         <span className="font-bold text-xs text-ink group-hover:text-brand transition-colors">
@@ -334,95 +357,100 @@ export function GuideClient() {
             ))}
           </div>
 
-          {/* FEATURE CARDS LIST */}
+          {/* FEATURE CARDS LIST (ENTIRE CARD CLICKABLE TO PRODUCT ROUTE) */}
           <div className="space-y-5">
             {filteredFeatures.map((feature) => {
               const IconComponent = feature.icon;
               return (
-                <Card key={feature.id} className="p-6 bg-white border border-border shadow-2xs space-y-5">
-                  {/* Feature Title Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0">
-                        <IconComponent className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <h3 className="text-base font-black text-ink">{feature.title}</h3>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-brand/10 text-brand">
-                            {feature.badge}
-                          </span>
+                <Link
+                  key={feature.id}
+                  href={feature.route}
+                  className="block group cursor-pointer transition-all"
+                >
+                  <Card className="p-6 bg-white border border-border group-hover:border-brand/50 group-hover:shadow-xs transition-all space-y-5">
+                    {/* Feature Title Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0 group-hover:bg-brand group-hover:text-white transition-colors">
+                          <IconComponent className="w-5 h-5" />
                         </div>
-                        <p className="text-xs text-ink-muted mt-0.5">{feature.summary}</p>
-                      </div>
-                    </div>
-
-                    <Link
-                      href={feature.route}
-                      className="px-4 py-2 rounded-xl bg-surface-muted border border-border text-xs font-bold text-brand hover:bg-brand hover:text-white transition-all inline-flex items-center justify-center space-x-1.5 self-start sm:self-auto shrink-0"
-                    >
-                      <span>Open Feature</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-
-                  {/* Capabilities & Step-by-step How-to Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                    {/* Left: Key Capabilities (5 cols) */}
-                    <div className="lg:col-span-5 space-y-3 bg-surface-muted/60 p-4 rounded-2xl border border-border">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-ink flex items-center space-x-1.5">
-                        <Zap className="w-3.5 h-3.5 text-brand" />
-                        <span>Key Capabilities</span>
-                      </h4>
-                      <ul className="space-y-2">
-                        {feature.keyCapabilities.map((cap, idx) => (
-                          <li key={idx} className="flex items-start space-x-2 text-xs text-ink-muted">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                            <span className="leading-relaxed font-medium">{cap}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Right: How to Use (7 cols) */}
-                    <div className="lg:col-span-7 space-y-3">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-ink flex items-center space-x-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>How to Use (Step-by-Step)</span>
-                      </h4>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {feature.howToSteps.map((step) => (
-                          <div key={step.stepNumber} className="p-3.5 rounded-xl bg-surface-muted/40 border border-border space-y-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="w-5 h-5 rounded-full bg-brand text-white font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
-                                {step.stepNumber}
-                              </span>
-                              <span className="font-bold text-xs text-ink">{step.title}</span>
-                            </div>
-                            <p className="text-[11px] text-ink-muted leading-relaxed pl-7">{step.instruction}</p>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h3 className="text-base font-black text-ink group-hover:text-brand transition-colors">
+                              {feature.title}
+                            </h3>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-brand/10 text-brand">
+                              {feature.badge}
+                            </span>
                           </div>
-                        ))}
+                          <p className="text-xs text-ink-muted mt-0.5">{feature.summary}</p>
+                        </div>
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Pro Tip Callout Banner */}
-                  {feature.proTip && (
-                    <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start space-x-2.5">
-                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="font-bold text-amber-950">Pro Tip: </strong>
-                        <span className="text-amber-900 leading-relaxed font-medium">{feature.proTip}</span>
+                      <div className="px-4 py-2 rounded-xl bg-surface-muted border border-border text-xs font-bold text-brand group-hover:bg-brand group-hover:text-white transition-all inline-flex items-center justify-center space-x-1.5 self-start sm:self-auto shrink-0">
+                        <span>Open Feature Workspace</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
                       </div>
                     </div>
-                  )}
-                </Card>
+
+                    {/* Capabilities & Step-by-step How-to Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                      {/* Left: Key Capabilities (5 cols) */}
+                      <div className="lg:col-span-5 space-y-3 bg-surface-muted/60 p-4 rounded-2xl border border-border group-hover:bg-surface-muted/80 transition-colors">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-ink flex items-center space-x-1.5">
+                          <Zap className="w-3.5 h-3.5 text-brand" />
+                          <span>Key Capabilities</span>
+                        </h4>
+                        <ul className="space-y-2">
+                          {feature.keyCapabilities.map((cap, idx) => (
+                            <li key={idx} className="flex items-start space-x-2 text-xs text-ink-muted">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              <span className="leading-relaxed font-medium text-ink">{cap}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Right: How to Use (7 cols) */}
+                      <div className="lg:col-span-7 space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-ink flex items-center space-x-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>How to Use (Step-by-Step)</span>
+                        </h4>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {feature.howToSteps.map((step) => (
+                            <div key={step.stepNumber} className="p-3.5 rounded-xl bg-surface-muted/40 border border-border space-y-1 group-hover:border-brand/30 transition-colors">
+                              <div className="flex items-center space-x-2">
+                                <span className="w-5 h-5 rounded-full bg-brand text-white font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
+                                  {step.stepNumber}
+                                </span>
+                                <span className="font-bold text-xs text-ink">{step.title}</span>
+                              </div>
+                              <p className="text-[11px] text-ink-muted leading-relaxed pl-7">{step.instruction}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pro Tip Callout Banner */}
+                    {feature.proTip && (
+                      <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start space-x-2.5">
+                        <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="font-bold text-amber-950">Pro Tip: </strong>
+                          <span className="text-amber-900 leading-relaxed font-medium">{feature.proTip}</span>
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                </Link>
               );
             })}
           </div>
 
-          {/* KEYBOARD SHORTCUTS CHEAT SHEET */}
+          {/* KEYBOARD SHORTCUTS CHEAT SHEET (CLICKABLE BOXES) */}
           <Card className="p-6 bg-white border border-border shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
@@ -430,7 +458,7 @@ export function GuideClient() {
                   <Command className="w-4 h-4 text-brand" />
                   <span>Keyboard Shortcuts & Power Controls</span>
                 </h2>
-                <p className="text-xs text-ink-muted mt-0.5">Speed up your operational dispatch workflow with global shortcuts.</p>
+                <p className="text-xs text-ink-muted mt-0.5">Click any shortcut card below to jump to that module.</p>
               </div>
               <span className="px-3 py-1 rounded-full bg-brand/10 text-brand font-mono font-bold text-xs">
                 Shortcuts
@@ -439,21 +467,27 @@ export function GuideClient() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {[
-                { keyCombo: "⌘ / Ctrl + K", action: "Global Freight Search" },
-                { keyCombo: "Shift + H", action: "Jump to Action Workbench" },
-                { keyCombo: "Shift + O", action: "Open Orders & Intake" },
-                { keyCombo: "Shift + T", action: "Open Tenders & Rating" },
-                { keyCombo: "Shift + S", action: "Open Shipments Workbench" },
-                { keyCombo: "Shift + I", action: "Open Freight Invoices Audit" },
-                { keyCombo: "Shift + C", action: "Launch AI Copilot Chat" },
-                { keyCombo: "Shift + A", action: "Open TMS Admin Console" },
+                { keyCombo: "⌘ / Ctrl + K", action: "Global Freight Search", path: "/" },
+                { keyCombo: "Shift + H", action: "Jump to Action Workbench", path: "/" },
+                { keyCombo: "Shift + O", action: "Open Orders & Intake", path: "/orders" },
+                { keyCombo: "Shift + T", action: "Open Tenders & Rating", path: "/tenders" },
+                { keyCombo: "Shift + S", action: "Open Shipments Workbench", path: "/shipments" },
+                { keyCombo: "Shift + I", action: "Open Freight Invoices Audit", path: "/invoices" },
+                { keyCombo: "Shift + C", action: "Launch AI Copilot Chat", path: "/chat" },
+                { keyCombo: "Shift + A", action: "Open TMS Admin Console", path: "/admin" },
               ].map((shortcut) => (
-                <div key={shortcut.keyCombo} className="p-3.5 rounded-xl bg-surface-muted/60 border border-border flex items-center justify-between">
-                  <span className="text-xs text-ink font-semibold">{shortcut.action}</span>
-                  <kbd className="px-2.5 py-1 rounded bg-white text-brand font-mono font-bold text-[10px] border border-border shadow-3xs">
+                <Link
+                  key={shortcut.keyCombo}
+                  href={shortcut.path}
+                  className="p-3.5 rounded-xl bg-surface-muted/60 border border-border hover:border-brand/40 hover:bg-white transition-all flex items-center justify-between group cursor-pointer"
+                >
+                  <span className="text-xs text-ink font-semibold group-hover:text-brand transition-colors">
+                    {shortcut.action}
+                  </span>
+                  <kbd className="px-2.5 py-1 rounded bg-white text-brand font-mono font-bold text-[10px] border border-border shadow-3xs group-hover:bg-brand group-hover:text-white transition-colors">
                     {shortcut.keyCombo}
                   </kbd>
-                </div>
+                </Link>
               ))}
             </div>
           </Card>
