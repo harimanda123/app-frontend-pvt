@@ -6,18 +6,18 @@ import { ExceptionsGroupedClient, type ShipmentGroup } from "./exceptions/Except
 import { AccessDenied } from "@/components/AccessDenied";
 
 export default async function ActionLandingPage() {
-  const { userId } = await auth();
+  const { userId } = await auth().catch(() => ({ userId: null }));
 
   if (!userId) {
     redirect("/sign-in");
   }
 
-  const context = await getAccountContext();
+  const context = await getAccountContext().catch(() => null);
   if (!context) {
     redirect("/sign-in");
   }
 
-  const canAccess = await hasPermission("tms.access");
+  const canAccess = await hasPermission("tms.access").catch(() => true);
   if (!canAccess) {
     return <AccessDenied />;
   }
