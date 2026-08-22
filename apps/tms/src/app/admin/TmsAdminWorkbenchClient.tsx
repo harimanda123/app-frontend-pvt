@@ -4,7 +4,8 @@ import { useState } from "react";
 import {
   Building, ShieldCheck, Save, Server, Cpu, Database, Globe,
   RefreshCw, Play, CheckCircle2, AlertTriangle, Layers,
-  Sparkles, Clock, FileText, Shield, Key, Lock, Code, Terminal
+  Sparkles, Clock, FileText, Shield, Key, Lock, Code, Terminal,
+  FileCheck2, ScanText, Boxes, Scale, Globe2, Calculator, ShieldAlert, Send, Receipt
 } from "lucide-react";
 import { TmsSidebar } from "@/components/TmsSidebar";
 import { TmsHeader } from "@/components/TmsHeader";
@@ -59,13 +60,106 @@ interface TmsAdminWorkbenchClientProps {
   };
 }
 
+const REAL_AUTONOMOUS_AGENTS = [
+  {
+    id: "document-intake",
+    name: "Document Intake Agent",
+    category: "Intake & Intelligence",
+    icon: FileCheck2,
+    regulation: "19 CFR § 141.86",
+    description: "Automated document ingestion, packet stitching, and format normalization across commercial invoices, BOLs, and packing lists.",
+    status: "ACTIVE",
+  },
+  {
+    id: "document-intelligence",
+    name: "Document Intelligence Agent",
+    category: "Intake & Intelligence",
+    icon: ScanText,
+    regulation: "19 CFR § 141.89",
+    description: "Deep multi-modal extraction of trade attributes, line item hierarchies, Incoterms, and MID builder.",
+    status: "ACTIVE",
+  },
+  {
+    id: "product-intelligence",
+    name: "Product Intelligence Agent",
+    category: "Intake & Intelligence",
+    icon: Boxes,
+    regulation: "GRI 1 & GRI 3",
+    description: "Deterministic SKU/GTIN Product Master matching, material composition enrichment, and conflict detection.",
+    status: "ACTIVE",
+  },
+  {
+    id: "hts-classification",
+    name: "HTS Classification Agent",
+    category: "Classification & Tariff",
+    icon: Scale,
+    regulation: "19 U.S.C. § 1202",
+    description: "Automated 10-digit HTS code resolution with legal GRI citations and CBP CROSS Customs Rulings vector search.",
+    status: "ACTIVE",
+  },
+  {
+    id: "origin-rules",
+    name: "Origin & Trade Agreement Agent",
+    category: "Classification & Tariff",
+    icon: Globe2,
+    regulation: "19 CFR Part 102 & Part 181",
+    description: "Tariff shift rules engine (CC, CTH, CTSH), USMCA RVC calculations, and Section 301/232 exclusion analysis.",
+    status: "ACTIVE",
+  },
+  {
+    id: "valuation-assists",
+    name: "Valuation & Assists Agent",
+    category: "Classification & Tariff",
+    icon: Calculator,
+    regulation: "19 U.S.C. § 1401a",
+    description: "CBP transaction valuation, tooling assist allocations, buyer rebates, and ocean freight deductions.",
+    status: "ACTIVE",
+  },
+  {
+    id: "compliance-audit",
+    name: "Compliance & Audit Risk Agent",
+    category: "Risk & Compliance Audit",
+    icon: ShieldAlert,
+    regulation: "19 U.S.C. § 1592",
+    description: "50+ pre-filing compliance audit rules, PGA screening (FDA, EPA, FCC), ADD/CVD verification, and UFLPA screening.",
+    status: "ACTIVE",
+  },
+  {
+    id: "filing-readiness",
+    name: "Filing Readiness Agent",
+    category: "Risk & Compliance Audit",
+    icon: CheckCircle2,
+    regulation: "19 CFR § 141.61",
+    description: "CBP Form 7501 field-level verification, continuous bond validation, and automated broker queue routing.",
+    status: "ACTIVE",
+  },
+  {
+    id: "customs-filing",
+    name: "Customs Filing Agent",
+    category: "ACE Filing & Response",
+    icon: Send,
+    regulation: "19 CFR Part 143",
+    description: "Direct electronic ABI/ACE EDI transmission (Types 01, 11, 86, 06) and real-time CBP status listener.",
+    status: "ACTIVE",
+  },
+  {
+    id: "response-management",
+    name: "Response & Post-Summary Agent",
+    category: "ACE Filing & Response",
+    icon: Receipt,
+    regulation: "19 CFR § 173 & Part 190",
+    description: "Post-entry event monitoring, CBP Form 28/29 legal response drafting, PSC filing, and Duty Drawback refunds.",
+    status: "ACTIVE",
+  },
+];
+
 export function TmsAdminWorkbenchClient({
   currentAccount,
   initialAccounts,
   telemetry,
 }: TmsAdminWorkbenchClientProps) {
   const [activeTab, setActiveTab] = useState<
-    "profile" | "tenants" | "agents" | "data" | "api" | "cron"
+    "profile" | "agents" | "data" | "api" | "cron"
   >("profile");
 
   const [saving, setSaving] = useState(false);
@@ -355,17 +449,6 @@ export function TmsAdminWorkbenchClient({
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("tenants")}
-              className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-                activeTab === "tenants"
-                  ? "border-brand text-brand bg-white"
-                  : "border-transparent text-ink-muted hover:text-ink hover:bg-white/50"
-              }`}
-            >
-              🛡️ Tenants & Multi-Tenancy
-            </button>
-            <button
-              type="button"
               onClick={() => setActiveTab("agents")}
               className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all border-b-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "agents"
@@ -373,7 +456,7 @@ export function TmsAdminWorkbenchClient({
                   : "border-transparent text-ink-muted hover:text-ink hover:bg-white/50"
               }`}
             >
-              🤖 AI Freight Agents & Telemetry
+              🤖 Autonomous AI Agents & Telemetry
             </button>
             <button
               type="button"
@@ -510,57 +593,7 @@ export function TmsAdminWorkbenchClient({
             </div>
           )}
 
-          {/* TAB 2: Tenants & Multi-Tenancy */}
-          {activeTab === "tenants" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="p-5 bg-white border border-border space-y-2">
-                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Total Active Accounts</span>
-                  <p className="text-2xl font-black text-ink">{initialAccounts.length}</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold">100% Account Isolated</p>
-                </Card>
-                <Card className="p-5 bg-white border border-border space-y-2">
-                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Data Modes</span>
-                  <p className="text-2xl font-black text-ink">Production / Demo / Sandbox</p>
-                  <p className="text-[10px] text-ink-muted font-semibold">Configurable per Tenant</p>
-                </Card>
-                <Card className="p-5 bg-white border border-border space-y-2">
-                  <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Security Protocol</span>
-                  <p className="text-2xl font-black text-emerald-600">DMMF RLS Enforced</p>
-                  <p className="text-[10px] text-ink-muted">Zero Cross-Tenant Leaks</p>
-                </Card>
-              </div>
-
-              <Card className="p-6 bg-white border border-border space-y-4">
-                <h3 className="text-sm font-bold text-ink border-b border-border pb-3">Provisioned Tenant Accounts ({initialAccounts.length})</h3>
-                {initialAccounts.length === 0 ? (
-                  <div className="p-6 text-center text-ink-muted text-xs font-medium space-y-1">
-                    <p className="font-bold text-ink">No additional tenant accounts provisioned yet.</p>
-                    <p>Current context active: {tenantName}</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {initialAccounts.map((acc) => (
-                      <div key={acc.id} className="py-3 flex items-center justify-between">
-                        <div>
-                          <span className="font-bold text-xs text-ink">{acc.name}</span>
-                          <span className="ml-2 font-mono text-[10px] text-ink-muted">({acc.id})</span>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold">
-                            {acc.dataMode}
-                          </span>
-                          <span className="text-xs font-semibold text-emerald-600">{acc.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            </div>
-          )}
-
-          {/* TAB 3: AI Freight Agents & Telemetry */}
+          {/* TAB 2: AI Freight Agents & Telemetry */}
           {activeTab === "agents" && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -587,29 +620,49 @@ export function TmsAdminWorkbenchClient({
               </div>
 
               <Card className="p-6 bg-white border border-border space-y-4">
-                <h3 className="text-sm font-bold text-ink border-b border-border pb-3">Active Autonomous Freight Agents</h3>
-                <div className="space-y-3">
-                  <div className="p-3 bg-surface-muted rounded-xl flex items-center justify-between text-xs">
-                    <div>
-                      <span className="font-bold text-ink block">RiskAgent</span>
-                      <span className="text-ink-muted text-[11px]">Sweeps active container shipments for Last Free Day (LFD) and demurrage risk.</span>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">ACTIVE</span>
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-ink">Active Autonomous AI Agents Directory</h3>
+                    <p className="text-xs text-ink-muted mt-0.5">
+                      The 10 production-deployed AI agents powering intake, tariff classification, compliance screening, and ACE filing.
+                    </p>
                   </div>
-                  <div className="p-3 bg-surface-muted rounded-xl flex items-center justify-between text-xs">
-                    <div>
-                      <span className="font-bold text-ink block">FreightAuditAgent</span>
-                      <span className="text-ink-muted text-[11px]">Executes 3-way matching on carrier linehaul and accessorial invoices.</span>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">ACTIVE</span>
-                  </div>
-                  <div className="p-3 bg-surface-muted rounded-xl flex items-center justify-between text-xs">
-                    <div>
-                      <span className="font-bold text-ink block">RatingAgent</span>
-                      <span className="text-ink-muted text-[11px]">Evaluates carrier contract rate sheets and proposes margin-optimized quotes.</span>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">ACTIVE</span>
-                  </div>
+                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
+                    10 Active Agents
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  {REAL_AUTONOMOUS_AGENTS.map((agent) => {
+                    const IconComponent = agent.icon;
+                    return (
+                      <div
+                        key={agent.id}
+                        className="p-4 rounded-2xl bg-surface-muted/60 border border-border hover:border-brand/40 transition-all space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-7 h-7 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0">
+                              <IconComponent className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="font-bold text-xs text-ink block">{agent.name}</span>
+                              <span className="text-[10px] text-ink-muted font-mono">{agent.category}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white border border-border text-ink-muted">
+                              {agent.regulation}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                              {agent.status}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-ink-muted leading-relaxed pl-9">{agent.description}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               </Card>
             </div>
