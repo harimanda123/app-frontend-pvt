@@ -12,7 +12,7 @@
     "build": "turbo run build",
     "start": "turbo run start",
     "lint": "turbo run lint",
-    "typecheck:workspaces": "tsc -p tsconfig.workspaces.json",
+    "typecheck:workspaces": "turbo run typecheck",
     "test": "turbo run test",
     "test:e2e": "npm run test:e2e --workspace=apps/custom",
     "worker:documents": "npm run worker:documents --workspace=apps/custom",
