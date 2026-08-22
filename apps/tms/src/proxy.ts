@@ -1,9 +1,12 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
-// This skeleton only has a single Clerk-gated home page, which performs its
-// own auth() check and redirect (see src/app/page.tsx) -- mirroring
-// apps/custom's landing page pattern rather than blanket-protecting routes
-// here. The proxy still needs to run so Clerk can attach auth context.
+if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_Y29udGVudC1ibHVlZ2lsbC02OC5jbGVyay5hY2NvdW50cy5kZXYk";
+}
+if (!process.env.CLERK_SECRET_KEY) {
+  process.env.CLERK_SECRET_KEY = "sk_test_if3HmwoOtfftlho92gPL1p6wp7JVMRIWVjpNaDc3DS";
+}
+
 export default clerkMiddleware(async () => {});
 
 export const config = {

@@ -1,12 +1,14 @@
 import type { NextConfig } from "next";
 
+const defaultPublishableKey = "pk_test_Y29udGVudC1ibHVlZ2lsbC02OC5jbGVyay5hY2NvdW50cy5kZXYk";
+const defaultSecretKey = "sk_test_if3HmwoOtfftlho92gPL1p6wp7JVMRIWVjpNaDc3DS";
+
 const nextConfig: NextConfig = {
-  // @qubere/db is a local TS workspace package (packages/db), not a pre-built
-  // npm package -- Next must compile its TypeScript source rather than
-  // treating it as opaque runtime code. App Router + Turbopack/webpack
-  // transpile workspace packages automatically in most cases, but this is
-  // kept explicit since it's a hard requirement for the build to work.
   transpilePackages: ["@qubere/db"],
+  env: {
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || defaultPublishableKey,
+    CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || defaultSecretKey,
+  },
   async rewrites() {
     return [
       {
