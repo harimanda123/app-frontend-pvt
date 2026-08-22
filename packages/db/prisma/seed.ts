@@ -5,8 +5,8 @@
  */
 import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
-import { assertDemoSeedingAllowed } from "@/lib/environment";
-import { seedTradeRemedyReferenceData } from "../scripts/seed-trade-remedy-reference-data";
+import { assertDemoSeedingAllowed } from "../src/environment";
+import { seedTradeRemedyReferenceData } from "./seeds/seed-trade-remedy-reference-data";
 
 const db = new PrismaClient({ log: ["warn", "error"] });
 

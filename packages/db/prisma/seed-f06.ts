@@ -1,4 +1,4 @@
-import { db } from "../src/lib/db";
+import { db } from "../src/index";
 import tradeAgreements from "./seed-data/trade-agreements.json";
 import adcvdOrders from "./seed-data/adcvd-orders.json";
 

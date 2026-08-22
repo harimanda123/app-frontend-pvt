@@ -9,7 +9,7 @@
  * the UI but do not prevent transmission).
  */
 
-import ACE_PORTS_RAW from "../../../prisma/seed-data/ace-ports.json";
+import ACE_PORTS_RAW from "../../../../../packages/db/prisma/seed-data/ace-ports.json";
 
 const ACE_PORT_CODES = new Set<string>(
   (ACE_PORTS_RAW as Array<{ code: string; name: string }>).map((p) => p.code)

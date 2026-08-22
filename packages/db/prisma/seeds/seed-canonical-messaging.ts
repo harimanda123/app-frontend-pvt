@@ -9,7 +9,7 @@
 import { PrismaClient } from "@prisma/client";
 import fs from "fs";
 import path from "path";
-import { ENTRY_TYPE_CODES } from "@/modules/filing/entryType";
+import { ENTRY_TYPE_CODES } from "../../../../apps/custom/src/modules/filing/entryType";
 
 const db = new PrismaClient({ log: ["warn", "error"] });
 

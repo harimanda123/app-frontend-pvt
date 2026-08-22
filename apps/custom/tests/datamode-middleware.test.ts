@@ -253,7 +253,7 @@ describe("Tenant isolation backstop: schema-level scan for unprotected accountId
   // gap without failing CI, independent of whether `prisma generate` has been re-run.
   it("has no tenant-owned model with accountId but no account relation and no dataMode field", async () => {
     const { readFile } = await import("node:fs/promises");
-    const schema = await readFile(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
+    const schema = await readFile(new URL("../../../packages/db/prisma/schema.prisma", import.meta.url), "utf8");
 
     const modelRe = /model\s+(\w+)\s*\{([\s\S]*?)\n\}/g;
     const offenders: string[] = [];
