@@ -374,7 +374,7 @@ function toCreateInput(row: ImportPartyRow): CreatePartyInput {
               sourceType: "IMPORT" as const,
             },
           ],
-    roles: row.roleTypes.map((roleType) => ({ roleType, sourceType: "IMPORT" as const })),
+    roles: row.roleTypes.map((roleType) => ({ roleType: roleType as any, sourceType: "IMPORT" as const })),
   };
 }
 

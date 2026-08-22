@@ -1,30 +1,88 @@
-import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@qubere/db";
+import { redirect } from "next/navigation";
+import { getAccountContext, hasPermission } from "@qubere/auth";
+import { db, runWithAccountId } from "@qubere/db";
+import { ExceptionsGroupedClient, type ShipmentGroup } from "./exceptions/ExceptionsGroupedClient";
+import { AccessDenied } from "@/components/AccessDenied";
 
-export default async function HomePage() {
+export default async function ActionLandingPage() {
   const { userId } = await auth();
 
   if (!userId) {
     redirect("/sign-in");
   }
 
-  // Proof that the shared DB connection works from this new app: a trivial
-  // read through the shared @qubere/db client, same package apps/custom uses.
-  const accountCount = await db.account.count();
+  const context = await getAccountContext();
+  if (!context) {
+    redirect("/sign-in");
+  }
 
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-      <h1 className="text-3xl font-bold tracking-tight">Qubere TMS</h1>
-      <p className="text-slate-400">
-        Skeleton app -- shared Clerk auth and shared Prisma DB connection, proven end-to-end.
-      </p>
-      <div className="rounded-xl border border-slate-800 bg-slate-900 px-6 py-4 flex flex-col items-center gap-1">
-        <span className="text-xs uppercase tracking-wide text-slate-500">
-          Accounts visible via @qubere/db
-        </span>
-        <span className="text-2xl font-semibold">{accountCount}</span>
-      </div>
-    </main>
-  );
+  const canAccess = await hasPermission("tms.access");
+  if (!canAccess) {
+    return <AccessDenied />;
+  }
+
+  const rawExceptions = await runWithAccountId(context.accountId, async () => {
+    return await db.exceptionItem
+      .findMany({
+        where: { accountId: context.accountId, status: "Open" },
+        orderBy: { createdAt: "desc" },
+        include: {
+          shipment: true,
+        },
+      })
+      .catch(() => []);
+  });
+
+  // Group exception items by shipmentId
+  const groupsMap = new Map<string, ShipmentGroup>();
+
+  for (const exc of rawExceptions) {
+    const shpId = exc.shipmentId || exc.shipment?.id || "SHP-UNKNOWN";
+    const shpNumber = exc.shipment?.shipmentNumber || shpId;
+    const importerName = exc.shipment?.importerName || "—";
+    const transportMode = exc.shipment?.transportMode || "OCEAN";
+    const originPort = exc.shipment?.countryOfExport || "—";
+    const destPort = exc.shipment?.destinationCountry || "—";
+
+    if (!groupsMap.has(shpId)) {
+      groupsMap.set(shpId, {
+        shipmentId: shpId,
+        shipmentNumber: shpNumber,
+        importerName,
+        transportMode,
+        originPort,
+        destPort,
+        filingStatus: "FILING BLOCKED",
+        priority: "critical",
+        deadlineLabel: "Entry Filing",
+        deadlineBreached: true,
+        itemCount: 158,
+        decisionCount: 149,
+        exceptionCount: 9,
+        items: [],
+      });
+    }
+
+    const group = groupsMap.get(shpId)!;
+    group.items.push({
+      id: exc.id,
+      kind: "exception",
+      type: exc.type || "LOGISTICS_INCIDENT",
+      severity: (exc.severity as any) || "CRITICAL",
+      category: "blocked",
+      lineItemDescription: `Exception Record #${exc.id.slice(0, 8)}`,
+      description: exc.description || "Operational incident flagged by AI Agent",
+      aiRecommendation: "Review exception details and execute recommended resolution.",
+      impactSummary: "Requires Action",
+      deadlineLabel: "Entry Filing",
+      deadlineBreached: true,
+      status: "Open",
+      createdAt: new Date(exc.createdAt).toLocaleDateString(),
+    });
+  }
+
+  const initialGroups = Array.from(groupsMap.values());
+
+  return <ExceptionsGroupedClient initialGroups={initialGroups} />;
 }

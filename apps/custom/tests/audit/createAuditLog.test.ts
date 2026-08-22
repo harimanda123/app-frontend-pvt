@@ -9,6 +9,7 @@ const dbMock = {
 };
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
+vi.mock("@qubere/db", () => ({ db: dbMock }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 
 const { createAuditLog } = await import("@/lib/audit");

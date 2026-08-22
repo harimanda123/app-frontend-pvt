@@ -2,7 +2,7 @@ import { triageDecision } from "@/modules/decisions/decisionState";
 
 export interface AgentDecisionRow {
   agentName: string;
-  shipmentId: string;
+  shipmentId: string | null;
   status: string;
   triageState: string | null;
   proposedDescription: string | null;

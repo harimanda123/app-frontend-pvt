@@ -37,6 +37,8 @@ enum DocumentType {
   POWER_OF_ATTORNEY
   ENTRY_SUMMARY
   ISF
+  PROOF_OF_DELIVERY
+  CARRIER_INVOICE
   OTHER
 }
 
@@ -210,6 +212,20 @@ model Account {
   etaObservations             EtaObservation[]
   trackingSubscriptions       TrackingSubscription[]
 
+  transportationOrders        TransportationOrder[]
+  carriers                    Carrier[]
+  carrierProfiles             CarrierProfile[]
+  movements                   Movement[]
+  shipmentMovements           ShipmentMovement[]
+  movementStops               MovementStop[]
+  transportationEvents        TransportationEvent[]
+  carrierRates                CarrierRate[]
+  freightQuotes               FreightQuote[]
+  tenders                     Tender[]
+  proofsOfDelivery            ProofOfDelivery[]
+  carrierInvoices             CarrierInvoice[]
+  carrierInvoiceLines         CarrierInvoiceLine[]
+
   billingEventDefinitions BillingEventDefinition[]
   rateCards               RateCard[]
   costProfiles            CostProfile[]
@@ -303,6 +319,7 @@ model User {
   auditLogs            AuditLog[]
   reviewedDecisions    AgentDecision[]         @relation("DecisionReviewer")
   assignedShipments    Shipment[]              @relation("ShipmentBroker")
+  createdTransportationOrders TransportationOrder[] @relation("OrderCreator")
   assignedExceptions   ExceptionItem[]         @relation("ExceptionAssignee")
   assignedFindings     ComplianceFinding[]     @relation("FindingAssignee")
   createdScenarios     LandedCostScenario[]    @relation("ScenarioCreator")
@@ -521,6 +538,35 @@ model Shipment {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
+  // -------------------------------------------------------------------------
+  // TMS OPERATIONAL FIELDS
+  // Added for agentic TMS: customer promise, LFD, and derived financial cache.
+  // All nullable — no migration impact on existing customs-only rows.
+  // -------------------------------------------------------------------------
+
+  /// Customer's committed delivery date/time. Set at order creation or intake.
+  /// Never inferred by agent — must be explicitly set by intake or operator.
+  customerPromiseDate  DateTime?
+  /// ON_PROMISE | AT_RISK | MISSED — derived by ETA Agent when ETA changes.
+  /// Null until first ETA observation exists.
+  promiseState         String?
+  /// Last Free Day at terminal — set from carrier/terminal TrackingEvent.
+  /// When LFD is within 48h and customs is not released, Risk Agent fires.
+  lastFreeDay          DateTime?
+  /// Estimated demurrage exposure in USD — derived from LFD vs current ETA.
+  /// Updated by ETA Agent. Null until LFD is known.
+  demurrageExposureUsd Decimal?         @db.Decimal(12, 2)
+
+  // Derived financial cache — updated by financialLedgerService after each
+  // charge/cost write. Using Decimal columns to stay consistent with platform
+  // money rule (no floats). Null until charges/costs exist.
+  sellAmount           Decimal?         @db.Decimal(12, 2)
+  expectedBuyCost      Decimal?         @db.Decimal(12, 2)
+  actualBuyCost        Decimal?         @db.Decimal(12, 2)
+  grossProfit          Decimal?         @db.Decimal(12, 2)
+  grossMarginPct       Decimal?         @db.Decimal(5, 2)
+  costVariancePct      Decimal?         @db.Decimal(5, 2)
+
   scenarioId String?
   scenario   LandedCostScenario? @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
 
@@ -554,6 +600,11 @@ model Shipment {
   trackingEvents                  TrackingEvent[]
   etaObservations                 EtaObservation[]
   trackingSubscriptions           TrackingSubscription[]
+  transportationOrders            TransportationOrder[]
+  shipmentMovements               ShipmentMovement[]
+  transportationEvents            TransportationEvent[]
+  freightQuotes                   FreightQuote[]
+  tenders                         Tender[]
 
   usageEvents       UsageEvent[]
   shipmentCharges   ShipmentCharge[]
@@ -568,6 +619,9 @@ model Shipment {
   @@index([deletedAt])
   @@index([masterShipmentId])
   @@index([filingDeadline])
+  @@index([promiseState])
+  @@index([lastFreeDay])
+  @@index([healthStatus])
 }
 
 // ---------------------------------------------------------------------------
@@ -960,6 +1014,7 @@ model InboundEmail {
   updatedAt             DateTime @updatedAt
 
   attachments InboundAttachment[]
+  transportationOrders TransportationOrder[]
 
   @@unique([provider, providerEventId])
   @@unique([provider, providerEmailId])
@@ -1085,8 +1140,8 @@ model ShipmentLineItem {
 
 model AgentDecision {
   id                  String            @id @default(cuid())
-  shipmentId          String
-  shipment            Shipment          @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  shipmentId          String?
+  shipment            Shipment?         @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   accountId           String
   account             Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
   agentName           String // Document Intake Agent, Document Intelligence Agent, Product Intelligence Agent, Classification Agent, Origin Agent, Valuation Agent, Compliance Agent, Filing Readiness Agent, Customs Filing Agent, Response Management Agent
@@ -1142,6 +1197,8 @@ model AgentDecision {
   updatedAt           DateTime          @updatedAt
 
   originDeterminations OriginDetermination[]
+  transportationOrders TransportationOrder[]
+  freightQuotes        FreightQuote[]
 
   @@index([shipmentId])
   @@index([accountId])
@@ -1170,9 +1227,28 @@ model AgentPolicyConfig {
   /// When true, a missing part-master match forces REVIEW regardless of confidence.
   requirePartMasterMatch Boolean  @default(false)
   /// Force human review at stage gate regardless of score
-  requireHumanApproval   Boolean  @default(false)
+  requireHumanApproval        Boolean  @default(false)
   /// Minimum reviewer role required to approve
-  minimumReviewerRole    String?  @default("SPECIALIST")
+  minimumReviewerRole         String?  @default("SPECIALIST")
+
+  // -------------------------------------------------------------------------
+  // TMS AUTONOMY POLICY EXTENSIONS
+  // -------------------------------------------------------------------------
+
+  /// Operating mode for autonomous execution.
+  /// SUPERVISED: always ask. BALANCED: auto below thresholds. AUTONOMOUS: auto all.
+  autonomyMode                String?  @default("BALANCED") // SUPERVISED | BALANCED | AUTONOMOUS | CUSTOM
+  /// Maximum financial commitment the agent may execute autonomously (USD).
+  financialThreshold          Decimal? @db.Decimal(12, 2)
+  /// Minimum gross margin % required before agent may auto-commit a carrier rate.
+  marginThreshold             Decimal? @db.Decimal(5, 2)
+  /// If true, carrier must be in approved list before auto-tender.
+  carrierApprovalRequired     Boolean  @default(false)
+  /// If true, carrier must have valid insurance on file before auto-tender.
+  requireInsurance            Boolean  @default(true)
+  /// If true, agent must confirm customs is released before dispatching drayage.
+  requireCustomsRelease       Boolean  @default(true)
+
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -1881,6 +1957,8 @@ model Client {
   updatedAt    DateTime @updatedAt
 
   shipments         Shipment[]
+  transportationOrders TransportationOrder[]
+  freightQuotes     FreightQuote[]
   importersOfRecord ImporterOfRecord[]
   legalEntities     LegalEntity[]
   products          Product[]
@@ -4035,6 +4113,9 @@ enum PartyRoleType {
   CARRIER
   FREIGHT_FORWARDER
   CUSTOMS_BROKER
+  WAREHOUSE
+  TERMINAL
+  DRAYAGE_PROVIDER
   BUYER
   SELLER
   NOTIFY_PARTY
@@ -4132,6 +4213,11 @@ model Party {
   contacts          PartyContact[]
   roles             PartyRole[]
   sites             PartySite[]
+  carrierProfile    CarrierProfile?
+  movements         Movement[]              @relation("CarrierPartyMovements")
+  movementStops     MovementStop[]
+  carrierRates      CarrierRate[]           @relation("CarrierPartyRates")
+  freightQuotes     FreightQuote[]          @relation("CarrierPartyQuotes")
   evidence          PartyEvidence[]
   changeEvents      PartyChangeEvent[]
   revalidationFlags PartyRevalidationFlag[]
@@ -6073,6 +6159,7 @@ enum IntegrationCategory {
   ERP
   ACCOUNTING
   SHIPMENT_TRACKING
+  CARRIER_RATING
 }
 
 enum IntegrationStatus {
@@ -6430,3 +6517,378 @@ model AbiFilerCredential {
   @@index([accountId])
   @@index([filerCode])
 }
+
+// -----------------------------------------------------------------------------
+// AI FREIGHT EXECUTION WORKFLOW & TRANSPORTATION MANAGEMENT SYSTEM (TMS) MODELS
+// -----------------------------------------------------------------------------
+
+model TransportationOrder {
+  id                      String         @id @default(cuid())
+  accountId               String
+  account                 Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  clientId                String?
+  client                  Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  externalReference       String?
+  customerReference       String?
+  poReferences            Json?          // Array of PO references
+  source                  String         @default("EMAIL") // "EMAIL" | "MANUAL" | "API" | "EDI" | "DOCUMENT"
+  inboundEmailId          String?        // FK -> InboundEmail
+  inboundEmail            InboundEmail?  @relation(fields: [inboundEmailId], references: [id], onDelete: SetNull)
+  rawRequestText          String?        // verbatim source text
+  requestedBy             String?
+  requestedPickupWindow   Json?          // { earliest, latest }
+  requestedDeliveryWindow Json?
+  requestedPickupDate     DateTime?
+  requestedDeliveryDate   DateTime?
+  incoterm                String?
+  originAddress           Json?
+  destinationAddress      Json?
+  origin                  Json?
+  destination             Json?
+  commodityDescription    String?
+  cargoSummary            String?
+  weight                  Decimal?       @db.Decimal(12,2)
+  totalWeight             Decimal?       @db.Decimal(12,2)
+  totalVolume             Decimal?       @db.Decimal(12,2)
+  packageInfo             Json?          // handling units, package count, dimensions
+  equipmentRequirements   Json?          // e.g. ["40HC", "REEFER"]
+  specialRequirements     Json?          // temp control, hazmat details
+  customsRequired         Boolean        @default(true)
+  confidence              Float?         // 0.0 to 100.0
+  mode                    String?        // OCEAN | AIR | TRUCK | RAIL | DRAYAGE
+  serviceLevel            String?        // STANDARD | EXPEDITED | FCL | LCL | FTL | LTL
+  status                  String         @default("RECEIVED") // RECEIVED | UNDERSTOOD | NEEDS_REVIEW | SHIPMENT_CREATED | QUOTED | CANCELLED
+  agentDecisionId         String?        // FK -> AgentDecision
+  agentDecision           AgentDecision? @relation(fields: [agentDecisionId], references: [id], onDelete: SetNull)
+  shipmentId              String?        // set once promoted to a Shipment
+  shipment                Shipment?      @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  createdByUserId         String?
+  createdByUser           User?          @relation("OrderCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  events                  TransportationEvent[]
+  freightQuotes           FreightQuote[]
+
+  @@index([accountId])
+  @@index([clientId])
+  @@index([status])
+  @@index([inboundEmailId])
+  @@index([shipmentId])
+}
+
+model CarrierProfile {
+  id                    String   @id @default(cuid())
+  partyId               String   @unique
+  party                 Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  accountId             String
+  account               Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  scac                  String?
+  dot                   String?
+  mc                    String?
+  modes                 Json?    // Array of modes e.g. ["OCEAN", "TRUCK"]
+  equipmentCapabilities Json?
+  insuranceStatus       String?  @default("ACTIVE") // ACTIVE | EXPIRED | PENDING
+  safetyStatus          String?  @default("SATISFACTORY") // SATISFACTORY | CONDITIONAL | UNSATISFACTORY
+  approvedStatus        String?  @default("APPROVED") // APPROVED | PENDING | REJECTED
+  preferredStatus       Boolean  @default(false)
+  serviceAreas          Json?
+  trackingCapabilities  Json?
+  performanceMetrics    Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([accountId])
+  @@index([scac])
+  @@index([dot])
+  @@index([mc])
+}
+
+model Movement {
+  id                 String   @id @default(cuid())
+  accountId          String
+  account            Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  mode               String   // OCEAN | AIR | TRUCK | DRAYAGE | RAIL
+  carrierPartyId     String?
+  carrierParty       Party?   @relation("CarrierPartyMovements", fields: [carrierPartyId], references: [id], onDelete: SetNull)
+  status             String   @default("PLANNED") // PLANNED | BOOKED | IN_TRANSIT | ARRIVED | DELIVERED | COMPLETED | CANCELLED | DELAYED
+  equipment          String?
+  vessel             String?
+  voyage             String?
+  flight             String?
+  train              String?
+  truckIdentifiers   String?
+  bookingNumber      String?
+  masterBillNumber   String?
+  houseBillNumber    String?
+  plannedStart       DateTime?
+  plannedEnd         DateTime?
+  actualStart        DateTime?
+  actualEnd          DateTime?
+  currentETA         DateTime?
+  trackingProvider   String?
+  trackingReference  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  stops              MovementStop[]
+  shipmentMovements  ShipmentMovement[]
+  events             TransportationEvent[]
+
+  @@index([accountId])
+  @@index([mode, status])
+  @@index([carrierPartyId])
+  @@index([bookingNumber])
+  @@index([masterBillNumber])
+}
+
+model ShipmentMovement {
+  id               String   @id @default(cuid())
+  accountId        String
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId       String
+  shipment         Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  movementId       String
+  movement         Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  sequence         Int      @default(1)
+  relationshipType String   @default("DIRECT") // DIRECT | CONSOLIDATED | FEEDER
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([shipmentId, movementId])
+  @@index([accountId, shipmentId])
+  @@index([accountId, movementId])
+}
+
+model MovementStop {
+  id                 String    @id @default(cuid())
+  accountId          String
+  account            Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  movementId         String
+  movement           Movement  @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  sequence           Int
+  type               String    // ORIGIN | PICKUP | PORT | AIRPORT | TERMINAL | RAIL_TERMINAL | CROSS_DOCK | WAREHOUSE | DELIVERY | DESTINATION
+  partyId            String?
+  party              Party?    @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  siteId             String?
+  locationName       String?
+  address            Json?
+  unlocode           String?
+  appointmentStart   DateTime?
+  appointmentEnd     DateTime?
+  plannedArrival     DateTime?
+  plannedDeparture   DateTime?
+  actualArrival      DateTime?
+  actualDeparture    DateTime?
+  status             String    @default("PLANNED")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([accountId, movementId, sequence])
+  @@index([movementId, sequence])
+  @@index([unlocode])
+  @@index([partyId])
+}
+
+model TransportationEvent {
+  id                    String               @id @default(cuid())
+  accountId             String
+  account               Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  entityType            String               // TRANSPORTATION_ORDER | SHIPMENT | MOVEMENT | FREIGHT_QUOTE | TENDER | CARRIER_INVOICE | CUSTOMS_FILING
+  entityId              String
+  shipmentId            String?
+  shipment              Shipment?            @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  movementId            String?
+  movement              Movement?            @relation(fields: [movementId], references: [id], onDelete: SetNull)
+  transportationOrderId String?
+  transportationOrder   TransportationOrder? @relation(fields: [transportationOrderId], references: [id], onDelete: SetNull)
+  eventType             String               // ORDER_RECEIVED | ORDER_PARSED | SHIPMENT_CREATED | BOOKING_CONFIRMED | CUSTOMS_HOLD | CUSTOMS_RELEASED | ETA_CHANGED | DELIVERED etc.
+  source                String               // EMAIL | EDI | API | SYSTEM | USER | CARRIER | TERMINAL | CBP | PARSER | AGENT
+  sourceReference       String?
+  occurredAt            DateTime
+  receivedAt            DateTime             @default(now())
+  location              Json?
+  payload               Json?
+  confidence            Float?
+  correlationId         String?
+  causationId           String?
+  createdAt             DateTime             @default(now())
+
+  @@index([accountId, entityType, entityId])
+  @@index([accountId, shipmentId, occurredAt])
+  @@index([accountId, movementId, occurredAt])
+  @@index([accountId, eventType])
+  @@index([occurredAt])
+}
+
+model Carrier {
+  id              String         @id @default(cuid())
+  accountId       String
+  account         Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  legalName       String
+  scac            String?
+  mcNumber        String?
+  dotNumber       String?
+  contactEmail    String?
+  contactPhone    String?
+  insuranceOnFile Boolean        @default(false)
+  status          String         @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  freightQuotes   FreightQuote[]
+  tenders         Tender[]
+  carrierInvoices CarrierInvoice[]
+}
+
+model CarrierRate {
+  id                String   @id @default(cuid())
+  accountId         String
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  carrierPartyId    String?
+  carrierParty      Party?   @relation("CarrierPartyRates", fields: [carrierPartyId], references: [id], onDelete: SetNull)
+  carrierName       String?
+  mode              String   @default("OCEAN") // OCEAN | AIR | TRUCK | DRAYAGE | RAIL
+  origin            Json     // { city, country, unlocode, zone }
+  destination       Json     // { city, country, unlocode, zone }
+  equipment         String   @default("40HC") // 40HC, 20GP, FTL, LTL, etc.
+  baseRate          Decimal  @db.Decimal(12, 2)
+  currency          String   @default("USD")
+  minimums          Decimal? @db.Decimal(12, 2)
+  surcharges        Json?    // { BAF: 250, ISPS: 50, Fuel: 120 }
+  accessorials      Json?    // { Chassis: 150, Detention: 100 }
+  effectiveFrom     DateTime @default(now())
+  effectiveTo       DateTime?
+  source            String   @default("MANUAL") // MANUAL | SPREADSHEET | EMAIL | API | CARRIER_QUOTE
+  contractReference String?
+  confidence        Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([accountId])
+  @@index([mode, equipment])
+  @@index([carrierPartyId])
+}
+
+model FreightQuote {
+  id                    String               @id @default(cuid())
+  accountId             String
+  account               Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transportationOrderId String?
+  transportationOrder   TransportationOrder? @relation(fields: [transportationOrderId], references: [id], onDelete: SetNull)
+  shipmentId            String?
+  shipment              Shipment?            @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  clientId              String?
+  client                Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  carrierId             String?
+  carrier               Carrier?             @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+  carrierPartyId        String?
+  carrierParty          Party?               @relation("CarrierPartyQuotes", fields: [carrierPartyId], references: [id], onDelete: SetNull)
+  carrierName           String?
+  mode                  String?              @default("OCEAN")
+  laneOrigin            Json?
+  laneDestination       Json?
+  equipment             String?
+  buyAmount             Decimal              @default(0.00) @db.Decimal(12, 2)
+  markupPercentage      Decimal              @default(15.00) @db.Decimal(5, 2)
+  sellAmount            Decimal              @default(0.00) @db.Decimal(12, 2)
+  margin                Decimal              @default(0.00) @db.Decimal(12, 2)
+  amount                Decimal              @db.Decimal(12, 2) // legacy alias for sellAmount
+  currency              String               @default("USD")
+  transitDays           Int?
+  validUntil            DateTime?
+  surcharges            Json?
+  accessorials          Json?
+  source                String               @default("MANUAL") // MANUAL | PROVIDER_API | RATE_ENGINE
+  providerName          String?
+  status                String               @default("PROPOSED") // DRAFT | PROPOSED | SENT | ACCEPTED | REJECTED | EXPIRED
+  approvalState         String               @default("AUTO_APPROVED") // AUTO_APPROVED | PENDING_APPROVAL | APPROVED | REJECTED
+  version               Int                  @default(1)
+  agentDecisionId       String?              // FK -> AgentDecision
+  agentDecision         AgentDecision?       @relation(fields: [agentDecisionId], references: [id], onDelete: SetNull)
+  rawProviderResponse   Json?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  tenders               Tender[]
+
+  @@index([accountId])
+  @@index([transportationOrderId])
+  @@index([shipmentId])
+  @@index([carrierId])
+  @@index([status])
+  @@index([approvalState])
+}
+
+model Tender {
+  id              String        @id @default(cuid())
+  accountId       String
+  account         Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId      String?
+  shipment        Shipment?     @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  carrierId       String?
+  carrier         Carrier?      @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+  freightQuoteId  String?
+  freightQuote    FreightQuote? @relation(fields: [freightQuoteId], references: [id], onDelete: SetNull)
+  status          String        // DRAFT | SENT | ACCEPTED | REJECTED | EXPIRED | CANCELLED
+  history         Json          // status-transition log, same shape as ExceptionItem.history
+  sentAt          DateTime?
+  respondedAt     DateTime?
+  expiresAt       DateTime?
+  sentByUserId    String?
+  agentDecisionId String?       // set if the tender was AI-initiated
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([accountId])
+  @@index([shipmentId])
+  @@index([freightQuoteId])
+  @@index([carrierId])
+}
+
+model ProofOfDelivery {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId     String
+  documentId     String    // FK -> ShipmentDocument
+  deliveredAt    DateTime?
+  receivedByName String?
+  exceptionNoted Boolean   @default(false)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model CarrierInvoice {
+  id            String               @id @default(cuid())
+  accountId     String
+  account       Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shipmentId    String
+  carrierId     String?
+  carrier       Carrier?             @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+  documentId    String?              // FK -> ShipmentDocument, source doc if ingested
+  invoiceNumber String?
+  invoiceDate   DateTime?
+  totalAmount   Decimal              @db.Decimal(12,2)
+  currency      String               @default("USD")
+  matchStatus   String               @default("PENDING") // PENDING | MATCHED | DISPUTED | EXCEPTION
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  lines         CarrierInvoiceLine[]
+}
+
+model CarrierInvoiceLine {
+  id               String         @id @default(cuid())
+  accountId        String
+  account          Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  carrierInvoiceId String
+  carrierInvoice   CarrierInvoice @relation(fields: [carrierInvoiceId], references: [id], onDelete: Cascade)
+  chargeType       String         // LINEHAUL | FUEL_SURCHARGE | ACCESSORIAL | DETENTION | OTHER
+  amount           Decimal        @db.Decimal(12,2)
+  description      String?
+
+  @@index([accountId])
+}
+
+
