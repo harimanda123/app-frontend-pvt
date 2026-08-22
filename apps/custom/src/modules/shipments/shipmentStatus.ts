@@ -14,3 +14,57 @@ export const MANUAL_INTAKE_INITIAL_STATUS = "Draft";
 // External ERP intake API: created with importer/line-item data already
 // populated, so it starts past the drafting stage.
 export const ERP_INTAKE_INITIAL_STATUS = "In Progress";
+
+// Matches the vocabulary documented in schema.prisma's comment on
+// Shipment.status; any value outside this list is not persistable.
+export const SHIPMENT_STATUSES = [
+  "Draft",
+  "In Progress",
+  "Ready to File",
+  "On Hold",
+  "Submitted",
+  "Completed",
+] as const;
+
+export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
+
+export function isShipmentStatus(value: unknown): value is ShipmentStatus {
+  return typeof value === "string" && (SHIPMENT_STATUSES as readonly string[]).includes(value);
+}
+
+/** Statuses from which no further status change is legal. */
+export const TERMINAL_SHIPMENT_STATUSES: readonly ShipmentStatus[] = ["Submitted", "Completed"];
+
+export function isTerminalShipmentStatus(status: string): boolean {
+  return isShipmentStatus(status) && TERMINAL_SHIPMENT_STATUSES.includes(status);
+}
+
+export class ShipmentStatusTransitionError extends Error {
+  constructor(
+    readonly from: string,
+    readonly to: string
+  ) {
+    super(
+      !isShipmentStatus(to)
+        ? `"${to}" is not a valid shipment status.`
+        : `Shipment cannot move from terminal status "${from}" to "${to}".`
+    );
+    this.name = "ShipmentStatusTransitionError";
+  }
+}
+
+/**
+ * Rejects a proposed Shipment.status write. Deliberately does not enforce a
+ * linear ordering between the non-terminal statuses (Draft / In Progress /
+ * Ready to File / On Hold) -- no product rule documents one, and inventing
+ * one here risks blocking legitimate operator workflows. It only guards the
+ * two properties that are actually known to matter: the value must be one of
+ * the documented statuses, and once a shipment reaches a terminal status it
+ * cannot be moved to a different one.
+ */
+export function assertShipmentStatusTransition(from: string, to: string): void {
+  if (from === to) return;
+  if (!isShipmentStatus(to) || isTerminalShipmentStatus(from)) {
+    throw new ShipmentStatusTransitionError(from, to);
+  }
+}

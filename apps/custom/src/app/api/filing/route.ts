@@ -10,6 +10,7 @@ import { Prisma } from "@prisma/client";
 import { FactAuditService } from "@/modules/audit/factAuditService";
 import { deliverWebhookEvent } from "@/lib/webhooks/deliver";
 import { checkIdempotency, persistIdempotency } from "@/lib/api/idempotency";
+import { isTerminalShipmentStatus } from "@/modules/shipments/shipmentStatus";
 
 export const GET = withAuthenticatedRoute(async ({ req, ctx }) => {
   const { searchParams } = new URL(req.url);
@@ -481,8 +482,7 @@ export const POST = withAuthenticatedRoute(async ({ req, ctx, requestId }) => {
     return NextResponse.json({ error: "Could not generate a unique filing reference. Try again." }, { status: 500 });
   }
 
-  const TERMINAL_SHIPMENT_STATUSES = new Set(["Submitted", "Completed"]);
-  if (!TERMINAL_SHIPMENT_STATUSES.has(shipment.status)) {
+  if (!isTerminalShipmentStatus(shipment.status)) {
     const updated = await db.shipment.updateMany({
       where: { id: shipmentId, accountId: ctx.accountId, version: shipment.version },
       data: { status: "Draft", version: { increment: 1 } },

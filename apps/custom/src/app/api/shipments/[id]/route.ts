@@ -12,6 +12,7 @@ import { ShipmentPartyService, type ShipmentPartyRole } from "@/modules/shipment
 import { loadHtsCodesMap, calculateDutyStack } from "@/lib/tariff/dutyEngine";
 import { normalizeCountryCode } from "@/modules/shipment/countryCode";
 import { deliverWebhookEvent } from "@/lib/webhooks/deliver";
+import { assertShipmentStatusTransition, ShipmentStatusTransitionError } from "@/modules/shipments/shipmentStatus";
 import { z } from "zod";
 
 const paramsSchema = z.object({
@@ -86,6 +87,14 @@ export const PATCH = withAuthenticatedRoute<{ id: string }>(async ({ req, ctx, r
 
   // Handle Shipment Status update
   if (status !== undefined && status !== shipment.status) {
+    try {
+      assertShipmentStatusTransition(shipment.status, status);
+    } catch (err) {
+      if (err instanceof ShipmentStatusTransitionError) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+      throw err;
+    }
     await FactAuditService.logChangeEvent({
       shipmentId: id,
       userId: ctx.userId,
