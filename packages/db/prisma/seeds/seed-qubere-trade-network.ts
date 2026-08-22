@@ -701,16 +701,18 @@ async function seedValveChangeScenario(actor: ProductActor, productId: string, p
 
   const aquilaPl = parties.get("AQUILA-PL");
   const aquilaDe = parties.get("AQUILA-DE");
-  if (aquilaPl?.legalEntityId && aquilaDe?.legalEntityId) {
+  const aquilaPlLegalEntityId = aquilaPl?.legalEntityId;
+  const aquilaDeLegalEntityId = aquilaDe?.legalEntityId;
+  if (aquilaPlLegalEntityId && aquilaDeLegalEntityId) {
     const polandManufacturer = await db.productParty.findFirst({
-      where: { productId, accountId: actor.accountId, legalEntityId: aquilaPl.legalEntityId, role: "MANUFACTURER", status: "ACTIVE" },
+      where: { productId, accountId: actor.accountId, legalEntityId: aquilaPlLegalEntityId, role: "MANUFACTURER", status: "ACTIVE" },
     });
     if (!polandManufacturer) {
       const germanyManufacturer = await db.productParty.findFirst({
-        where: { productId, accountId: actor.accountId, legalEntityId: aquilaDe.legalEntityId, role: "MANUFACTURER", status: "ACTIVE" },
+        where: { productId, accountId: actor.accountId, legalEntityId: aquilaDeLegalEntityId, role: "MANUFACTURER", status: "ACTIVE" },
       });
       await withTransientRetry(() =>
-        addProductParty(actor, productId, { legalEntityId: aquilaPl.legalEntityId, role: "MANUFACTURER", sourceType: "SUPPLIER_DECLARATION" })
+        addProductParty(actor, productId, { legalEntityId: aquilaPlLegalEntityId, role: "MANUFACTURER", sourceType: "SUPPLIER_DECLARATION" })
       );
       if (germanyManufacturer) {
         await withTransientRetry(() => removeProductParty(actor, productId, germanyManufacturer.id));
@@ -788,12 +790,18 @@ async function seedClassifications(actor: ProductActor, products: Map<string, st
         })
       );
     }
+    if (!classification) {
+      throw new Error(`Failed to create or find classification for product ${metalId}`);
+    }
     if (classification.status === "PROPOSED") {
       classification = await withTransientRetry(() =>
         reviewClassification(actor, metalId, classification.id, "START_REVIEW", {
           reviewNote: "Routed to trade compliance for review.",
         })
       );
+    }
+    if (!classification) {
+      throw new Error(`Failed to review classification for product ${metalId}`);
     }
     if (classification.status === "UNDER_REVIEW") {
       await withTransientRetry(() =>

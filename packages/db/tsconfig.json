@@ -12,5 +12,13 @@
     "noEmit": true
   },
   "include": ["src/**/*.ts", "prisma/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "prisma/seeds/**",
+    "prisma/seed.ts",
+    "prisma/seed-deadlines.ts",
+    "prisma/seed-f06.ts",
+    "prisma/import-hts.ts",
+    "prisma/import-hts-local.ts"
+  ]
 }
