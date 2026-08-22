@@ -27,7 +27,7 @@
  *
  * Idempotent: safe to re-run. Run with: npx tsx scripts/seed-trade-remedy-reference-data.ts
  */
-import { db } from "@/lib/db";
+import { db } from "../../src/index";
 
 async function seedSection301Rates() {
   const rows: Array<{

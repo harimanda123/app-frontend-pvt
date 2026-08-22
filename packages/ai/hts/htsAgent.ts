@@ -1,4 +1,4 @@
-import { GriRulesEngine, type SubjectInput, type HtsCandidateLookup } from "../../../src/modules/classification/griRulesEngine";
+import { GriRulesEngine, type SubjectInput, type HtsCandidateLookup } from "../../../apps/custom/src/modules/classification/griRulesEngine";
 
 export interface HtsRulingCitation {
   rulingNumber: string;

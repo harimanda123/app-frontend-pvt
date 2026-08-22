@@ -5,7 +5,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
-import { assertDemoSeedingAllowed } from "@/lib/environment";
+import { assertDemoSeedingAllowed } from "../src/environment";
 
 const db = new PrismaClient({ log: ["warn", "error"] });
 

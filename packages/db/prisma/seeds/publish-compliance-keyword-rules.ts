@@ -11,8 +11,8 @@
  * in the environment -- the accountId the resulting audit log rows are
  * attributed to, since ComplianceKeywordRule itself has no tenant.
  */
-import { db } from "@/lib/db";
-import { listPendingKeywordRuleReviews, reviewKeywordRule } from "@/modules/complianceKeywordRules/keywordRuleReviewService";
+import { db } from "../../src/index";
+import { listPendingKeywordRuleReviews, reviewKeywordRule } from "../../../../apps/custom/src/modules/complianceKeywordRules/keywordRuleReviewService";
 
 async function main() {
   const categories = process.argv.slice(2);

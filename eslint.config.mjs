@@ -14,8 +14,8 @@ const eslintConfig = defineConfig([
     "fix_decimal*.js",
     "fix_engine.js",
     "scratch/**",
-    "tests/test_chat*.js",
-    "src/scripts/**",
+    "apps/custom/tests/test_chat*.js",
+    "apps/custom/src/scripts/**",
   ]),
   {
     rules: {
@@ -38,7 +38,7 @@ const eslintConfig = defineConfig([
     // introduced by the current Next.js toolchain. Keep correctness rules such
     // as rules-of-hooks enabled, but do not block production builds on compiler
     // optimization advisories while this legacy editor is migrated.
-    files: ["src/app/app/filing-config/**/*.{ts,tsx}"],
+    files: ["apps/custom/src/app/app/filing-config/**/*.{ts,tsx}"],
     rules: {
       "react-hooks/immutability": "off",
       "react-hooks/static-components": "off",
@@ -46,7 +46,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["tests/**/*"],
+    files: ["apps/custom/tests/**/*"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",

@@ -1,4 +1,4 @@
-import tradeAgreements from "../../../prisma/seed-data/trade-agreements.json";
+import tradeAgreements from "../../../../../packages/db/prisma/seed-data/trade-agreements.json";
 
 export interface MaterialInput {
   id?: string;

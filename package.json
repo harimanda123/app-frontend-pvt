@@ -2,65 +2,26 @@
   "name": "app-frontend",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.9.3",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
-    "postinstall": "prisma generate",
-    "start": "next start",
-    "lint": "eslint",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
     "typecheck:workspaces": "tsc -p tsconfig.workspaces.json",
-    "test": "vitest run",
-    "test:e2e": "playwright test",
-    "worker:documents": "tsx src/worker/documentWorker.ts",
-    "openapi": "tsx scripts/generate-openapi.ts",
-    "seed": "npx tsx prisma/seed.ts"
-  },
-  "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.116.0",
-    "@clerk/nextjs": "^7.6.5",
-    "@google/genai": "^2.16.0",
-    "@prisma/client": "^6.19.3",
-    "@vercel/blob": "^2.6.1",
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
-    "cheerio": "^1.2.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "csv-parse": "^7.0.2",
-    "decimal.js": "^10.6.0",
-    "exceljs": "^4.4.0",
-    "inngest": "^4.16.0",
-    "lucide-react": "^1.28.0",
-    "next": "16.3.0",
-    "pdfjs-dist": "^6.2.108",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "resend": "^6.19.0",
-    "saxes": "^6.0.0",
-    "tailwind-merge": "^3.6.0",
-    "zod": "^4.4.3"
+    "test": "turbo run test",
+    "test:e2e": "npm run test:e2e --workspace=apps/custom",
+    "worker:documents": "npm run worker:documents --workspace=apps/custom",
+    "openapi": "npm run openapi --workspace=apps/custom",
+    "seed": "npm run db:seed --workspace=packages/db"
   },
   "devDependencies": {
-    "@asteasolutions/zod-to-openapi": "^9.1.0",
-    "@playwright/test": "^1.62.1",
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.0",
-    "prisma": "^6.19.3",
-    "tailwindcss": "^4",
-    "tsx": "^4.23.5",
     "turbo": "^2.10.11",
-    "typescript": "^5",
-    "vitest": "^4.1.10"
+    "typescript": "^5"
   }
 }
